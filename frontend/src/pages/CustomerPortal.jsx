@@ -46,7 +46,7 @@ const statusLabel = {
   REJECTED: "Declined / Rejected",
 };
 
-export default function CustomerPortal() {
+export default function CustomerPortal({ onNavigate }) {
   const { user, token } = useAuth();
   const [quotations, setQuotations] = useState([]);
   const [selectedQuotationId, setSelectedQuotationId] = useState(null);
@@ -145,10 +145,27 @@ async function loadRequestData() {
     }
   }
 
+  async function loadProducts() {
+    try {
+      const response = await fetch(`${API_BASE}/customer/quotations/products`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (response.ok && data.data) {
+        setProducts(data.data);
+      }
+    } catch (err) {
+      console.error("Failed to load catalog in customer portal:", err);
+    }
+  }
+
   useEffect(() => {
-  loadQuotations();
-  loadRequestData();
-}, [token]);
+    if (token) {
+      loadQuotations();
+      loadRequestData();
+      loadProducts();
+    }
+  }, [token]);
 
   function addRequestItem(productToAdd = null) {
     const product = productToAdd || products.find((entry) => entry.id === requestProductId);
@@ -198,15 +215,22 @@ async function loadRequestData() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Unable to send quotation request.");
-      setSuccess(data.message);
+      
+      if (data.data?.isAutoApproved) {
+        setSuccess(`⚡ Instant Auto-Approval! Quotation ${data.data.quotationNumber} has been generated and approved. You can review and confirm it below.`);
+      } else {
+        setSuccess(data.message || "Your custom quotation request has been submitted to the sales team for review.");
+      }
+
       setRequestItems([]);
       setRequestDeliveryDate("");
       setRequestComment("");
-      const requestsResponse = await fetch(`${API_BASE}/customer/quotations/requests`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const requestsData = await requestsResponse.json();
-      if (requestsResponse.ok) setCustomerRequests(requestsData.data || []);
+      
+      // Reload both requests and quotations
+      await Promise.all([
+        loadQuotations(),
+        loadRequestData()
+      ]);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -328,7 +352,9 @@ async function loadRequestData() {
   }
 
   const isDetail = Boolean(selectedQuotationId);
-  const canRespond = quotation && ["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION"].includes(quotation.status);
+  const canRespond =
+    quotation &&
+    ["DRAFT", "APPROVED", "NEGOTIATION", "PENDING_APPROVAL", "SENT"].includes(quotation.status);
   const pendingRequest = quotation?.negotiations?.find((request) => request.status === "PENDING");
 
   const glassStyle = {
@@ -838,7 +864,7 @@ async function loadRequestData() {
                   />
                 </label>
 
-                <div style={{ display: "flex", gap: "0.85rem", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "0.85rem", flexWrap: "wrap", alignItems: "center" }}>
                   <button
                     className="btn-primary"
                     type="submit"
@@ -866,6 +892,15 @@ async function loadRequestData() {
                     style={{ padding: "0.65rem 1.25rem" }}
                   >
                     <XCircle size={16} /> Decline Quotation
+                  </button>
+
+                  <button
+                    className="btn-secondary"
+                    type="button"
+                    onClick={() => onNavigate && onNavigate(`/customer/messages`)}
+                    style={{ padding: "0.65rem 1.25rem", background: "#eff6ff", color: "#1d4ed8", borderColor: "#bfdbfe" }}
+                  >
+                    <MessageSquare size={16} color="#1d4ed8" /> Open Live Chat & Negotiation
                   </button>
                 </div>
               </form>

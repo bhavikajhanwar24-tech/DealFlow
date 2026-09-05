@@ -73,34 +73,103 @@ async function createCustomerQuoteRequest(customer, input) {
   try {
     await client.query("BEGIN");
     const productIds = items.map((item) => item.productId);
-    const products = await client.query(
-      "SELECT id FROM public.products WHERE id = ANY($1::uuid[]) AND is_active = TRUE",
+    const productsRes = await client.query(
+      "SELECT id, name, unit_price, cost, category, sku FROM public.products WHERE id = ANY($1::uuid[]) AND is_active = TRUE",
       [productIds],
     );
-    if (products.rows.length !== productIds.length) {
+    if (productsRes.rows.length !== productIds.length) {
       throw quotationError("One or more selected products are unavailable.", 404);
     }
+
+    let totalQuantity = 0;
     for (const item of items) {
-      if (!Number.isInteger(Number(item.quantity)) || Number(item.quantity) <= 0) {
+      const q = Number(item.quantity);
+      if (!Number.isInteger(q) || q <= 0) {
         throw quotationError("Each quantity must be a positive whole number.");
       }
+      totalQuantity += q;
     }
+
+    const comment = input.customerComment?.trim() || "";
+    const lowerComment = comment.toLowerCase();
+
+    // Auto-approval rule: Standard quantity (<= 10 items) and no custom discount requests
+    const needsManualReview =
+      totalQuantity > 10 ||
+      lowerComment.includes("discount") ||
+      lowerComment.includes("negotiat") ||
+      lowerComment.includes("special") ||
+      lowerComment.includes("concession") ||
+      lowerComment.includes("bulk price");
+
+    const initialStatus = needsManualReview ? "PENDING" : "AUTO_APPROVED";
 
     const requestResult = await client.query(
       `INSERT INTO public.customer_quote_requests
-       (customer_id, requested_delivery_date, customer_comment)
-       VALUES ($1, $2, $3) RETURNING id, status, created_at`,
-      [customer.id, deliveryDate, input.customerComment?.trim() || null],
+       (customer_id, requested_delivery_date, customer_comment, status)
+       VALUES ($1, $2, $3, $4) RETURNING id, status, created_at`,
+      [customer.id, deliveryDate, comment || null, initialStatus],
     );
+    const requestId = requestResult.rows[0].id;
+
     for (const item of items) {
       await client.query(
         `INSERT INTO public.customer_quote_request_items (request_id, product_id, quantity)
          VALUES ($1, $2, $3)`,
-        [requestResult.rows[0].id, item.productId, Number(item.quantity)],
+        [requestId, item.productId, Number(item.quantity)],
       );
     }
-    await client.query("COMMIT");
-    return requestResult.rows[0];
+
+    let createdQuotation = null;
+
+    if (!needsManualReview) {
+      // Find an active sales rep or admin to assign
+      const repRes = await client.query(
+        "SELECT id, role, full_name, email FROM public.users WHERE role IN ('SALES_REP', 'SALES_MANAGER', 'ADMIN') AND status = 'ACTIVE' ORDER BY role = 'SALES_REP' DESC, created_at ASC LIMIT 1"
+      );
+      const assignedRep = repRes.rows[0] || { id: customer.id, role: "SALES_REP" };
+
+      await client.query("COMMIT");
+
+      // Create the auto-approved quotation
+      createdQuotation = await createDraft(assignedRep, {
+        customerId: customer.id,
+        items: items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          discountPercent: 0
+        }))
+      });
+
+      // Update quotation status to APPROVED so customer can confirm directly
+      await db.query(
+        `UPDATE public.quotations SET status = 'APPROVED', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [createdQuotation.id]
+      );
+      createdQuotation.status = 'APPROVED';
+
+      await db.query(
+        `UPDATE public.customer_quote_requests SET quotation_id = $1, status = 'AUTO_APPROVED', updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [createdQuotation.id, requestId]
+      );
+
+      return {
+        id: requestId,
+        status: "AUTO_APPROVED",
+        isAutoApproved: true,
+        quotationId: createdQuotation.id,
+        quotationNumber: createdQuotation.quotationNumber,
+        createdAt: requestResult.rows[0].created_at
+      };
+    } else {
+      await client.query("COMMIT");
+      return {
+        id: requestId,
+        status: "PENDING",
+        isAutoApproved: false,
+        createdAt: requestResult.rows[0].created_at
+      };
+    }
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
@@ -113,14 +182,16 @@ async function listCustomerQuoteRequests(customer) {
   const result = await db.query(
     `SELECT r.id, r.status, r.requested_delivery_date, r.customer_comment,
             r.quotation_id, r.created_at,
+            q.quotation_number, q.status AS quotation_status,
             COALESCE(json_agg(json_build_object(
-              'productId', p.id, 'name', p.name, 'category', p.category, 'quantity', ri.quantity
+              'productId', p.id, 'name', p.name, 'sku', p.sku, 'category', p.category, 'unitPrice', p.unit_price, 'quantity', ri.quantity
             ) ORDER BY p.name) FILTER (WHERE p.id IS NOT NULL), '[]') AS items
      FROM public.customer_quote_requests r
      LEFT JOIN public.customer_quote_request_items ri ON ri.request_id = r.id
      LEFT JOIN public.products p ON p.id = ri.product_id
+     LEFT JOIN public.quotations q ON q.id = r.quotation_id
      WHERE r.customer_id = $1
-     GROUP BY r.id
+     GROUP BY r.id, q.quotation_number, q.status
      ORDER BY r.created_at DESC`,
     [customer.id],
   );
@@ -130,6 +201,8 @@ async function listCustomerQuoteRequests(customer) {
     requestedDeliveryDate: row.requested_delivery_date,
     customerComment: row.customer_comment,
     quotationId: row.quotation_id,
+    quotationNumber: row.quotation_number,
+    quotationStatus: row.quotation_status,
     createdAt: row.created_at,
     items: row.items,
   }));
@@ -144,7 +217,7 @@ async function listPendingCustomerQuoteRequests(user) {
             r.created_at, c.id AS customer_id, c.full_name AS customer_name,
             c.company_name, c.email,
             COALESCE(json_agg(json_build_object(
-              'productId', p.id, 'name', p.name, 'category', p.category, 'quantity', ri.quantity
+              'productId', p.id, 'name', p.name, 'sku', p.sku, 'category', p.category, 'unitPrice', p.unit_price, 'quantity', ri.quantity
             ) ORDER BY p.name) FILTER (WHERE p.id IS NOT NULL), '[]') AS items
      FROM public.customer_quote_requests r
      JOIN public.users c ON c.id = r.customer_id
@@ -152,9 +225,18 @@ async function listPendingCustomerQuoteRequests(user) {
      LEFT JOIN public.products p ON p.id = ri.product_id
      WHERE r.status = 'PENDING'
      GROUP BY r.id, c.id
-     ORDER BY r.created_at ASC`,
+     ORDER BY r.created_at DESC`,
   );
-  return result.rows;
+  return result.rows.map((row) => {
+    const estTotal = (row.items || []).reduce(
+      (acc, item) => acc + Number(item.unitPrice || 0) * Number(item.quantity || 1),
+      0
+    );
+    return {
+      ...row,
+      estimatedTotal: estTotal,
+    };
+  });
 }
 
 async function convertCustomerQuoteRequest(requestId, user) {
@@ -195,7 +277,7 @@ async function getDashboardSummary(user) {
     repFilter = " WHERE sales_rep_id = $1";
   }
 
-  const [openQuotationsResult, pendingApprovalsResult, atRiskDealsResult, monthlyStatsResult, overallSummaryResult] = await Promise.all([
+  const [openQuotationsResult, pendingApprovalsResult, atRiskDealsResult, pendingCustomerRequestsResult, monthlyStatsResult, overallSummaryResult] = await Promise.all([
     db.query(
       `SELECT COUNT(*)::int AS count
        FROM public.quotations
@@ -213,6 +295,11 @@ async function getDashboardSummary(user) {
        FROM public.quotations
        ${repFilter ? repFilter + " AND risk_level IN ('HIGH', 'CRITICAL')" : "WHERE risk_level IN ('HIGH', 'CRITICAL')"}`,
       params
+    ),
+    db.query(
+      `SELECT COUNT(*)::int AS count
+       FROM public.customer_quote_requests
+       WHERE status = 'PENDING'`
     ),
     db.query(
       `SELECT 
@@ -242,6 +329,7 @@ async function getDashboardSummary(user) {
   const openVal = Number(openQuotationsResult.rows[0]?.count || 0);
   const pendingVal = Number(pendingApprovalsResult.rows[0]?.count || 0);
   const atRiskVal = Number(atRiskDealsResult.rows[0]?.count || 0);
+  const pendingRequestsVal = Number(pendingCustomerRequestsResult.rows[0]?.count || 0);
 
   const overall = overallSummaryResult.rows[0] || {};
   const totalRevenueNum = Number(overall.total_revenue || 0);
@@ -250,7 +338,7 @@ async function getDashboardSummary(user) {
 
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const fullMonthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  
+
   const currentMonthIdx = new Date().getMonth();
   const recent6Months = [];
   for (let i = 5; i >= 0; i--) {
@@ -273,8 +361,8 @@ async function getDashboardSummary(user) {
           revenueLakhs: Number((revAmount / 100000).toFixed(2)),
           marginPct: Number(marginPct.toFixed(1)),
           grossMarginRaw: grossMargin,
-          grossMarginVal: revAmount >= 100000 
-            ? `₹${(grossMargin / 100000).toFixed(2)}L` 
+          grossMarginVal: revAmount >= 100000
+            ? `₹${(grossMargin / 100000).toFixed(2)}L`
             : `₹${Number(grossMargin.toFixed(0)).toLocaleString("en-IN")}`
         });
       }
@@ -304,18 +392,19 @@ async function getDashboardSummary(user) {
   const formattedTotalRevenue = totalRevenueNum >= 10000000
     ? `₹${(totalRevenueNum / 10000000).toFixed(2)}Cr`
     : totalRevenueNum >= 100000
-    ? `₹${(totalRevenueNum / 100000).toFixed(2)}L`
-    : `₹${Number(totalRevenueNum.toFixed(0)).toLocaleString("en-IN")}`;
+      ? `₹${(totalRevenueNum / 100000).toFixed(2)}L`
+      : `₹${Number(totalRevenueNum.toFixed(0)).toLocaleString("en-IN")}`;
 
   const formattedGrossMargin = totalGrossMarginNum >= 10000000
     ? `₹${(totalGrossMarginNum / 10000000).toFixed(2)}Cr`
     : totalGrossMarginNum >= 100000
-    ? `₹${(totalGrossMarginNum / 100000).toFixed(2)}L`
-    : `₹${Number(totalGrossMarginNum.toFixed(0)).toLocaleString("en-IN")}`;
+      ? `₹${(totalGrossMarginNum / 100000).toFixed(2)}L`
+      : `₹${Number(totalGrossMarginNum.toFixed(0)).toLocaleString("en-IN")}`;
 
   const formattedAvgMargin = `${avgMarginNum.toFixed(1)}%`;
 
   return {
+    pendingCustomerRequests: pendingRequestsVal,
     pendingApprovals: pendingVal,
     openQuotations: openVal,
     atRiskDeals: atRiskVal,
