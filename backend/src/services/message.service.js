@@ -19,8 +19,9 @@ class MessageService {
     }
     const { rows } = await pool.query(`
       SELECT q.id, q.quotation_number, q.status, q.final_amount, q.created_at, q.updated_at,
-             c.full_name AS customer_name, c.company_name AS customer_company,
-             sr.full_name AS sales_rep_name,
+             COALESCE(c.full_name, 'Valued Customer') AS customer_name,
+             c.company_name AS customer_company,
+             COALESCE(sr.full_name, 'Sales Representative') AS sales_rep_name,
              (SELECT JSON_BUILD_OBJECT('message', m.message, 'sender_name', m.sender_name,
                      'sender_role', m.sender_role, 'created_at', m.created_at)
               FROM public.quotation_messages m
@@ -30,8 +31,8 @@ class MessageService {
                   : "1=1"})
               ORDER BY m.created_at DESC LIMIT 1) AS latest_message
       FROM public.quotations q
-      JOIN public.users c ON q.customer_id = c.id
-      JOIN public.users sr ON q.sales_rep_id = sr.id
+      LEFT JOIN public.users c ON q.customer_id = c.id
+      LEFT JOIN public.users sr ON q.sales_rep_id = sr.id
       ${ownership}
       ORDER BY q.updated_at DESC
     `, params);
@@ -57,7 +58,7 @@ class MessageService {
       options.push({
         role: "SALES_REP",
         label: "Sales Representative",
-        sublabel: quotation.sales_rep_name,
+        sublabel: quotation.sales_rep_name || "Account Representative",
         userId: quotation.sales_rep_id,
       });
       if (hasAdminThread) {
@@ -72,13 +73,13 @@ class MessageService {
       options.push({
         role: "SALES_REP",
         label: "Sales Representative",
-        sublabel: quotation.sales_rep_name,
+        sublabel: quotation.sales_rep_name || "Account Representative",
         userId: quotation.sales_rep_id,
       });
       options.push({
         role: "CUSTOMER",
         label: "Customer",
-        sublabel: quotation.customer_company || quotation.customer_name,
+        sublabel: quotation.customer_company || quotation.customer_name || "Customer Client",
         userId: quotation.customer_id,
       });
     } else {
@@ -86,7 +87,7 @@ class MessageService {
       options.push({
         role: "CUSTOMER",
         label: "Customer",
-        sublabel: quotation.customer_company || quotation.customer_name,
+        sublabel: quotation.customer_company || quotation.customer_name || "Customer Client",
         userId: quotation.customer_id,
       });
       options.push({
@@ -103,12 +104,15 @@ class MessageService {
   async getQuotation(quotationId) {
     const result = await pool.query(`
       SELECT q.id, q.quotation_number, q.status, q.final_amount,
-             c.id AS customer_id, c.full_name AS customer_name, c.company_name AS customer_company,
-             sr.id AS sales_rep_id, sr.full_name AS sales_rep_name,
-             (SELECT id FROM public.users WHERE role = 'ADMIN' AND status = 'ACTIVE' ORDER BY created_at LIMIT 1) AS admin_id
+             c.id AS customer_id, COALESCE(c.full_name, 'Valued Customer') AS customer_name, c.company_name AS customer_company,
+             sr.id AS sales_rep_id, COALESCE(sr.full_name, 'Sales Representative') AS sales_rep_name,
+             COALESCE(
+               (SELECT id FROM public.users WHERE role = 'ADMIN' AND status = 'ACTIVE' ORDER BY created_at LIMIT 1),
+               (SELECT id FROM public.users WHERE role = 'ADMIN' ORDER BY created_at LIMIT 1)
+             ) AS admin_id
       FROM public.quotations q
-      JOIN public.users c ON q.customer_id = c.id
-      JOIN public.users sr ON q.sales_rep_id = sr.id
+      LEFT JOIN public.users c ON q.customer_id = c.id
+      LEFT JOIN public.users sr ON q.sales_rep_id = sr.id
       WHERE q.id = $1
     `, [quotationId]);
     if (!result.rows.length) throw messageError("Quotation not found.", 404);
@@ -117,6 +121,12 @@ class MessageService {
 
   async getMessagesByQuotationId(quotationId, user, recipientRole = "") {
     const quotation = await this.getQuotation(quotationId);
+
+    // Permission check for customer
+    if (user.role === "CUSTOMER" && quotation.customer_id && quotation.customer_id !== user.id) {
+      throw messageError("You do not have permission to view messages for this quotation.", 403);
+    }
+
     const participants = await this.getQuotationParticipants(quotationId, user);
     
     // Find target recipient or fallback to first available
@@ -125,7 +135,12 @@ class MessageService {
       selected = participants.options[0];
     }
     if (!selected) {
-      throw messageError("No permitted chat participant is available.", 403);
+      selected = {
+        role: user.role === "CUSTOMER" ? "SALES_REP" : "CUSTOMER",
+        label: user.role === "CUSTOMER" ? "Sales Representative" : "Customer",
+        sublabel: "",
+        userId: user.role === "CUSTOMER" ? quotation.sales_rep_id : quotation.customer_id,
+      };
     }
 
     const targetRole = selected.role;
@@ -219,12 +234,20 @@ class MessageService {
   async sendMessage({ quotationId, senderId, senderRole, senderName, message, recipientRole }) {
     if (!message || !message.trim()) throw messageError("Message text cannot be empty.");
     const quotation = await this.getQuotation(quotationId);
+
+    if (senderRole === "CUSTOMER" && quotation.customer_id && quotation.customer_id !== senderId) {
+      throw messageError("You do not have permission to send messages for this quotation.", 403);
+    }
+
     const allowed = await this.getQuotationParticipants(quotationId, { id: senderId, role: senderRole });
-    const recipient = allowed.options.find((option) => option.role === recipientRole);
+    let recipient = allowed.options.find((option) => option.role === recipientRole);
+    if (!recipient) {
+      recipient = allowed.options[0];
+    }
     if (!recipient) {
       throw messageError("You are not allowed to start this conversation channel.", 403);
     }
-    if (senderRole === "CUSTOMER" && recipientRole === "ADMIN" && !allowed.adminThreadExists) {
+    if (senderRole === "CUSTOMER" && recipient.role === "ADMIN" && !allowed.adminThreadExists) {
       throw messageError("Customers can contact an administrator only after the administrator initiates the conversation.", 403);
     }
 
@@ -233,7 +256,7 @@ class MessageService {
         (quotation_id, sender_id, sender_role, sender_name, message, recipient_role, recipient_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, quotation_id, sender_id, sender_role, sender_name, message, recipient_role, recipient_id, created_at
-    `, [quotationId, senderId, senderRole, senderName, message.trim(), recipient.role, recipient.userId]);
+    `, [quotationId, senderId, senderRole, senderName, message.trim(), recipient.role, recipient.userId || null]);
 
     await pool.query("UPDATE public.quotations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1", [quotationId]);
     return result.rows[0];
@@ -242,16 +265,19 @@ class MessageService {
   async analyzeQuotationDeal(quotationId) {
     const { rows } = await pool.query(`
       SELECT q.id, q.quotation_number, q.status, q.subtotal, q.discount_amount, q.final_amount,
-             c.full_name AS customer_name, c.company_name AS customer_company
-      FROM public.quotations q JOIN public.users c ON q.customer_id = c.id WHERE q.id = $1
+             COALESCE(c.full_name, 'Valued Customer') AS customer_name,
+             c.company_name AS customer_company
+      FROM public.quotations q
+      LEFT JOIN public.users c ON q.customer_id = c.id
+      WHERE q.id = $1
     `, [quotationId]);
     if (!rows.length) throw messageError("Quotation not found.", 404);
 
     const items = await pool.query(`
-      SELECT qi.quantity, qi.unit_price, qi.discount_percent, qi.total_price,
-             p.cost, p.category, p.name
+      SELECT qi.quantity, qi.unit_price, qi.discount_percent, qi.line_total,
+             COALESCE(p.cost, 0) AS cost, p.category, p.name
       FROM public.quotation_items qi
-      JOIN public.products p ON qi.product_id = p.id
+      LEFT JOIN public.products p ON qi.product_id = p.id
       WHERE qi.quotation_id = $1
     `, [quotationId]);
 
@@ -275,7 +301,7 @@ class MessageService {
       totalCost: Math.round(totalCost * 100) / 100,
       currentProfit: Math.round(currentProfit * 100) / 100,
       currentMarginPercent,
-      requestedDiscountPct: rows[0].subtotal > 0 ? Math.round((rows[0].discount_amount / rows[0].subtotal) * 100) : 0,
+      requestedDiscountPct: Number(rows[0].subtotal) > 0 ? Math.round((Number(rows[0].discount_amount) / Number(rows[0].subtotal)) * 100) : 0,
       potentialProfit: currentProfit,
       potentialMarginPct: currentMarginPercent,
       maxSafeDiscountPct: Math.max(0, currentMarginPercent - 15),
