@@ -220,17 +220,12 @@ function AppContent() {
   };
 
   const showNavbar =
-<<<<<<< HEAD
-    currentRoute === "/sales/dashboard" ||
-    currentRoute === "/approvals" ||
-    currentRoute.startsWith("/sales/quotations");
-=======
     currentRoute === "/admin/dashboard" ||
     currentRoute === "/admin/employee-approvals" ||
     currentRoute === "/admin/staff" ||
     currentRoute === "/sales/dashboard" ||
-    currentRoute === "/approvals";
->>>>>>> c0247ccac671987be41bb14d12e3092c1bf66374
+    currentRoute === "/approvals" ||
+    currentRoute.startsWith("/sales/quotations");
   return (
     <div className="app-layout">
       {showNavbar && (
