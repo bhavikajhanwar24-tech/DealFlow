@@ -662,25 +662,6 @@ export default function AdminDashboard({ onNavigate }) {
       </div>
 
 
-      <section className="admin-action-grid">
-        <button className="admin-action-card" onClick={() => onNavigate("/admin/staff")}>
-          <span className="admin-action-kicker">Access control</span>
-          <strong>Manage staff</strong>
-          <span>Create and edit staff IDs, credentials, roles, and status.</span>
-        </button>
-        <button className="admin-action-card" onClick={() => onNavigate("/admin/products")}>
-          <span className="admin-action-kicker">Catalog control</span>
-          <strong>Manage products</strong>
-          <span>Maintain product prices, costs, categories, and availability for quotations.</span>
-        </button>
-        <button className="admin-action-card" onClick={() => onNavigate("/admin/complaints")}>
-          <span className="admin-action-kicker" style={{ color: stats?.pendingComplaints > 0 ? "#dc2626" : "#2563eb" }}>
-            {stats?.pendingComplaints > 0 ? `${stats.pendingComplaints} Pending Review` : "Customer Oversight"}
-          </span>
-          <strong>Staff Complaints</strong>
-          <span>Review client complaints against staff, take corrective actions, and respond to customers.</span>
-        </button>
-      </section>
 
 
       {/* ========================================================================= */}
