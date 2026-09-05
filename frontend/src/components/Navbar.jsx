@@ -156,7 +156,23 @@ const MessageSquareIcon = ({ size = 16 }) => (
   </svg>
 );
 
-const LogOutIcon = ({ size = 15 }) => (
+const ChevronDownIcon = ({ size = 14, style }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={style}
+  >
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+);
+
+const GridIcon = ({ size = 16 }) => (
   <svg
     width={size}
     height={size}
@@ -167,21 +183,62 @@ const LogOutIcon = ({ size = 15 }) => (
     strokeLinecap="round"
     strokeLinejoin="round"
   >
-    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-    <polyline points="16 17 21 12 16 7" />
-    <line x1="21" y1="12" x2="9" y2="12" />
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="14" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+  </svg>
+);
+
+const ShieldCheckIcon = ({ size = 16 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <polyline points="9 12 11 14 15 10" />
+  </svg>
+);
+
+const SettingsGearIcon = ({ size = 16 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
   </svg>
 );
 
 export default function Navbar({ currentRoute, setCurrentRoute }) {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const moreDropdownRef = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsMenuOpen(false);
+      }
+      if (
+        moreDropdownRef.current &&
+        !moreDropdownRef.current.contains(event.target)
+      ) {
+        setIsMoreOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -195,6 +252,22 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
   const isFinance = user.role === "FINANCE";
   const isOps = user.role === "OPERATIONS";
   const isCustomer = user.role === "CUSTOMER";
+
+  const adminMoreRoutes = [
+    "/admin/warehouses",
+    "/admin/discount-policies",
+    "/admin/audit-logs",
+    "/admin/customer-tiers",
+    "/admin/subscription-plans",
+    "/admin/billing-configuration",
+    "/finance/dashboard",
+    "/operations/dashboard",
+    "/sales/fulfillment",
+    "/sales/messages",
+  ];
+  const isMoreActive = adminMoreRoutes.some((route) =>
+    currentRoute.startsWith(route),
+  );
 
   return (
     <header className="topbar">
@@ -249,32 +322,141 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
             >
               <PackageIcon size={16} /> Products
             </button>
-            <button
-              className={`nav-link-btn ${currentRoute === "/admin/warehouses" ? "active" : ""}`}
-              onClick={() => setCurrentRoute("/admin/warehouses")}
-            >
-              <TruckIcon size={16} /> Warehouses
-            </button>
-            <button
-              className={`nav-link-btn ${currentRoute === "/admin/discount-policies" ? "active" : ""}`}
-              onClick={() => setCurrentRoute("/admin/discount-policies")}
-            >
-              <PercentIcon size={16} /> Discount Policies
-            </button>
-            {[["/admin/audit-logs", "Audit Logs"], ["/admin/customer-tiers", "Customer Tiers"], ["/admin/subscription-plans", "Subscription Plans"], ["/admin/billing-configuration", "Billing Configuration"]].map(([path, label]) => <button key={path} className={`nav-link-btn ${currentRoute === path ? "active" : ""}`} onClick={() => setCurrentRoute(path)}>{label}</button>)}
+
+            {/* Dropdown Menu for Additional Admin Modules */}
+            <div className="more-dropdown-container" ref={moreDropdownRef}>
+              <button
+                className={`nav-link-btn ${isMoreActive ? "active" : ""}`}
+                onClick={() => setIsMoreOpen((prev) => !prev)}
+                title="More Modules"
+              >
+                <GridIcon size={16} /> More Options{" "}
+                <ChevronDownIcon
+                  size={14}
+                  style={{
+                    transform: isMoreOpen ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s ease",
+                  }}
+                />
+              </button>
+
+              {isMoreOpen && (
+                <div className="more-dropdown-menu">
+                  <div className="more-dropdown-header">
+                    Operations & Logistics
+                  </div>
+                  <button
+                    className={`more-dropdown-item ${currentRoute === "/admin/warehouses" ? "active" : ""}`}
+                    onClick={() => {
+                      setCurrentRoute("/admin/warehouses");
+                      setIsMoreOpen(false);
+                    }}
+                  >
+                    <TruckIcon size={15} /> Warehouses
+                  </button>
+                  <button
+                    className={`more-dropdown-item ${currentRoute === "/admin/discount-policies" ? "active" : ""}`}
+                    onClick={() => {
+                      setCurrentRoute("/admin/discount-policies");
+                      setIsMoreOpen(false);
+                    }}
+                  >
+                    <PercentIcon size={15} /> Discount Policies
+                  </button>
+                  <button
+                    className={`more-dropdown-item ${currentRoute === "/sales/fulfillment" ? "active" : ""}`}
+                    onClick={() => {
+                      setCurrentRoute("/sales/fulfillment");
+                      setIsMoreOpen(false);
+                    }}
+                  >
+                    <TruckIcon size={15} /> Fulfillment
+                  </button>
+
+                  <div className="more-dropdown-header">
+                    Governance & Config
+                  </div>
+                  <button
+                    className={`more-dropdown-item ${currentRoute === "/admin/audit-logs" ? "active" : ""}`}
+                    onClick={() => {
+                      setCurrentRoute("/admin/audit-logs");
+                      setIsMoreOpen(false);
+                    }}
+                  >
+                    <ShieldCheckIcon size={15} /> Audit Logs
+                  </button>
+                  <button
+                    className={`more-dropdown-item ${currentRoute === "/admin/customer-tiers" ? "active" : ""}`}
+                    onClick={() => {
+                      setCurrentRoute("/admin/customer-tiers");
+                      setIsMoreOpen(false);
+                    }}
+                  >
+                    <UserCheckIcon size={15} /> Customer Tiers
+                  </button>
+                  <button
+                    className={`more-dropdown-item ${currentRoute === "/admin/subscription-plans" ? "active" : ""}`}
+                    onClick={() => {
+                      setCurrentRoute("/admin/subscription-plans");
+                      setIsMoreOpen(false);
+                    }}
+                  >
+                    <FileTextIcon size={15} /> Subscription Plans
+                  </button>
+                  <button
+                    className={`more-dropdown-item ${currentRoute === "/admin/billing-configuration" ? "active" : ""}`}
+                    onClick={() => {
+                      setCurrentRoute("/admin/billing-configuration");
+                      setIsMoreOpen(false);
+                    }}
+                  >
+                    <SettingsGearIcon size={15} /> Billing Configuration
+                  </button>
+
+                  <div className="more-dropdown-header">
+                    Dashboards & Messages
+                  </div>
+                  <button
+                    className={`more-dropdown-item ${currentRoute === "/finance/dashboard" ? "active" : ""}`}
+                    onClick={() => {
+                      setCurrentRoute("/finance/dashboard");
+                      setIsMoreOpen(false);
+                    }}
+                  >
+                    <DollarSignIcon size={15} /> Finance Dashboard
+                  </button>
+                  <button
+                    className={`more-dropdown-item ${currentRoute === "/operations/dashboard" ? "active" : ""}`}
+                    onClick={() => {
+                      setCurrentRoute("/operations/dashboard");
+                      setIsMoreOpen(false);
+                    }}
+                  >
+                    <TruckIcon size={15} /> Operations Dashboard
+                  </button>
+                  <button
+                    className={`more-dropdown-item ${currentRoute.includes("messages") ? "active" : ""}`}
+                    onClick={() => {
+                      setCurrentRoute("/sales/messages");
+                      setIsMoreOpen(false);
+                    }}
+                  >
+                    <MessageSquareIcon size={15} /> Messages
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         )}
 
-        {(isSales || isAdmin) && (
+        {isSales && !isAdmin && (
           <>
-            {isSales && (
-              <button
-                className={`nav-link-btn ${currentRoute === "/sales/dashboard" ? "active" : ""}`}
-                onClick={() => setCurrentRoute("/sales/dashboard")}
-              >
-                <BriefcaseIcon size={16} /> Sales Dashboard
-              </button>
-            )}
+            <button
+              className={`nav-link-btn ${currentRoute === "/sales/dashboard" ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/sales/dashboard")}
+            >
+              <BriefcaseIcon size={16} /> Sales Dashboard
+            </button>
             <button
               className={`nav-link-btn ${currentRoute === "/sales/fulfillment" ? "active" : ""}`}
               onClick={() => setCurrentRoute("/sales/fulfillment")}
@@ -290,7 +472,7 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
           </>
         )}
 
-        {(isFinance || isAdmin) && (
+        {isFinance && !isAdmin && (
           <button
             className={`nav-link-btn ${currentRoute === "/finance/dashboard" ? "active" : ""}`}
             onClick={() => setCurrentRoute("/finance/dashboard")}
@@ -299,7 +481,7 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
           </button>
         )}
 
-        {isOps && (
+        {isOps && !isAdmin && (
           <button
             className={`nav-link-btn ${currentRoute === "/operations/dashboard" ? "active" : ""}`}
             onClick={() => setCurrentRoute("/operations/dashboard")}
