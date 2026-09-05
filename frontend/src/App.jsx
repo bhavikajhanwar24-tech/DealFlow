@@ -124,12 +124,14 @@ function AppContent() {
       return <ScrollVideoHero onNavigate={navigate} />;
     }
     return (
-      <AuthPage
-        onLoginSuccess={(loggedInUser) => {
-          const dest = getRoleDestination(loggedInUser);
-          navigate(dest);
-        }}
-      />
+      <div className="app-layout sales-bg-active">
+        <AuthPage
+          onLoginSuccess={(loggedInUser) => {
+            const dest = getRoleDestination(loggedInUser);
+            navigate(dest);
+          }}
+        />
+      </div>
     );
   }
 
@@ -260,18 +262,10 @@ function AppContent() {
   };
 
   const showNavbar =
-    currentRoute === "/admin/dashboard" ||
-    currentRoute === "/admin/employee-approvals" ||
-    currentRoute === "/admin/staff" ||
-    currentRoute === "/admin/products" ||
-    currentRoute === "/admin/warehouses" ||
-    currentRoute === "/admin/discount-policies" ||
-    currentRoute === "/sales/dashboard" ||
-    currentRoute === "/approvals" ||
-    currentRoute.startsWith("/sales/quotations") ||
-    currentRoute === "/sales/fulfillment" ||
-    currentRoute.startsWith("/customer") ||
-    currentRoute.includes("messages");
+    Boolean(user) &&
+    currentRoute !== "/" &&
+    currentRoute !== "/login" &&
+    currentRoute !== "/signup";
 
   const isSalesRoute =
     currentRoute.startsWith("/sales") ||
@@ -280,7 +274,7 @@ function AppContent() {
     currentRoute.includes("messages");
 
   return (
-    <div className={`app-layout ${isSalesRoute ? "sales-bg-active" : ""}`}>
+    <div className="app-layout sales-bg-active">
       {showNavbar && (
         <Navbar currentRoute={currentRoute} setCurrentRoute={navigate} />
       )}
