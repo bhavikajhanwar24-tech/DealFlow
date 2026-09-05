@@ -1,15 +1,208 @@
-import React from 'react';
-import ScrollVideoHero from './components/ScrollVideoHero';
-import './App.css';
+import React, { useState, useEffect } from "react";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import Navbar from "./components/Navbar";
+import ScrollVideoHero from "./components/ScrollVideoHero";
+import AuthPage from "./pages/AuthPage";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminApprovals from "./pages/AdminApprovals";
+import SalesDashboard from "./pages/SalesDashboard";
+import FinanceDashboard from "./pages/FinanceDashboard";
+import OperationsDashboard from "./pages/OperationsDashboard";
+import CustomerPortal from "./pages/CustomerPortal";
+import AccessDenied from "./pages/AccessDenied";
+import "./App.css";
 
-function App() {
+function AppContent() {
+  const { user, loading } = useAuth();
+  const [currentRoute, setCurrentRoute] = useState(
+    () => window.location.pathname || "/",
+  );
+
+  // Determine initial role destination
+  const getRoleDestination = (currentUser) => {
+    if (!currentUser) return "/login";
+    switch (currentUser.role) {
+      case "ADMIN":
+        return "/admin/dashboard";
+      case "SALES_REP":
+      case "SALES_MANAGER":
+        return "/sales/dashboard";
+      case "FINANCE":
+        return "/finance/dashboard";
+      case "OPERATIONS":
+        return "/operations/dashboard";
+      case "CUSTOMER":
+        return "/customer/portal";
+      default:
+        return "/login";
+    }
+  };
+
+  // Keep route synced with browser address bar
+  const navigate = (path) => {
+    setCurrentRoute(path);
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, "", path);
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentRoute(window.location.pathname);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Sync route on login
+  useEffect(() => {
+    if (!loading) {
+      if (
+        user &&
+        (currentRoute === "/" ||
+          currentRoute === "/login" ||
+          currentRoute === "/signup")
+      ) {
+        const dest = getRoleDestination(user);
+        navigate(dest);
+      } else if (
+        !user &&
+        currentRoute !== "/" &&
+        currentRoute !== "/login" &&
+        currentRoute !== "/signup"
+      ) {
+        navigate("/login");
+      }
+    }
+  }, [user, loading]);
+
+  if (loading) {
+    return (
+      <div
+        className="atmospheric-bg"
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div
+            className="brand-logo-container"
+            style={{ width: "64px", height: "64px", margin: "0 auto 1.5rem" }}
+          >
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M5 4h7a8 8 0 0 1 8 8 8 8 0 0 1-8 8H5V4z"
+                stroke="#ffffff"
+                strokeWidth="2.75"
+              />
+              <path
+                d="M5 12h5a3 3 0 0 0 3-3 3 3 0 0 0-3-3H5"
+                stroke="#bfdbfe"
+                strokeWidth="2.25"
+              />
+            </svg>
+          </div>
+          <div
+            style={{ fontSize: "1.125rem", fontWeight: 700, color: "#0f172a" }}
+          >
+            Initializing DealFlow360...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Keep the public cinematic landing page at the root route.
+  if (!user || user.status !== "ACTIVE") {
+    if (currentRoute === "/") {
+      return <ScrollVideoHero />;
+    }
+
+    return (
+      <AuthPage
+        onLoginSuccess={(loggedInUser) => {
+          const dest = getRoleDestination(loggedInUser);
+          navigate(dest);
+        }}
+      />
+    );
+  }
+
+  // Role Gatekeeper and Router
+  const renderCurrentView = () => {
+    // 1. Admin Routes
+    if (currentRoute === "/admin/dashboard") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <AdminDashboard onNavigate={navigate} />;
+    }
+
+    if (currentRoute === "/admin/employee-approvals") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <AdminApprovals />;
+    }
+
+    // 2. Sales Routes
+    if (currentRoute === "/sales/dashboard" || currentRoute === "/approvals") {
+      const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
+      if (!allowed.includes(user.role)) {
+        return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      }
+      return <SalesDashboard />;
+    }
+
+    // 3. Finance Routes
+    if (currentRoute === "/finance/dashboard") {
+      const allowed = ["FINANCE", "ADMIN"];
+      if (!allowed.includes(user.role)) {
+        return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      }
+      return <FinanceDashboard />;
+    }
+
+    // 4. Operations Routes
+    if (currentRoute === "/operations/dashboard") {
+      const allowed = ["OPERATIONS", "ADMIN"];
+      if (!allowed.includes(user.role)) {
+        return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      }
+      return <OperationsDashboard />;
+    }
+
+    // 5. Customer Routes
+    if (currentRoute === "/customer/portal") {
+      const allowed = ["CUSTOMER", "ADMIN"];
+      if (!allowed.includes(user.role)) {
+        return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      }
+      return <CustomerPortal />;
+    }
+
+    // Default Fallback
+    return <AccessDenied onNavigate={navigate} />;
+  };
+
+  const showNavbar =
+    currentRoute === "/sales/dashboard" || currentRoute === "/approvals";
   return (
-    <div className="app-container">
-      <main>
-        <ScrollVideoHero />
-      </main>
+    <div className="app-layout">
+      {showNavbar && (
+        <Navbar currentRoute={currentRoute} setCurrentRoute={navigate} />
+      )}
+      {renderCurrentView()}
     </div>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}

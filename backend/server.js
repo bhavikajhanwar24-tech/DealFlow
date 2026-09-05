@@ -2,10 +2,15 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const { Pool } = require("pg");
+const db = require("./src/config/db");
+
+const authRoutes = require("./src/routes/auth.routes");
+const adminRoutes = require("./src/routes/admin.routes");
+const dashboardRoutes = require("./src/routes/dashboard.routes");
 
 const app = express();
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
@@ -51,3 +56,17 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`DealFlow360 API running on port ${PORT}`);
 });
+// Initialize Database schema and start server
+db.initDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`DealFlow360 API running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Failed to initialize database tables:", err);
+    // Still start server to allow diagnostics
+    app.listen(PORT, () => {
+      console.log(`DealFlow360 API running with warnings on port ${PORT}`);
+    });
+  });
