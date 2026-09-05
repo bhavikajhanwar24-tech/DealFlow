@@ -151,18 +151,18 @@ const CustomTooltip = ({ active, payload }) => {
 export default function RevenueMarginChart({ analytics, onNavigate }) {
   const [timeRange, setTimeRange] = useState("Last 6 Months");
 
-  const chartData = analytics?.chartData || REVENUE_MARGIN_DATA;
+  const chartData = analytics?.chartData || [];
   const summaryMetrics = analytics?.summary || {
-    totalRevenue: "₹2.59Cr",
-    totalRevenueGrowth: "+18.4%",
-    avgMargin: "25.8%",
-    avgMarginGrowth: "+3.2%",
-    grossMargin: "₹66.8L",
-    grossMarginGrowth: "+22.1%",
+    totalRevenue: "₹0",
+    totalRevenueGrowth: "+0.0%",
+    avgMargin: "0.0%",
+    avgMarginGrowth: "+0.0%",
+    grossMargin: "₹0",
+    grossMarginGrowth: "+0.0%",
   };
   const aiInsightText =
     analytics?.aiInsight ||
-    "Revenue increased 18.4% while average margin improved by 3.2 percentage points. July–September shows the strongest profitability trend.";
+    "Real-time revenue & margin analytics will display here as quotation deals are recorded.";
 
   return (
     <section
