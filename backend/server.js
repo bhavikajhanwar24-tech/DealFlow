@@ -14,6 +14,8 @@ const catalogRoutes = require("./src/routes/catalog.routes");
 const customerQuotationRoutes = require("./src/routes/customerQuotation.routes");
 const fulfillmentRoutes = require("./src/routes/fulfillment.routes");
 const messageRoutes = require("./src/routes/message.routes");
+const invoiceRoutes = require("./src/routes/invoice.routes");
+const analyticsRoutes = require("./src/routes/analytics.routes");
 
 // PostgreSQL connection
 const pool = require("./src/config/db");
@@ -37,6 +39,8 @@ app.use("/api/fulfillment", fulfillmentRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api", catalogRoutes);
 app.use("/api", dashboardRoutes);
+app.use("/api/invoices", invoiceRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // ===============================
 // HEALTH CHECK

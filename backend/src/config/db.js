@@ -352,6 +352,37 @@ async function initDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.invoices (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        invoice_number VARCHAR(30) UNIQUE NOT NULL,
+        order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+        customer_id UUID NOT NULL REFERENCES public.users(id),
+        subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        tax NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        discount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        total NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        amount_paid NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+        due_date DATE,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.payments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        invoice_id UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+        amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
+        payment_method VARCHAR(50) NOT NULL,
+        reference VARCHAR(100),
+        payment_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        recorded_by UUID REFERENCES public.users(id),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Create indexes for performance if not exist
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
