@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
+  ArrowRight,
   CheckCircle,
   Lock,
   MessageSquare,
@@ -67,6 +68,15 @@ export default function CustomerPortal() {
   const [requestLoading, setRequestLoading] = useState(false);
   const [customerRequests, setCustomerRequests] = useState([]);
 
+  // Delivery Destination state
+  const [destAddress, setDestAddress] = useState("");
+  const [destCity, setDestCity] = useState("Delhi");
+  const [destState, setDestState] = useState("Delhi");
+  const [destZip, setDestZip] = useState("110001");
+  const [destCountry, setDestCountry] = useState("India");
+  const [destLat, setDestLat] = useState("28.6139");
+  const [destLng, setDestLng] = useState("77.2090");
+
   async function loadQuotations() {
     setLoading(true);
     setError("");
@@ -83,9 +93,24 @@ export default function CustomerPortal() {
       setLoading(false);
     }
   }
+async function loadRequestData() {
+  setRequestLoading(true);
+  setError("");
+  try {
+    const response = await fetch(`${API_BASE}/customer/quotations/requests`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || "Unable to load quotation requests.");
+    setCustomerRequests(data.data || []);
+  } catch (requestError) {
+    setError(requestError.message);
+  } finally {
+    setRequestLoading(false);
+  }
+}
 
   async function openQuotation(id) {
-    setSelectedQuotationId(id);
     setDetailLoading(true);
     setError("");
     setSuccess("");
@@ -111,6 +136,7 @@ export default function CustomerPortal() {
         setRequestedDeliveryDate("");
         setCustomerComment("");
       }
+      setSelectedQuotationId(id);
     } catch (requestError) {
       setError(requestError.message);
       setQuotation(null);
@@ -120,26 +146,9 @@ export default function CustomerPortal() {
   }
 
   useEffect(() => {
-    loadQuotations();
-    async function loadRequestData() {
-      try {
-        const headers = { Authorization: `Bearer ${token}` };
-        const [productsResponse, requestsResponse] = await Promise.all([
-          fetch(`${API_BASE}/customer/quotations/products`, { headers }),
-          fetch(`${API_BASE}/customer/quotations/requests`, { headers }),
-        ]);
-        const productsData = await productsResponse.json();
-        const requestsData = await requestsResponse.json();
-        if (!productsResponse.ok) throw new Error(productsData.message || "Unable to load products.");
-        if (!requestsResponse.ok) throw new Error(requestsData.message || "Unable to load quotation requests.");
-        setProducts(productsData.data || []);
-        setCustomerRequests(requestsData.data || []);
-      } catch (requestError) {
-        setError(requestError.message);
-      }
-    }
-    loadRequestData();
-  }, [token]);
+  loadQuotations();
+  loadRequestData();
+}, [token]);
 
   function addRequestItem(productToAdd = null) {
     const product = productToAdd || products.find((entry) => entry.id === requestProductId);
@@ -280,6 +289,44 @@ export default function CustomerPortal() {
     }
   }
 
+  async function submitDestinationForm(event) {
+    event.preventDefault();
+    if (!quotation) return;
+    if (!destAddress || !destCity || !destState || !destZip) {
+      return setError("Please fill out Address, City, State, and PIN/ZIP code.");
+    }
+    setActionLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`${API_BASE}/customer/quotations/${quotation.id}/destination`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          address: destAddress,
+          city: destCity,
+          state: destState,
+          zip: destZip,
+          country: destCountry || "India",
+          latitude: destLat ? Number(destLat) : null,
+          longitude: destLng ? Number(destLng) : null,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to submit delivery destination.");
+      setSuccess("Delivery destination submitted successfully! Operations team has been notified for multi-warehouse route optimization.");
+      await openQuotation(quotation.id);
+      await loadQuotations();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   const isDetail = Boolean(selectedQuotationId);
   const canRespond = quotation && ["DRAFT", "APPROVED", "NEGOTIATION"].includes(quotation.status);
   const pendingRequest = quotation?.negotiations?.find((request) => request.status === "PENDING");
@@ -331,6 +378,49 @@ export default function CustomerPortal() {
       {success && (
         <div className="alert alert-success" style={{ borderRadius: "12px", marginBottom: "1.25rem" }}>
           <CheckCircle size={17} /> {success}
+        </div>
+      )}
+
+      {/* WEBSITE NOTIFICATION BANNER FOR FINALIZED / CONFIRMED QUOTATIONS AWAITING DESTINATION */}
+      {quotations.some((q) => ["CONFIRMED", "FINALIZED"].includes(q.status)) && (
+        <div
+          style={{
+            background: "linear-gradient(135deg, #eff6ff, #ecfdf5)",
+            border: "2px solid #3b82f6",
+            borderRadius: "14px",
+            padding: "1.15rem 1.5rem",
+            marginBottom: "1.5rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "1rem",
+            flexWrap: "wrap",
+            boxShadow: "0 8px 20px -4px rgba(37, 99, 235, 0.12)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <div style={{ background: "#2563eb", borderRadius: "10px", width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff" }}>
+              <Building2 size={22} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#1e3a8a" }}>
+                🎉 Quotation Finalized & Ready for Fulfillment!
+              </div>
+              <div style={{ color: "#334155", fontSize: "0.875rem", marginTop: "0.2rem" }}>
+                Please enter your delivery destination address so our Operations Team can optimize your multi-warehouse shipment route.
+              </div>
+            </div>
+          </div>
+          <button
+            className="btn-primary"
+            onClick={() => {
+              const confirmedQuote = quotations.find((q) => ["CONFIRMED", "FINALIZED"].includes(q.status));
+              if (confirmedQuote) openQuotation(confirmedQuote.id);
+            }}
+            style={{ padding: "0.6rem 1.15rem", fontSize: "0.9rem", width: "auto" }}
+          >
+            Enter Delivery Address <ArrowRight size={16} />
+          </button>
         </div>
       )}
 
@@ -451,6 +541,13 @@ export default function CustomerPortal() {
             </form>
           </section>
 
+          {/* Refresh Requests Button */}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+            <button className="btn-secondary" onClick={loadRequestData} style={{ padding: "0.5rem 1rem", fontSize: "0.85rem" }}>
+              Refresh Requests
+            </button>
+          </div>
+
           {/* Section 2: Recent Pending Requests */}
           {customerRequests.length > 0 && (
             <section style={glassStyle}>
@@ -459,35 +556,61 @@ export default function CustomerPortal() {
                 <h2 style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0f172a" }}>Submitted Quotation Requests</h2>
               </div>
               <div style={{ display: "grid", gap: "0.75rem" }}>
-                {customerRequests.map((request) => (
-                  <div
-                    key={request.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: "1rem",
-                      flexWrap: "wrap",
-                      padding: "0.85rem 1.15rem",
-                      background: "rgba(248, 250, 252, 0.8)",
-                      border: "1px solid #e2e8f0",
-                      borderRadius: "10px",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: "0.2rem" }}>
-                        {request.items.map((item) => `${item.name} (${item.quantity} units)`).join(", ")}
+                {customerRequests.map((request) => {
+                  const targetQuoteId =
+                    request.quotationId ||
+                    request.quotation_id ||
+                    (quotations.length > 0 ? quotations[0].id : null);
+
+                  return (
+                    <div
+                      key={request.id}
+                      onClick={() => {
+                        if (targetQuoteId) openQuotation(targetQuoteId);
+                      }}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "1rem",
+                        flexWrap: "wrap",
+                        padding: "0.85rem 1.15rem",
+                        background: request.status === "CONVERTED" ? "rgba(239, 246, 255, 0.95)" : "rgba(248, 250, 252, 0.8)",
+                        border: request.status === "CONVERTED" ? "2px solid #3b82f6" : "1px solid #e2e8f0",
+                        borderRadius: "10px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: "0.2rem" }}>
+                          {(request.items || []).map((item) => `${item.name} (${item.quantity} units)`).join(", ")}
+                        </div>
+                        <div style={{ fontSize: "0.8rem", color: "#64748b", display: "flex", gap: "1rem" }}>
+                          <span>Submitted: {new Date(request.createdAt || Date.now()).toLocaleDateString("en-IN")}</span>
+                          {request.requestedDeliveryDate && <span>Target Delivery: {request.requestedDeliveryDate}</span>}
+                        </div>
                       </div>
-                      <div style={{ fontSize: "0.8rem", color: "#64748b", display: "flex", gap: "1rem" }}>
-                        <span>Submitted: {new Date(request.createdAt || Date.now()).toLocaleDateString("en-IN")}</span>
-                        {request.requestedDeliveryDate && <span>Target Delivery: {request.requestedDeliveryDate}</span>}
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                        <span className={`badge ${request.status === "CONVERTED" ? "badge-approved" : "badge-pending"}`} style={{ textTransform: "uppercase", fontSize: "0.75rem" }}>
+                          {request.status === "CONVERTED" ? "CONVERTED TO QUOTE" : request.status}
+                        </span>
+                        {(request.status === "CONVERTED" || request.status === "FINALIZED" || Boolean(targetQuoteId)) && (
+                          <button
+                            className="btn-primary"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (targetQuoteId) openQuotation(targetQuoteId);
+                            }}
+                            style={{ padding: "0.4rem 0.85rem", fontSize: "0.825rem", width: "auto" }}
+                          >
+                            View Quote & Enter Address <ArrowRight size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <span className="badge badge-pending" style={{ textTransform: "uppercase", fontSize: "0.75rem" }}>
-                      {request.status}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}
@@ -754,6 +877,139 @@ export default function CustomerPortal() {
                 </div>
               </form>
             </div>
+
+            {/* PART 1: DELIVERY DESTINATION FORM (Always available when viewing quotation) */}
+            {Boolean(quotation) && (
+              <div
+                style={{
+                  background: "linear-gradient(135deg, rgba(239, 246, 255, 0.95), rgba(240, 253, 244, 0.95))",
+                  borderRadius: "14px",
+                  border: "2px solid #3b82f6",
+                  padding: "1.5rem",
+                  marginTop: "1.5rem",
+                  boxShadow: "0 10px 25px -5px rgba(37, 99, 235, 0.1)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.5rem" }}>
+                  <Building2 size={22} color="#2563eb" />
+                  <h3 style={{ fontSize: "1.2rem", fontWeight: 800, color: "#1e3a8a", letterSpacing: "0.02em" }}>
+                    DELIVERY DESTINATION
+                  </h3>
+                </div>
+                <p style={{ color: "#334155", fontSize: "0.9rem", fontWeight: 600, marginBottom: "1.25rem" }}>
+                  Where should we deliver your order? Once confirmed, our Operations Smart Warehouse Route Optimizer will calculate the optimal fulfillment path.
+                </p>
+
+                <form onSubmit={submitDestinationForm}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1rem" }}>
+                    <label className="form-group" style={{ margin: 0 }}>
+                      <span className="form-label" style={{ fontWeight: 700, color: "#1e293b" }}>Full Delivery Address</span>
+                      <input
+                        className="form-input no-icon"
+                        type="text"
+                        required
+                        placeholder="e.g. Connaught Place, Block C, Inner Circle"
+                        value={destAddress}
+                        onChange={(e) => setDestAddress(e.target.value)}
+                      />
+                    </label>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" }}>
+                      <label className="form-group" style={{ margin: 0 }}>
+                        <span className="form-label" style={{ fontWeight: 700, color: "#1e293b" }}>City</span>
+                        <input
+                          className="form-input no-icon"
+                          type="text"
+                          required
+                          placeholder="e.g. Delhi"
+                          value={destCity}
+                          onChange={(e) => setDestCity(e.target.value)}
+                        />
+                      </label>
+
+                      <label className="form-group" style={{ margin: 0 }}>
+                        <span className="form-label" style={{ fontWeight: 700, color: "#1e293b" }}>State</span>
+                        <input
+                          className="form-input no-icon"
+                          type="text"
+                          required
+                          placeholder="e.g. Delhi"
+                          value={destState}
+                          onChange={(e) => setDestState(e.target.value)}
+                        />
+                      </label>
+
+                      <label className="form-group" style={{ margin: 0 }}>
+                        <span className="form-label" style={{ fontWeight: 700, color: "#1e293b" }}>PIN / ZIP</span>
+                        <input
+                          className="form-input no-icon"
+                          type="text"
+                          required
+                          placeholder="e.g. 110001"
+                          value={destZip}
+                          onChange={(e) => setDestZip(e.target.value)}
+                        />
+                      </label>
+
+                      <label className="form-group" style={{ margin: 0 }}>
+                        <span className="form-label" style={{ fontWeight: 700, color: "#1e293b" }}>Country</span>
+                        <input
+                          className="form-input no-icon"
+                          type="text"
+                          required
+                          placeholder="e.g. India"
+                          value={destCountry}
+                          onChange={(e) => setDestCountry(e.target.value)}
+                        />
+                      </label>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", background: "rgba(255,255,255,0.7)", padding: "0.85rem", borderRadius: "10px", border: "1px solid #cbd5e1" }}>
+                      <label className="form-group" style={{ margin: 0 }}>
+                        <span className="form-label" style={{ fontSize: "0.8rem", color: "#64748b" }}>Latitude (Auto/Optional)</span>
+                        <input
+                          className="form-input no-icon"
+                          type="number"
+                          step="any"
+                          placeholder="28.6139"
+                          value={destLat}
+                          onChange={(e) => setDestLat(e.target.value)}
+                        />
+                      </label>
+
+                      <label className="form-group" style={{ margin: 0 }}>
+                        <span className="form-label" style={{ fontSize: "0.8rem", color: "#64748b" }}>Longitude (Auto/Optional)</span>
+                        <input
+                          className="form-input no-icon"
+                          type="number"
+                          step="any"
+                          placeholder="77.2090"
+                          value={destLng}
+                          onChange={(e) => setDestLng(e.target.value)}
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <button
+                    className="btn-primary"
+                    type="submit"
+                    disabled={actionLoading}
+                    style={{
+                      marginTop: "1.25rem",
+                      width: "100%",
+                      padding: "0.85rem",
+                      fontSize: "1.05rem",
+                      fontWeight: 800,
+                      background: "#2563eb",
+                      boxShadow: "0 4px 14px rgba(37, 99, 235, 0.3)",
+                    }}
+                  >
+                    <CheckCircle size={18} /> {actionLoading ? "Saving Delivery Destination..." : "Confirm Delivery Destination"}
+                  </button>
+                </form>
+              </div>
+            )}
           </section>
         </>
       ) : null}

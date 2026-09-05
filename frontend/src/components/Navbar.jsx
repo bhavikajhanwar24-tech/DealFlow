@@ -266,6 +266,14 @@ const CreditCardIcon = ({ size = 16 }) => (
   </svg>
 );
 
+const UploadCloudIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
+    <path d="M12 12v9" />
+    <path d="m16 16-4-4-4 4" />
+  </svg>
+);
+
 export default function Navbar({ currentRoute, setCurrentRoute }) {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -308,6 +316,7 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
     "/admin/reports",
     "/admin/deal-health",
     "/admin/activity-feed",
+    "/admin/bulk-upload",
     "/finance/dashboard",
     "/operations/dashboard",
     "/sales/fulfillment",
@@ -369,6 +378,13 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               onClick={() => setCurrentRoute("/admin/products")}
             >
               <PackageIcon size={16} /> Products
+            </button>
+            <button
+              className={`nav-link-btn ${currentRoute === "/admin/bulk-upload" ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/admin/bulk-upload")}
+              style={{ color: currentRoute === "/admin/bulk-upload" ? "#2563eb" : undefined }}
+            >
+              <UploadCloudIcon size={16} /> Bulk Upload (CSV)
             </button>
 
             {/* Dropdown Menu for Additional Admin Modules */}
@@ -512,78 +528,10 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
                             Operations Dashboard
                           </div>
                           <div className="mega-item-desc">
-                            Supply chain health metrics
+                            Smart warehouse route optimizer
                           </div>
                         </div>
                         {currentRoute === "/operations/dashboard" && (
-                          <span className="active-dot" />
-                        )}
-                      </button>
-                      <button
-                        className={`mega-item-card ${currentRoute === "/admin/invoices" ? "active" : ""}`}
-                        onClick={() => {
-                          setCurrentRoute("/admin/invoices");
-                          setIsMoreOpen(false);
-                        }}
-                      >
-                        <div className="mega-item-icon green">
-                          <CreditCardIcon size={18} />
-                        </div>
-                        <div className="mega-item-body">
-                          <div className="mega-item-title">
-                            Invoices & Payments
-                          </div>
-                          <div className="mega-item-desc">
-                            Manage generated invoices
-                          </div>
-                        </div>
-                        {currentRoute === "/admin/invoices" && (
-                          <span className="active-dot" />
-                        )}
-                      </button>
-
-                      <button
-                        className={`mega-item-card ${currentRoute === "/admin/reports" ? "active" : ""}`}
-                        onClick={() => {
-                          setCurrentRoute("/admin/reports");
-                          setIsMoreOpen(false);
-                        }}
-                      >
-                        <div className="mega-item-icon cyan">
-                          <PieChartIcon size={18} />
-                        </div>
-                        <div className="mega-item-body">
-                          <div className="mega-item-title">
-                            Business Reports
-                          </div>
-                          <div className="mega-item-desc">
-                            Sales & product analytics
-                          </div>
-                        </div>
-                        {currentRoute === "/admin/reports" && (
-                          <span className="active-dot" />
-                        )}
-                      </button>
-
-                      <button
-                        className={`mega-item-card ${currentRoute === "/admin/deal-health" ? "active" : ""}`}
-                        onClick={() => {
-                          setCurrentRoute("/admin/deal-health");
-                          setIsMoreOpen(false);
-                        }}
-                      >
-                        <div className="mega-item-icon orange">
-                          <ActivityIcon size={18} />
-                        </div>
-                        <div className="mega-item-body">
-                          <div className="mega-item-title">
-                            Deal Health Monitor
-                          </div>
-                          <div className="mega-item-desc">
-                            At-risk deals tracker
-                          </div>
-                        </div>
-                        {currentRoute === "/admin/deal-health" && (
                           <span className="active-dot" />
                         )}
                       </button>
@@ -698,6 +646,27 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
                           </div>
                         </div>
                         {currentRoute === "/admin/activity-feed" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/admin/bulk-upload" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/admin/bulk-upload");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon blue">
+                          <UploadCloudIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">Bulk Data Upload</div>
+                          <div className="mega-item-desc">
+                            Excel/CSV DB Import
+                          </div>
+                        </div>
+                        {currentRoute === "/admin/bulk-upload" && (
                           <span className="active-dot" />
                         )}
                       </button>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, AlertTriangle, CheckCircle2, Mail } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle2, Mail, Printer, Download } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { printOrExportPDF } from "../utils/exportUtils";
 
 const API_BASE = "http://localhost:5000/api";
 const currency = (value) =>
@@ -85,6 +86,51 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
     }
   }
 
+  const handlePrintQuotation = () => {
+    if (!quotation) return;
+
+    const itemsData = (quotation.items || []).map((item) => ({
+      product: item.product?.name || item.name || "Item",
+      category: item.product?.category || "Standard",
+      qty: item.quantity,
+      unitPrice: currency(item.unitPrice),
+      discount: `${item.discountPercent || 0}%`,
+      total: currency(item.totalPrice),
+    }));
+
+    const headers = [
+      { key: "product", label: "Product / Line Item" },
+      { key: "category", label: "Category" },
+      { key: "qty", label: "Qty" },
+      { key: "unitPrice", label: "Unit Price" },
+      { key: "discount", label: "Discount" },
+      { key: "total", label: "Line Total" },
+    ];
+
+    const summaryCards = [
+      { label: "Subtotal", value: currency(quotation.subtotal), color: "#0f172a" },
+      { label: "Total Discount", value: currency(quotation.discountAmount), color: "#b91c1c" },
+      { label: "Final Amount", value: currency(quotation.finalAmount), color: "#1e40af" },
+      { label: "Deal Margin", value: `${quotation.marginPercent || 25}%`, color: "#166534" },
+    ];
+
+    const metadata = [
+      { label: "Quotation Ref", value: quotation.quotationNumber },
+      { label: "Customer", value: quotation.customer?.companyName || quotation.customer?.fullName || "Client" },
+      { label: "Sales Representative", value: quotation.salesRep?.fullName || "Representative" },
+      { label: "Status", value: quotation.status },
+    ];
+
+    printOrExportPDF({
+      title: `Commercial Quotation: ${quotation.quotationNumber}`,
+      subtitle: `Official quotation proposal issued for ${quotation.customer?.companyName || quotation.customer?.fullName}.`,
+      metadata,
+      headers,
+      rows: itemsData,
+      summaryCards,
+    });
+  };
+
   if (error)
     return (
       <main className="main-content">
@@ -150,7 +196,15 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
             Created {new Date(quotation.createdAt).toLocaleString("en-IN")}
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={handlePrintQuotation}
+            style={{ padding: "0.5rem 0.95rem", fontSize: "0.85rem", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+          >
+            <Printer size={16} color="#2563eb" /> Print / Save PDF Proposal
+          </button>
           <span className={`badge ${quotation.status === "FINALIZED" ? "badge-active" : quotation.status === "REJECTED" ? "badge-rejected" : "badge-pending"}`}>
             {quotation.status}
           </span>
@@ -266,9 +320,22 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
                 fontSize: "0.85rem",
               }}
             >
-              ⚠️ Status updated to FINALIZED in database. (Email notification status: {notification.error || "Bypassed / Pending SMTP configuration"})
+              ⚠️ Status updated to FINALIZED in database.
             </div>
           )}
+
+          <div style={{ marginTop: "0.85rem", paddingTop: "0.85rem", borderTop: "1px dashed #bbf7d0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+            <span style={{ fontSize: "0.875rem", color: "#166534", fontWeight: 700 }}>
+              🚚 Order created in fulfillment queue. Customer has been prompted to submit delivery address.
+            </span>
+            <button
+              className="btn-primary"
+              onClick={() => onNavigate("/operations/dashboard")}
+              style={{ fontSize: "0.85rem", padding: "0.45rem 0.95rem", width: "auto" }}
+            >
+              Open Operations Route Optimizer →
+            </button>
+          </div>
         </div>
       )}
       <section

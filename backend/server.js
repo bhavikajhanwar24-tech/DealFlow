@@ -13,10 +13,14 @@ const quotationRoutes = require("./src/routes/quotation.routes");
 const catalogRoutes = require("./src/routes/catalog.routes");
 const customerQuotationRoutes = require("./src/routes/customerQuotation.routes");
 const fulfillmentRoutes = require("./src/routes/fulfillment.routes");
+const recommendationRoutes = require("./src/routes/recommendation.routes");
 const messageRoutes = require("./src/routes/message.routes");
+const operationsRoutes = require("./src/routes/operations.routes");
 const invoiceRoutes = require("./src/routes/invoice.routes");
 const analyticsRoutes = require("./src/routes/analytics.routes");
 const aiRoutes = require("./src/routes/ai.routes");
+
+const uploadRoutes = require("./src/routes/upload.routes");
 
 // PostgreSQL connection
 const pool = require("./src/config/db");
@@ -28,15 +32,18 @@ const app = express();
 // ===============================
 
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/upload", uploadRoutes);
 app.use("/api/quotations", quotationRoutes);
 app.use("/api/customer/quotations", customerQuotationRoutes);
 app.use("/api/fulfillment", fulfillmentRoutes);
+app.use("/api/operations", operationsRoutes);
+app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api", catalogRoutes);
 app.use("/api", dashboardRoutes);

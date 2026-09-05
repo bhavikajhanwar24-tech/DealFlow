@@ -24,6 +24,7 @@ import AdminInvoices from "./pages/AdminInvoices";
 import AdminReports from "./pages/AdminReports";
 import AdminDealHealth from "./pages/AdminDealHealth";
 import AdminActivityFeed from "./pages/AdminActivityFeed";
+import BulkUpload from "./pages/BulkUpload";
 import "./App.css";
 
 function AppContent() {
@@ -229,6 +230,11 @@ function AppContent() {
       return <AdminActivityFeed />;
     }
 
+    if (currentRoute === "/admin/bulk-upload") {
+      if (user.role !== "ADMIN") return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      return <BulkUpload />;
+    }
+
     // 2. Sales Routes
     if (currentRoute.startsWith("/sales/quotations/")) {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
@@ -281,7 +287,7 @@ function AppContent() {
 
     // 4. Operations Routes
     if (currentRoute === "/operations/dashboard") {
-      const allowed = ["OPERATIONS", "ADMIN"];
+      const allowed = ["OPERATIONS", "ADMIN", "SALES_MANAGER", "SALES_REP"];
       if (!allowed.includes(user.role)) {
         return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
       }
@@ -290,7 +296,7 @@ function AppContent() {
 
     // 5. Customer Routes
     if (currentRoute === "/customer/portal") {
-      const allowed = ["CUSTOMER"];
+      const allowed = ["CUSTOMER", "ADMIN", "SALES_REP", "SALES_MANAGER"];
       if (!allowed.includes(user.role)) {
         return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
       }
@@ -326,6 +332,7 @@ function AppContent() {
     currentRoute === "/admin/reports" ||
     currentRoute === "/admin/deal-health" ||
     currentRoute === "/admin/activity-feed" ||
+    currentRoute === "/admin/bulk-upload" ||
     currentRoute === "/sales/fulfillment" ||
     currentRoute === "/operations/dashboard" ||
     currentRoute === "/sales/dashboard" ||
