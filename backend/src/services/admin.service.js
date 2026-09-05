@@ -539,11 +539,12 @@ async function getWarehouseAnalytics() {
 
   const products = await db.query(`
     SELECT p.id, p.name,
+           COALESCE(p.category, 'HARDWARE') AS category,
            COALESCE(SUM(wi.quantity), 0)::INTEGER AS total_units,
            COALESCE(SUM(wi.quantity * p.unit_price), 0)::NUMERIC AS inventory_value
     FROM public.products p
     JOIN public.warehouse_inventory wi ON wi.product_id = p.id
-    GROUP BY p.id, p.name
+    GROUP BY p.id, p.name, p.category
     HAVING SUM(wi.quantity) > 0
     ORDER BY total_units DESC, p.name ASC
   `);
@@ -551,12 +552,15 @@ async function getWarehouseAnalytics() {
   const warehouseMix = await db.query(`
     SELECT w.id AS warehouse_id, w.name AS warehouse_name,
            p.id AS product_id, p.name AS product_name,
-           SUM(wi.quantity)::INTEGER AS total_units
+           COALESCE(p.category, 'HARDWARE') AS category,
+           p.sku,
+           SUM(wi.quantity)::INTEGER AS total_units,
+           COALESCE(SUM(wi.quantity * p.unit_price), 0)::NUMERIC AS inventory_value
     FROM public.warehouse_inventory wi
     JOIN public.warehouses w ON w.id = wi.warehouse_id
     JOIN public.products p ON p.id = wi.product_id
     WHERE wi.quantity > 0
-    GROUP BY w.id, w.name, p.id, p.name
+    GROUP BY w.id, w.name, p.id, p.name, p.category, p.sku
     ORDER BY w.name ASC, total_units DESC, p.name ASC
   `);
 
