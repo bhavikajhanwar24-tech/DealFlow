@@ -12,10 +12,11 @@ import {
   Calendar,
   Search,
   TrendingUp,
+  Settings2,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import RevenueMarginChart from "../components/RevenueMarginChart";
-import { exportToCSV, printOrExportPDF } from "../utils/exportUtils";
+import { exportToCSV, printOrExportPDF, resetExportPreferences, promptExportDialog } from "../utils/exportUtils";
 
 const API_BASE = "http://localhost:5000/api";
 const currency = (value) =>
@@ -516,9 +517,7 @@ export default function SalesDashboard({ onNavigate }) {
                 Quotation & Deal Export Reports
               </h2>
             </div>
-            <p style={{ color: "#64748b", fontSize: "0.825rem", margin: "0.25rem 0 0" }}>
-              Filter sales deals by period, approval stage, and search query. Download as CSV/XLS or formatted PDF.
-            </p>
+            
           </div>
 
           {/* Export Buttons */}
@@ -542,9 +541,38 @@ export default function SalesDashboard({ onNavigate }) {
                 border: "none",
                 display: "inline-flex",
                 gap: "0.35rem",
+                alignItems: "center",
               }}
             >
               <Printer size={15} /> Export / Print PDF
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const config = await promptExportDialog({
+                  defaultName: "Sales_Quotations_Report",
+                  defaultFormat: "pdf",
+                });
+                if (config) {
+                  setActionSuccess(`Download preferences updated: ${config.filename}.${config.format}`);
+                }
+              }}
+              title="Configure download name & format preferences"
+              style={{
+                padding: "0.45rem 0.75rem",
+                fontSize: "0.825rem",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                background: "#f1f5f9",
+                border: "1px solid #cbd5e1",
+                borderRadius: "8px",
+                color: "#334155",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              <Settings2 size={14} color="#64748b" /> Configure Download
             </button>
           </div>
         </div>

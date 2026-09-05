@@ -18,6 +18,10 @@ router.post("/customer-requests/:requestId/convert", internalSales, quotationCon
 router.get("/", internalSales, quotationController.listQuotations);
 router.get("/:id", internalSales, quotationController.getQuotation);
 router.post("/", salesCreators, quotationController.createQuotation);
+router.put("/:id", salesCreators, quotationController.updateQuotation);
+router.post("/risk-preview", salesCreators, quotationController.previewQuotationRisk);
+router.post("/:id/apply-negotiation-suggestion", salesCreators, quotationController.applyNegotiationSuggestion);
+router.post("/:id/recreate-from-ai", salesCreators, quotationController.applyAiQuoteUpdate);
 router.post("/:id/submit", salesCreators, quotationController.submitQuotation);
 router.post("/:id/finalize", internalSales, quotationController.finalizeQuotation);
 

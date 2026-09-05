@@ -53,6 +53,44 @@ async function createQuotation(req, res) {
   }
 }
 
+async function updateQuotation(req, res) {
+  try {
+    const quotation = await quotationService.updateQuotation(req.user, req.params.id, req.body);
+    return res.status(200).json({
+      success: true,
+      message: `Quotation ${quotation.quotationNumber} updated and reset to DRAFT for re-submission.`,
+      data: quotation,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+}
+
+async function previewQuotationRisk(req, res) {
+  try {
+    return res.json({ success: true, data: await quotationService.previewQuotationRisk(req.user, req.body) });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+}
+
+async function applyNegotiationSuggestion(req, res) {
+  try {
+    const quotation = await quotationService.applyNegotiationSuggestion(req.user, req.params.id, req.body || {});
+    return res.json({ success: true, message: "Negotiation suggestion applied and quotation re-submitted for approval.", data: quotation });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+}
+
+async function applyAiQuoteUpdate(req, res) {
+  try {
+    return res.json({ success: true, data: await quotationService.applyAiQuoteUpdate(req.user, req.params.id, req.body || {}) });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+}
+
 async function submitQuotation(req, res) {
   try {
     const quotation = await quotationService.submitQuotation(req.user, req.params.id);
@@ -114,7 +152,11 @@ module.exports = {
   listQuotations,
   getQuotation,
   createQuotation,
+  updateQuotation,
   submitQuotation,
+    previewQuotationRisk,
+    applyNegotiationSuggestion,
+    applyAiQuoteUpdate,
   listCustomerRequests,
   convertCustomerRequest,
   finalizeQuotation,

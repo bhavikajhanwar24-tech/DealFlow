@@ -89,11 +89,13 @@ export default function QuotationMessages({ onNavigate }) {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [copilotLoading, setCopilotLoading] = useState(false);
+  const [agentApplying, setAgentApplying] = useState(false);
   const [copilotResult, setCopilotResult] = useState(null);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiResponse, setAiResponse] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [recreatingQuote, setRecreatingQuote] = useState(false);
   const [aiError, setAiError] = useState("");
   const [error, setError] = useState("");
 
@@ -298,6 +300,26 @@ export default function QuotationMessages({ onNavigate }) {
     }
   };
 
+  const handleRecreateFromAi = async () => {
+    const proposal = aiResponse?.quoteUpdate;
+    if (!proposal?.shouldRecreate || !proposal.items?.length || !selectedQuotationId || recreatingQuote) return;
+    setRecreatingQuote(true);
+    try {
+      await safeFetchJson(`${API_BASE}/quotations/${selectedQuotationId}/recreate-from-ai`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ items: proposal.items }),
+      });
+      setSuccess("AI proposal applied. Review the recreated draft before submitting it for risk analysis.");
+      setAiModalOpen(false);
+      if (onNavigate) onNavigate(`/sales/quotations/${selectedQuotationId}`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRecreatingQuote(false);
+    }
+  };
+
   const handleRunCopilot = async () => {
     if (!selectedQuotationId || copilotLoading || !activeQuotation) return;
     setCopilotLoading(true);
@@ -328,6 +350,32 @@ export default function QuotationMessages({ onNavigate }) {
       setError(err.message);
     } finally {
       setCopilotLoading(false);
+    }
+  };
+
+  const handleApplyNegotiationSuggestion = async () => {
+    if (!selectedQuotationId || !copilotResult || agentApplying) return;
+    const text = `${copilotResult.requestedValue || ""} ${copilotResult.suggestedAction || ""}`;
+    const match = text.match(/(\d+(?:\.\d+)?)\s*%/);
+    if (!match) {
+      setError("The agent suggestion does not contain a discount percentage to apply.");
+      return;
+    }
+    setAgentApplying(true);
+    setError("");
+    try {
+      await safeFetchJson(`${API_BASE}/quotations/${selectedQuotationId}/apply-negotiation-suggestion`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ discountPercent: Number(match[1]) }),
+      });
+      setSuccess("Agent suggestion applied. Quotation recalculated and sent back for approval.");
+      await loadMessages(selectedQuotationId, recipientRoleRef.current, false);
+      await loadQuotations(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAgentApplying(false);
     }
   };
 
@@ -545,7 +593,7 @@ export default function QuotationMessages({ onNavigate }) {
 
                 {/* Single AI Negotiation Button & Channel Controls */}
                 <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
-                  <button
+                  {!isCustomer && <button
                     type="button"
                     onClick={() => {
                       setAiModalOpen(true);
@@ -570,7 +618,7 @@ export default function QuotationMessages({ onNavigate }) {
                     }}
                   >
                     <Sparkles size={16} /> AI Negotiator Assistant
-                  </button>
+                  </button>}
 
                   <strong style={{ fontSize: "1.05rem", color: "#1e40af" }}>
                     {currency(activeQuotation.final_amount)}
@@ -738,7 +786,15 @@ export default function QuotationMessages({ onNavigate }) {
                       <p style={{ margin: 0, fontStyle: 'italic', color: '#1e293b', background: '#f8fafc', padding: '0.5rem 0.75rem', borderRadius: '6px', borderLeft: '3px solid #0284c7' }}>
                         "{copilotResult.suggestedReply}"
                       </p>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={handleApplyNegotiationSuggestion}
+                          className="btn-primary"
+                          disabled={agentApplying}
+                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.76rem', background: '#16a34a' }}
+                        >
+                          {agentApplying ? "Recalculating..." : "Accept suggestion & re-submit"}
+                        </button>
                         <button
                           onClick={() => setNewMessage(copilotResult.suggestedReply)}
                           className="btn-primary"
@@ -963,7 +1019,7 @@ export default function QuotationMessages({ onNavigate }) {
       </div>
 
       {/* Interactive AI Negotiator Modal */}
-      {aiModalOpen && (
+      {!isCustomer && aiModalOpen && (
         <div
           style={{
             position: "fixed",
@@ -1256,6 +1312,16 @@ export default function QuotationMessages({ onNavigate }) {
                           🚀 Send on My Behalf Now
                         </button>
                       </div>
+                    </div>
+                  )}
+                  {aiResponse.quoteUpdate?.shouldRecreate && aiResponse.quoteUpdate.items?.length > 0 && (
+                    <div style={{ marginTop: "0.9rem", padding: "1rem 1.25rem", borderRadius: "12px", background: "#fff7ed", border: "1.5px solid #fdba74" }}>
+                      <strong style={{ color: "#9a3412", fontSize: "0.85rem" }}>Agentic quotation proposal</strong>
+                      <p style={{ margin: "0.45rem 0", color: "#7c2d12", fontSize: "0.82rem" }}>{aiResponse.quoteUpdate.rationale || "The agent recommends changing the quotation terms."}</p>
+                      <p style={{ margin: "0 0 0.75rem", color: "#7c2d12", fontSize: "0.78rem" }}>{aiResponse.quoteUpdate.items.length} line item(s) will be recreated. Existing omitted lines may be removed.</p>
+                      <button type="button" className="btn-primary" onClick={handleRecreateFromAi} disabled={recreatingQuote} style={{ width: "auto", background: "#ea580c" }}>
+                        {recreatingQuote ? "Recreating draft..." : "Accept proposal & recreate quote"}
+                      </button>
                     </div>
                   )}
                 </div>

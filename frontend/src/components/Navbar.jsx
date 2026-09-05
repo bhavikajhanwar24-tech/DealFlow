@@ -274,6 +274,14 @@ const UploadCloudIcon = ({ size = 16 }) => (
   </svg>
 );
 
+const ShieldAlertIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="16" x2="12.01" y2="16" />
+  </svg>
+);
+
 export default function Navbar({ currentRoute, setCurrentRoute }) {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -317,6 +325,7 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
     "/admin/deal-health",
     "/admin/activity-feed",
     "/admin/bulk-upload",
+    "/admin/complaints",
     "/finance/dashboard",
     "/operations/dashboard",
     "/sales/fulfillment",
@@ -379,6 +388,12 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               style={{ color: currentRoute === "/admin/bulk-upload" ? "#2563eb" : undefined }}
             >
               <UploadCloudIcon size={16} /> Bulk Upload (CSV)
+            </button>
+            <button
+              className={`nav-link-btn ${currentRoute === "/admin/complaints" ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/admin/complaints")}
+            >
+              <ShieldAlertIcon size={16} /> Complaints
             </button>
 
             {/* Dropdown Menu for Additional Admin Modules */}
@@ -682,6 +697,27 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
                           </div>
                         </div>
                         {currentRoute.includes("messages") && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/admin/complaints" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/admin/complaints");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon rose">
+                          <ShieldAlertIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">Staff Complaints</div>
+                          <div className="mega-item-desc">
+                            Client grievances & disciplinary actions
+                          </div>
+                        </div>
+                        {currentRoute === "/admin/complaints" && (
                           <span className="active-dot" />
                         )}
                       </button>

@@ -1,38 +1,15 @@
 const crypto = require("crypto");
 const db = require("../config/db");
+const { Groq } = require("groq-sdk");
 
-// Configuration from environment variables
-const LLM_API_KEY =
-  process.env.LLM_API_KEY ||
-  process.env.GEMINI_API_KEY ||
-  process.env.GOOGLE_AI_KEY ||
-  process.env.OPENAI_API_KEY ||
-  process.env.ANTHROPIC_API_KEY ||
-  process.env.GROQ_API_KEY ||
-  null;
+// LLM Configuration
+const GROQ_API_KEY = process.env.GROQ_API_KEY || null;
+const PRIMARY_MODEL = "openai/gpt-oss-120b";
+const FALLBACK_MODEL = "llama-3.3-70b-versatile";
 
-const LLM_PROVIDER = (
-  process.env.LLM_PROVIDER ||
-  (process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_KEY ? "gemini" : null) ||
-  (process.env.OPENAI_API_KEY ? "openai" : null) ||
-  (process.env.ANTHROPIC_API_KEY ? "anthropic" : null) ||
-  (process.env.GROQ_API_KEY ? "groq" : null) ||
-  "fallback"
-).toLowerCase();
-
-const LLM_MODEL =
-  process.env.LLM_MODEL ||
-  (LLM_PROVIDER === "gemini" ? "gemini-1.5-flash" :
-   LLM_PROVIDER === "openai" ? "gpt-4o-mini" :
-   LLM_PROVIDER === "anthropic" ? "claude-3-5-haiku-20241022" :
-   LLM_PROVIDER === "groq" ? "llama-3.3-70b-versatile" : "default");
-
-const LLM_BASE_URL = process.env.LLM_BASE_URL || null;
-const LLM_TEMPERATURE = Number(process.env.LLM_TEMPERATURE || 0.3);
-
-// Fast In-Memory Cache (TTL: 5 minutes)
+// Fast In-Memory Cache (TTL: 2 minutes)
 const recommendationCache = new Map();
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 2 * 60 * 1000;
 
 function getCacheKey(items, customerId = "", dismissedIds = []) {
   const sortedItems = [...items]
@@ -298,7 +275,8 @@ function rankWithHeuristics(candidates, quotationItems) {
  * 4. LLM Recommendation & Ranking Engine
  */
 async function rankWithLLM(candidates, quotationItems, customerContext = null) {
-  if (!LLM_API_KEY || LLM_PROVIDER === "fallback") {
+  if (!GROQ_API_KEY) {
+    console.log("[Recommendation Service] GROQ_API_KEY is not set. Using rule-based heuristic engine.");
     return rankWithHeuristics(candidates, quotationItems);
   }
 
@@ -349,99 +327,63 @@ CRITICAL RULES:
   ]
 }`;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000);
+  const groq = new Groq({ apiKey: GROQ_API_KEY });
+  let rawContent = "";
 
   try {
-    let rawContent = "";
-
-    if (LLM_PROVIDER === "gemini") {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${LLM_API_KEY}`;
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: LLM_TEMPERATURE,
-            responseMimeType: "application/json",
-          },
-        }),
-        signal: controller.signal,
+    try {
+      const stream = await groq.chat.completions.create({
+        model: PRIMARY_MODEL,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+        max_completion_tokens: 2048,
+        top_p: 0.95,
+        stream: true,
+        reasoning_effort: "medium",
+        stop: null,
       });
 
-      if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+      for await (const chunk of stream) {
+        rawContent += chunk.choices[0]?.delta?.content || "";
       }
-      const data = await response.json();
-      rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    } else if (LLM_PROVIDER === "openai" || LLM_PROVIDER === "groq") {
-      const baseUrl =
-        LLM_BASE_URL ||
-        (LLM_PROVIDER === "groq"
-          ? "https://api.groq.com/openai/v1"
-          : "https://api.openai.com/v1");
-
-      const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${LLM_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: LLM_MODEL,
-          messages: [{ role: "user", content: prompt }],
-          temperature: LLM_TEMPERATURE,
-          response_format: { type: "json_object" },
-        }),
-        signal: controller.signal,
+    } catch (primaryErr) {
+      console.warn(`[Recommendation Service] Primary model ${PRIMARY_MODEL} failed: ${primaryErr.message}. Trying fallback ${FALLBACK_MODEL}...`);
+      const fallbackResponse = await groq.chat.completions.create({
+        model: FALLBACK_MODEL,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+        max_tokens: 2048,
       });
-
-      if (!response.ok) {
-        throw new Error(`${LLM_PROVIDER} API error: ${response.status} ${response.statusText}`);
-      }
-      const data = await response.json();
-      rawContent = data.choices?.[0]?.message?.content || "";
-    } else if (LLM_PROVIDER === "anthropic") {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": LLM_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: LLM_MODEL,
-          max_tokens: 800,
-          messages: [{ role: "user", content: prompt }],
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`);
-      }
-      const data = await response.json();
-      rawContent = data.content?.[0]?.text || "";
-    } else {
-      return rankWithHeuristics(candidates, quotationItems);
+      rawContent = fallbackResponse.choices[0]?.message?.content || "";
     }
 
-    clearTimeout(timeoutId);
+    // Clean any <think> tags or code blocks
+    let cleanText = String(rawContent).replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+    const jsonMatch = cleanText.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    if (jsonMatch) {
+      cleanText = jsonMatch[0];
+    } else {
+      cleanText = cleanText
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/, "")
+        .replace(/```$/, "")
+        .trim();
+    }
 
-    // Parse JSON
-    const cleanJson = rawContent.replace(/```json/g, "").replace(/```/g, "").trim();
-    const parsed = JSON.parse(cleanJson);
-    const recs = Array.isArray(parsed.recommendations) ? parsed.recommendations : [];
+    const parsed = JSON.parse(cleanText);
+    const recs = Array.isArray(parsed.recommendations)
+      ? parsed.recommendations
+      : Array.isArray(parsed)
+      ? parsed
+      : [];
 
-    // 5. Validation & Hallucination Guard
+    // Validation & Hallucination Guard
     const candidateMap = new Map(candidates.map((c) => [c.id, c]));
     const verifiedRecommendations = [];
     const usedIds = new Set();
 
     for (const rec of recs) {
       if (!rec.productId || !candidateMap.has(rec.productId)) {
-        // Discard any hallucinated product IDs
         continue;
       }
       if (usedIds.has(rec.productId)) {
@@ -450,12 +392,12 @@ CRITICAL RULES:
       usedIds.add(rec.productId);
 
       const realCandidate = candidateMap.get(rec.productId);
-      const score = Number(Math.min(Math.max(Number(rec.score) || 0.85, 0.50), 0.99).toFixed(2));
+      const score = Number(Math.min(Math.max(Number(rec.score) || 0.88, 0.50), 0.99).toFixed(2));
       const type = rec.type === "upsell" ? "upsell" : "cross_sell";
-      const reason = (rec.reason && String(rec.reason).trim()) ||
-        `Strategically paired with your quotation items.`;
+      const reason =
+        (rec.reason && String(rec.reason).trim()) ||
+        `Strategically recommended companion for your deal.`;
 
-      // Always overlay authentic, calculated business data
       verifiedRecommendations.push({
         ...realCandidate,
         type,
@@ -478,11 +420,11 @@ CRITICAL RULES:
     }
 
     verifiedRecommendations.sort((a, b) => b.score - a.score);
+    console.log(`[Recommendation Service] LLM successfully recommended ${verifiedRecommendations.length} candidates using Groq (${PRIMARY_MODEL})`);
     return verifiedRecommendations.slice(0, 6);
   } catch (error) {
-    clearTimeout(timeoutId);
     console.warn(
-      `[Recommendation Service] LLM ranking encountered an issue (${error.message}). Falling back gracefully to deterministic rule engine.`
+      `[Recommendation Service] LLM ranking encountered an issue (${error.message}). Falling back to deterministic rule engine.`
     );
     return rankWithHeuristics(candidates, quotationItems);
   }

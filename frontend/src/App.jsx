@@ -24,6 +24,7 @@ import AdminReports from "./pages/AdminReports";
 import AdminDealHealth from "./pages/AdminDealHealth";
 import AdminActivityFeed from "./pages/AdminActivityFeed";
 import BulkUpload from "./pages/BulkUpload";
+import AdminComplaints from "./pages/AdminComplaints";
 import "./App.css";
 
 function AppContent() {
@@ -227,6 +228,11 @@ function AppContent() {
       return <BulkUpload />;
     }
 
+    if (currentRoute === "/admin/complaints") {
+      if (user.role !== "ADMIN") return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      return <AdminComplaints />;
+    }
+
     // 2. Sales Routes
     if (currentRoute.startsWith("/sales/quotations/")) {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
@@ -325,6 +331,7 @@ function AppContent() {
     currentRoute === "/admin/deal-health" ||
     currentRoute === "/admin/activity-feed" ||
     currentRoute === "/admin/bulk-upload" ||
+    currentRoute === "/admin/complaints" ||
     currentRoute === "/sales/fulfillment" ||
     currentRoute === "/operations/dashboard" ||
     currentRoute === "/sales/dashboard" ||
