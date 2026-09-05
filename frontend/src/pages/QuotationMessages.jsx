@@ -84,23 +84,35 @@ export default function QuotationMessages({ onNavigate }) {
     if (!quotationId) return;
     setMessagesLoading(true);
     try {
-      const [msgResponse, aiResponse] = await Promise.all([
+      const isCust = user?.role === "CUSTOMER";
+      const promises = [
         fetch(`${API_BASE}/messages/quotations/${quotationId}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`${API_BASE}/messages/quotations/${quotationId}/ai-analysis`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
+      ];
+      if (!isCust) {
+        promises.push(
+          fetch(`${API_BASE}/messages/quotations/${quotationId}/ai-analysis`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        );
+      }
+      const results = await Promise.all(promises);
+      const msgResponse = results[0];
       const msgData = await msgResponse.json();
-      const aiData = await aiResponse.json();
 
       if (!msgResponse.ok) throw new Error(msgData.message || "Failed to load chat history.");
       
       setActiveQuotation(msgData.data.quotation);
       setMessages(msgData.data.messages || []);
-      if (aiResponse.ok) {
-        setAiAnalysis(aiData.data);
+
+      if (!isCust && results[1]) {
+        const aiData = await results[1].json();
+        if (results[1].ok) {
+          setAiAnalysis(aiData.data);
+        }
+      } else {
+        setAiAnalysis(null);
       }
       setTimeout(scrollToBottom, 100);
     } catch (err) {
@@ -337,14 +349,16 @@ export default function QuotationMessages({ onNavigate }) {
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  <button
-                    className="btn-primary"
-                    style={{ padding: "0.45rem 0.9rem", fontSize: "0.8rem", background: "linear-gradient(135deg, #0284c7, #2563eb)", border: "none" }}
-                    onClick={handleRunAIAutoReply}
-                    disabled={aiRunning}
-                  >
-                    <Bot size={15} /> {aiRunning ? "Analyzing..." : "⚡ AI Auto-Respond"}
-                  </button>
+                  {!isCustomer && (
+                    <button
+                      className="btn-primary"
+                      style={{ padding: "0.45rem 0.9rem", fontSize: "0.8rem", background: "linear-gradient(135deg, #0284c7, #2563eb)", border: "none" }}
+                      onClick={handleRunAIAutoReply}
+                      disabled={aiRunning}
+                    >
+                      <Bot size={15} /> {aiRunning ? "Analyzing..." : "⚡ AI Auto-Respond"}
+                    </button>
+                  )}
 
                   <strong style={{ fontSize: "1.1rem", color: "#1e40af" }}>{currency(activeQuotation.final_amount)}</strong>
                   {onNavigate && (
@@ -366,7 +380,7 @@ export default function QuotationMessages({ onNavigate }) {
               </div>
 
               {/* AI Deal Financial Health & Profit Bar */}
-              {aiAnalysis && (
+              {!isCustomer && aiAnalysis && (
                 <div
                   style={{
                     padding: "0.65rem 1.5rem",
