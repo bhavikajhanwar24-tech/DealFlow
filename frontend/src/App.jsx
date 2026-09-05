@@ -5,6 +5,7 @@ import ScrollVideoHero from "./components/ScrollVideoHero";
 import AuthPage from "./pages/AuthPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminApprovals from "./pages/AdminApprovals";
+import AdminStaff from "./pages/AdminStaff";
 import SalesDashboard from "./pages/SalesDashboard";
 import FinanceDashboard from "./pages/FinanceDashboard";
 import OperationsDashboard from "./pages/OperationsDashboard";
@@ -147,6 +148,13 @@ function AppContent() {
       return <AdminApprovals />;
     }
 
+    if (currentRoute === "/admin/staff") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <AdminStaff />;
+    }
+
     // 2. Sales Routes
     if (currentRoute === "/sales/dashboard" || currentRoute === "/approvals") {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
@@ -188,7 +196,11 @@ function AppContent() {
   };
 
   const showNavbar =
-    currentRoute === "/sales/dashboard" || currentRoute === "/approvals";
+    currentRoute === "/admin/dashboard" ||
+    currentRoute === "/admin/employee-approvals" ||
+    currentRoute === "/admin/staff" ||
+    currentRoute === "/sales/dashboard" ||
+    currentRoute === "/approvals";
   return (
     <div className="app-layout">
       {showNavbar && (

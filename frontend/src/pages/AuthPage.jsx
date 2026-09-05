@@ -249,6 +249,7 @@ export default function AuthPage({ onLoginSuccess }) {
               className={`tab-btn ${activeTab === "signup" ? "active" : ""}`}
               onClick={() => {
                 setActiveTab("signup");
+                setUserCategory("customer");
                 setErrorMessage("");
               }}
             >
@@ -261,7 +262,9 @@ export default function AuthPage({ onLoginSuccess }) {
             <button
               type="button"
               className={`category-btn ${userCategory === "employee" ? "active" : ""}`}
+              disabled={activeTab === "signup"}
               onClick={() => {
+                if (activeTab === "signup") return;
                 setUserCategory("employee");
                 setErrorMessage("");
               }}
