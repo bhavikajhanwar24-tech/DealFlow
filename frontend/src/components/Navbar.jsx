@@ -290,7 +290,7 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
           </>
         )}
 
-        {isFinance && (
+        {(isFinance || isAdmin) && (
           <button
             className={`nav-link-btn ${currentRoute === "/finance/dashboard" ? "active" : ""}`}
             onClick={() => setCurrentRoute("/finance/dashboard")}
