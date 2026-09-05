@@ -36,6 +36,26 @@ class MessageController {
       next(err);
     }
   }
+
+  async getAiAnalysis(req, res, next) {
+    try {
+      const { quotationId } = req.params;
+      const data = await messageService.analyzeQuotationDeal(quotationId);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async generateAutoReply(req, res, next) {
+    try {
+      const { quotationId } = req.params;
+      const data = await messageService.generateAIAutoReply(quotationId, req.user);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = new MessageController();

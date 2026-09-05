@@ -12,6 +12,10 @@ import {
   FileText,
   RefreshCw,
   Sparkles,
+  Bot,
+  TrendingUp,
+  DollarSign,
+  ShieldAlert,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -40,16 +44,17 @@ export default function QuotationMessages({ onNavigate }) {
   const [selectedQuotationId, setSelectedQuotationId] = useState(null);
   const [activeQuotation, setActiveQuotation] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [aiRunning, setAiRunning] = useState(false);
   const [error, setError] = useState("");
 
   const chatEndRef = useRef(null);
 
-  // Auto-scroll chat window to bottom
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -79,14 +84,36 @@ export default function QuotationMessages({ onNavigate }) {
     if (!quotationId) return;
     setMessagesLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/messages/quotations/${quotationId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Failed to load chat history.");
+      const isCust = user?.role === "CUSTOMER";
+      const promises = [
+        fetch(`${API_BASE}/messages/quotations/${quotationId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ];
+      if (!isCust) {
+        promises.push(
+          fetch(`${API_BASE}/messages/quotations/${quotationId}/ai-analysis`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        );
+      }
+      const results = await Promise.all(promises);
+      const msgResponse = results[0];
+      const msgData = await msgResponse.json();
+
+      if (!msgResponse.ok) throw new Error(msgData.message || "Failed to load chat history.");
       
-      setActiveQuotation(data.data.quotation);
-      setMessages(data.data.messages || []);
+      setActiveQuotation(msgData.data.quotation);
+      setMessages(msgData.data.messages || []);
+
+      if (!isCust && results[1]) {
+        const aiData = await results[1].json();
+        if (results[1].ok) {
+          setAiAnalysis(aiData.data);
+        }
+      } else {
+        setAiAnalysis(null);
+      }
       setTimeout(scrollToBottom, 100);
     } catch (err) {
       setError(err.message);
@@ -105,7 +132,6 @@ export default function QuotationMessages({ onNavigate }) {
     }
   }, [selectedQuotationId]);
 
-  // Polling for live chat updates every 4 seconds
   useEffect(() => {
     if (!selectedQuotationId) return;
     const interval = setInterval(() => {
@@ -142,6 +168,26 @@ export default function QuotationMessages({ onNavigate }) {
     }
   };
 
+  const handleRunAIAutoReply = async () => {
+    if (!selectedQuotationId || aiRunning) return;
+    setAiRunning(true);
+    try {
+      const response = await fetch(`${API_BASE}/messages/quotations/${selectedQuotationId}/auto-reply`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "AI auto-reply failed.");
+      await loadMessages(selectedQuotationId);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAiRunning(false);
+    }
+  };
+
   const filteredQuotations = quotations.filter((q) => {
     const qNum = q.quotation_number.toLowerCase();
     const cName = (q.customer_name || "").toLowerCase();
@@ -158,10 +204,10 @@ export default function QuotationMessages({ onNavigate }) {
       <div className="page-heading-row" style={{ marginBottom: "1rem" }}>
         <div>
           <div className="badge badge-approved" style={{ marginBottom: "0.4rem", display: "inline-flex", gap: "0.35rem", alignItems: "center" }}>
-            <Sparkles size={13} /> Quotation Messaging & Negotiation Hub
+            <Sparkles size={13} /> Quotation Messaging & AI Auto-Negotiator Hub
           </div>
-          <h1>Messages</h1>
-          <p className="page-subtitle">Real-time chat channel between sales team and clients for quotation negotiations.</p>
+          <h1>Messages & AI Deal Analysis</h1>
+          <p className="page-subtitle">Real-time chat channel integrated with automated AI profit analysis and counter-negotiation engine.</p>
         </div>
         <button className="btn-secondary" onClick={() => loadQuotations(true)}>
           <RefreshCw size={15} /> Refresh
@@ -179,7 +225,7 @@ export default function QuotationMessages({ onNavigate }) {
         style={{
           display: "flex",
           height: "calc(100vh - 210px)",
-          minHeight: "560px",
+          minHeight: "580px",
           background: "rgba(255, 255, 255, 0.88)",
           backdropFilter: "blur(12px)",
           WebkitBackdropFilter: "blur(12px)",
@@ -303,6 +349,17 @@ export default function QuotationMessages({ onNavigate }) {
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  {!isCustomer && (
+                    <button
+                      className="btn-primary"
+                      style={{ padding: "0.45rem 0.9rem", fontSize: "0.8rem", background: "linear-gradient(135deg, #0284c7, #2563eb)", border: "none" }}
+                      onClick={handleRunAIAutoReply}
+                      disabled={aiRunning}
+                    >
+                      <Bot size={15} /> {aiRunning ? "Analyzing..." : "⚡ AI Auto-Respond"}
+                    </button>
+                  )}
+
                   <strong style={{ fontSize: "1.1rem", color: "#1e40af" }}>{currency(activeQuotation.final_amount)}</strong>
                   {onNavigate && (
                     <button
@@ -322,6 +379,46 @@ export default function QuotationMessages({ onNavigate }) {
                 </div>
               </div>
 
+              {/* AI Deal Financial Health & Profit Bar */}
+              {!isCustomer && aiAnalysis && (
+                <div
+                  style={{
+                    padding: "0.65rem 1.5rem",
+                    background: aiAnalysis.dealHealth === "MARGIN_RISK" ? "rgba(254, 242, 242, 0.9)" : "rgba(240, 253, 244, 0.9)",
+                    borderBottom: "1px solid #e2e8f0",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    fontSize: "0.825rem",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontWeight: 700, color: "#0f172a" }}>
+                      <TrendingUp size={15} color="#2563eb" />
+                      <span>Revenue: <strong>{currency(aiAnalysis.finalAmount)}</strong></span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", color: "#64748b" }}>
+                      <span>Est. Cost: <strong>{currency(aiAnalysis.totalCost)}</strong></span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", color: aiAnalysis.currentMarginPercent >= 18 ? "#166534" : "#b91c1c" }}>
+                      <span>Gross Profit: <strong>{currency(aiAnalysis.currentProfit)} ({aiAnalysis.currentMarginPercent}%)</strong></span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    {aiAnalysis.dealHealth === "MARGIN_RISK" ? (
+                      <span className="badge badge-rejected" style={{ fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                        <ShieldAlert size={13} /> MARGIN RISK (Max Safe Discount: {aiAnalysis.maxSafeDiscountPct}%)
+                      </span>
+                    ) : (
+                      <span className="badge badge-approved" style={{ fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                        <Sparkles size={13} /> HEALTHY DEAL MARGIN
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Chat Scroll Window */}
               <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1.5rem", background: "#f8fafc" }}>
                 {messagesLoading && messages.length === 0 ? (
@@ -330,12 +427,12 @@ export default function QuotationMessages({ onNavigate }) {
                   <div style={{ textAlign: "center", padding: "4rem 2rem", color: "#64748b" }}>
                     <MessageSquare size={36} color="#94a3b8" style={{ marginBottom: "0.75rem" }} />
                     <p style={{ fontWeight: 700, color: "#334155" }}>No messages on {activeQuotation.quotation_number} yet.</p>
-                    <p style={{ fontSize: "0.85rem" }}>Send a message below to start chatting about terms, discounts, or delivery dates.</p>
+                    <p style={{ fontSize: "0.85rem" }}>Send a message below or click "⚡ AI Auto-Respond" to run profit analysis.</p>
                   </div>
                 ) : (
                   messages.map((m) => {
                     const isMyMessage = m.sender_id === user?.id;
-                    const isCustomerSender = m.sender_role === "CUSTOMER";
+                    const isAiBot = m.sender_role === "AI_BOT";
 
                     return (
                       <div
@@ -343,24 +440,30 @@ export default function QuotationMessages({ onNavigate }) {
                         style={{
                           display: "flex",
                           flexDirection: "column",
-                          alignItems: isMyMessage ? "flex-end" : "flex-start",
-                          marginBottom: "1rem",
+                          alignItems: isAiBot ? "center" : isMyMessage ? "flex-end" : "flex-start",
+                          marginBottom: "1.1rem",
                         }}
                       >
-                        <div style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.2rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        <div style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                          {isAiBot ? <Bot size={14} color="#2563eb" /> : null}
                           <strong>{m.sender_name}</strong> ({m.sender_role}) · {new Date(m.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                         </div>
                         <div
                           style={{
-                            maxWidth: "70%",
-                            padding: "0.75rem 1.1rem",
-                            borderRadius: isMyMessage ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-                            background: isMyMessage ? "#2563eb" : "#ffffff",
-                            color: isMyMessage ? "#ffffff" : "#0f172a",
-                            border: isMyMessage ? "none" : "1px solid #e2e8f0",
-                            boxShadow: "0 2px 5px rgba(0,0,0,0.03)",
+                            maxWidth: isAiBot ? "85%" : "72%",
+                            padding: "0.85rem 1.15rem",
+                            borderRadius: isAiBot ? "14px" : isMyMessage ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                            background: isAiBot
+                              ? "linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%)"
+                              : isMyMessage
+                              ? "#2563eb"
+                              : "#ffffff",
+                            color: isAiBot ? "#1e3a8a" : isMyMessage ? "#ffffff" : "#0f172a",
+                            border: isAiBot ? "1px solid #93c5fd" : isMyMessage ? "none" : "1px solid #e2e8f0",
+                            boxShadow: isAiBot ? "0 4px 12px rgba(37, 99, 235, 0.08)" : "0 2px 5px rgba(0,0,0,0.03)",
                             fontSize: "0.9rem",
-                            lineHeight: "1.45",
+                            lineHeight: "1.5",
+                            whiteSpace: "pre-line",
                             wordBreak: "break-word",
                           }}
                         >
@@ -400,17 +503,17 @@ export default function QuotationMessages({ onNavigate }) {
                       type="button"
                       className="badge badge-neutral"
                       style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                      onClick={() => handleSendMessage(null, "Hello, we have updated the quotation pricing as requested. Please review.")}
+                      onClick={handleRunAIAutoReply}
                     >
-                      ✅ Pricing Updated Notice
+                      🤖 Run AI Profit Analysis
                     </button>
                     <button
                       type="button"
                       className="badge badge-neutral"
                       style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                      onClick={() => handleSendMessage(null, "Hi! Let us know if you have any questions regarding line item specifications.")}
+                      onClick={() => handleSendMessage(null, "Hello, we have updated the quotation pricing as requested. Please review.")}
                     >
-                      💬 Inquiry Follow-up
+                      ✅ Pricing Updated Notice
                     </button>
                   </>
                 )}
@@ -441,7 +544,7 @@ export default function QuotationMessages({ onNavigate }) {
             </>
           ) : (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b" }}>
-              Select a quotation on the left to view messages.
+              Select a quotation on the left to view messages and AI financial analysis.
             </div>
           )}
         </div>

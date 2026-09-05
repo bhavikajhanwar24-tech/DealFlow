@@ -14,6 +14,7 @@ import SalesDashboard from "./pages/SalesDashboard";
 import Quotations from "./pages/Quotations";
 import CreateQuotation from "./pages/CreateQuotation";
 import QuotationDetail from "./pages/QuotationDetail";
+import Fulfillment from "./pages/Fulfillment";
 import FinanceDashboard from "./pages/FinanceDashboard";
 import OperationsDashboard from "./pages/OperationsDashboard";
 import CustomerPortal from "./pages/CustomerPortal";
@@ -124,12 +125,14 @@ function AppContent() {
       return <ScrollVideoHero onNavigate={navigate} />;
     }
     return (
-      <AuthPage
-        onLoginSuccess={(loggedInUser) => {
-          const dest = getRoleDestination(loggedInUser);
-          navigate(dest);
-        }}
-      />
+      <div className="app-layout sales-bg-active">
+        <AuthPage
+          onLoginSuccess={(loggedInUser) => {
+            const dest = getRoleDestination(loggedInUser);
+            navigate(dest);
+          }}
+        />
+      </div>
     );
   }
 
@@ -215,6 +218,14 @@ function AppContent() {
       return <Quotations onNavigate={navigate} />;
     }
 
+    if (currentRoute === "/sales/fulfillment") {
+      const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN", "OPERATIONS"];
+      if (!allowed.includes(user.role)) {
+        return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      }
+      return <Fulfillment onNavigate={navigate} />;
+    }
+
     if (currentRoute === "/sales/dashboard" || currentRoute === "/approvals") {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
       if (!allowed.includes(user.role)) {
@@ -274,6 +285,7 @@ function AppContent() {
     currentRoute === "/admin/billing-configuration" ||
     currentRoute === "/admin/subscription-plans" ||
     currentRoute === "/admin/customer-tiers" ||
+    currentRoute === "/sales/fulfillment" ||
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||
     currentRoute.startsWith("/sales/quotations") ||
@@ -287,7 +299,7 @@ function AppContent() {
     currentRoute.includes("messages");
 
   return (
-    <div className={`app-layout ${isSalesRoute ? "sales-bg-active" : ""}`}>
+    <div className="app-layout sales-bg-active">
       {showNavbar && (
         <Navbar currentRoute={currentRoute} setCurrentRoute={navigate} />
       )}

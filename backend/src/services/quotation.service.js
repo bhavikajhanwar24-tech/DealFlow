@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const fulfillmentService = require("./fulfillment.service");
 
 const SALES_ROLES = ["SALES_REP", "SALES_MANAGER"];
 const QUOTATION_STATUSES = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION", "CONFIRMED"];
@@ -663,7 +664,8 @@ async function confirmCustomerQuotation(id, customer) {
      RETURNING id, quotation_number, status, confirmed_at`,
     [id, customer.id],
   );
-  return result.rows[0];
+  const order = await fulfillmentService.createOrderForQuotation(id);
+  return { ...result.rows[0], orderId: order.id, orderNumber: order.order_number };
 }
 
 async function rejectCustomerQuotation(id, customer) {

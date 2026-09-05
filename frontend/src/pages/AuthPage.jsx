@@ -283,33 +283,7 @@ export default function AuthPage({ onLoginSuccess }) {
   };
 
   return (
-    <div className="atmospheric-bg">
-      {/* Floating feature pills */}
-      <div className="floating-badge badge-approvals">
-        <div style={{ color: "#f97316" }}><ShieldCheckIcon size={18} /></div>
-        <span>Approvals</span>
-      </div>
-
-      <div className="floating-badge badge-quotes">
-        <div style={{ color: "#2563eb" }}><MessageSquareIcon size={18} /></div>
-        <span>Quotes</span>
-      </div>
-
-      <div className="floating-badge badge-fulfillment">
-        <div style={{ color: "#10b981" }}><TruckIcon size={18} /></div>
-        <span>Fulfillment</span>
-      </div>
-
-      <div className="floating-badge badge-billing">
-        <div style={{ color: "#6366f1" }}><ReceiptIcon size={18} /></div>
-        <span>Billing</span>
-      </div>
-
-      <div className="floating-badge badge-insights">
-        <div style={{ color: "#06b6d4" }}><TrendingUpIcon size={18} /></div>
-        <span>Insights</span>
-      </div>
-
+    <div className="sales-auth-wrapper">
       {/* Main Auth Container */}
       <div className="auth-container">
         {/* DealFlow360 Hero Branding */}
