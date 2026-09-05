@@ -265,6 +265,25 @@ function validateWarehouse(req, res, next) {
   next();
 }
 
+function validateWarehouseInventory(req, res, next) {
+  const { productId, quantity } = req.body;
+  const parsedQuantity = Number(quantity);
+  const errors = [];
+
+  if (!productId || typeof productId !== "string") {
+    errors.push("A product is required.");
+  }
+  if (!Number.isInteger(parsedQuantity) || parsedQuantity < 0) {
+    errors.push("Quantity must be a whole number of zero or greater.");
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ success: false, message: errors[0], errors });
+  }
+
+  next();
+}
+
 module.exports = {
   validateEmployeeRegister,
   validateCustomerRegister,
@@ -275,6 +294,7 @@ module.exports = {
   validateProduct,
   PRODUCT_CATEGORIES,
   validateWarehouse,
+  validateWarehouseInventory,
   ALLOWED_EMPLOYEE_ROLES,
   ALLOWED_DEPARTMENTS
 };

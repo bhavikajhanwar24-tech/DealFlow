@@ -9,7 +9,8 @@ const {
   validateStaff,
   validateStaffUpdate,
   validateProduct,
-  validateWarehouse
+  validateWarehouse,
+  validateWarehouseInventory
 } = require("../validators/auth.validator");
 
 // Apply authentication, active status, and ADMIN role to all routes in this router
@@ -34,5 +35,9 @@ router.put("/products/:id", validateProduct, adminController.updateProduct);
 router.get("/warehouses", adminController.getWarehouses);
 router.post("/warehouses", validateWarehouse, adminController.createWarehouse);
 router.put("/warehouses/:id", validateWarehouse, adminController.updateWarehouse);
+router.get("/warehouses/analytics", adminController.getWarehouseAnalytics);
+router.get("/warehouses/:id/inventory", adminController.getWarehouseInventory);
+router.put("/warehouses/:id/inventory", validateWarehouseInventory, adminController.upsertWarehouseInventory);
+router.delete("/warehouses/:id/inventory/:inventoryId", adminController.removeWarehouseInventory);
 
 module.exports = router;

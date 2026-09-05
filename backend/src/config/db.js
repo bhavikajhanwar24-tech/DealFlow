@@ -133,6 +133,19 @@ async function initDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.warehouse_inventory (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        warehouse_id UUID NOT NULL REFERENCES public.warehouses(id) ON DELETE CASCADE,
+        product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+        quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+        updated_by UUID REFERENCES public.users(id),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (warehouse_id, product_id)
+      );
+    `);
+
     // Create indexes for performance if not exist
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
@@ -145,6 +158,8 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_quotations_sales_rep ON public.quotations(sales_rep_id);
       CREATE INDEX IF NOT EXISTS idx_quotation_items_quotation ON public.quotation_items(quotation_id);
       CREATE INDEX IF NOT EXISTS idx_warehouses_active ON public.warehouses(is_active);
+      CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_warehouse ON public.warehouse_inventory(warehouse_id);
+      CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_product ON public.warehouse_inventory(product_id);
     `);
 
     await client.query(`

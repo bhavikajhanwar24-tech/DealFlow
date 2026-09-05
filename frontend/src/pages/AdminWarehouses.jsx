@@ -1,9 +1,24 @@
 import { useEffect, useState } from "react";
-import { Edit3, MapPin, Plus, RefreshCw, Search, Warehouse as WarehouseIcon, X } from "lucide-react";
+import { Edit3, MapPin, Package, Plus, RefreshCw, Search, Trash2, Warehouse as WarehouseIcon, X } from "lucide-react";
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useAuth } from "../context/AuthContext";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 const API_BASE = "http://localhost:5000/api";
 const DEFAULT_CENTER = [20.5937, 78.9629];
@@ -14,6 +29,7 @@ const EMPTY_FORM = {
   longitude: "78.9629",
   isActive: true,
 };
+const CHART_COLORS = ["#2563eb", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 
 const warehouseIcon = new L.DivIcon({
   className: "warehouse-map-marker",
@@ -53,6 +69,13 @@ export default function AdminWarehouses() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [products, setProducts] = useState([]);
+  const [selectedWarehouse, setSelectedWarehouse] = useState(null);
+  const [inventory, setInventory] = useState([]);
+  const [inventoryForm, setInventoryForm] = useState({ productId: "", quantity: "0" });
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventorySaving, setInventorySaving] = useState(false);
+  const [analytics, setAnalytics] = useState({ warehouses: [], products: [], warehouseMix: [] });
 
   const latitude = Number(form.latitude);
   const longitude = Number(form.longitude);
@@ -81,6 +104,94 @@ export default function AdminWarehouses() {
   useEffect(() => {
     loadWarehouses();
   }, [token]);
+
+  const loadProducts = async () => {
+    const response = await fetch(`${API_BASE}/admin/products`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || "Unable to load products.");
+    setProducts(data.data || []);
+  };
+
+  const loadAnalytics = async () => {
+    const response = await fetch(`${API_BASE}/admin/warehouses/analytics`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || "Unable to load warehouse analytics.");
+    setAnalytics(data.data || { warehouses: [], products: [], warehouseMix: [] });
+  };
+
+  useEffect(() => {
+    loadAnalytics().catch((requestError) => setError(requestError.message));
+  }, [token]);
+
+  const selectWarehouse = async (warehouse) => {
+    setSelectedWarehouse(warehouse);
+    setInventoryLoading(true);
+    setError("");
+    try {
+      const [inventoryResponse] = await Promise.all([
+        fetch(`${API_BASE}/admin/warehouses/${warehouse.id}/inventory`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        loadProducts(),
+      ]);
+      const data = await inventoryResponse.json();
+      if (!inventoryResponse.ok) throw new Error(data.message || "Unable to load warehouse inventory.");
+      setInventory(data.data || []);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
+
+  const saveInventory = async (event) => {
+    event.preventDefault();
+    if (!selectedWarehouse) return;
+    setInventorySaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`${API_BASE}/admin/warehouses/${selectedWarehouse.id}/inventory`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(inventoryForm),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to save inventory.");
+      setSuccess(data.message);
+      setInventoryForm({ productId: "", quantity: "0" });
+      await selectWarehouse(selectedWarehouse);
+      await loadAnalytics();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setInventorySaving(false);
+    }
+  };
+
+  const removeInventory = async (item) => {
+    if (!selectedWarehouse || !window.confirm(`Remove ${item.name} from ${selectedWarehouse.name}?`)) return;
+    try {
+      const response = await fetch(`${API_BASE}/admin/warehouses/${selectedWarehouse.id}/inventory/${item.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to remove inventory.");
+      setSuccess(data.message);
+      await selectWarehouse(selectedWarehouse);
+      await loadAnalytics();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
 
   const updateField = (event) => {
     const { name, value, type, checked } = event.target;
@@ -194,6 +305,44 @@ export default function AdminWarehouses() {
       {error && <div className="alert alert-danger">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
+      <section className="warehouse-analytics-grid">
+        <div className="admin-panel warehouse-chart-panel warehouse-chart-wide">
+          <div className="panel-heading-spread warehouse-chart-heading">
+            <div><p className="eyebrow">All warehouses</p><h2>Units by warehouse</h2></div>
+            <span className="staff-count">{analytics.warehouses.length} locations</span>
+          </div>
+          <div className="warehouse-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={analytics.warehouses.map((item) => ({ ...item, total_units: Number(item.total_units) }))}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="total_units" name="Units" fill="#2563eb" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div>
+        </div>
+        <div className="admin-panel warehouse-chart-panel">
+          <div className="warehouse-chart-heading"><p className="eyebrow">Inventory value</p><h2>Value trend</h2></div>
+          <div className="warehouse-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={analytics.warehouses.map((item) => ({ ...item, inventory_value: Number(item.inventory_value) }))}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(value) => [`₹${Number(value).toLocaleString("en-IN")}`, "Value"]} /><Line type="monotone" dataKey="inventory_value" name="Value" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} /></LineChart></ResponsiveContainer></div>
+        </div>
+        <div className="admin-panel warehouse-chart-panel">
+          <div className="warehouse-chart-heading"><p className="eyebrow">Product distribution</p><h2>Units across network</h2></div>
+          <div className="warehouse-chart"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={analytics.products.map((item) => ({ ...item, total_units: Number(item.total_units) }))} dataKey="total_units" nameKey="name" innerRadius={48} outerRadius={82} paddingAngle={3}>{analytics.products.map((item, index) => <Cell key={item.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart></ResponsiveContainer></div>
+        </div>
+      </section>
+
+      <section className="admin-panel warehouse-pies-panel">
+        <div className="warehouse-chart-heading"><p className="eyebrow">Warehouse detail</p><h2>Product mix by warehouse</h2></div>
+        <div className="warehouse-pie-grid">
+          {analytics.warehouses.map((warehouse) => {
+            const warehouseProducts = analytics.warehouseMix
+              .filter((item) => item.warehouse_id === warehouse.id)
+              .map((item) => ({ name: item.product_name, total_units: Number(item.total_units), id: item.product_id }));
+            return (
+              <article className="warehouse-mini-pie" key={warehouse.id}>
+                <h3>{warehouse.name}</h3>
+                {warehouseProducts.length ? (
+                  <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={warehouseProducts} dataKey="total_units" nameKey="name" innerRadius={35} outerRadius={62} paddingAngle={3}>{warehouseProducts.map((item, index) => <Cell key={item.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /><Legend wrapperStyle={{ fontSize: 10 }} /></PieChart></ResponsiveContainer>
+                ) : <p className="empty-state">No stock assigned</p>}
+              </article>
+            );
+          })}
+          {!analytics.warehouses.length && <p className="empty-state">Create a warehouse to see its product mix.</p>}
+        </div>
+      </section>
+
       <section className="warehouse-layout">
         <form className="admin-panel warehouse-form" onSubmit={saveWarehouse}>
           <div className="panel-heading">
@@ -291,18 +440,58 @@ export default function AdminWarehouses() {
             <thead><tr><th>Warehouse</th><th>Address</th><th>Coordinates</th><th>Status</th><th /></tr></thead>
             <tbody>
               {loading ? <tr><td colSpan="5" className="empty-state">Loading warehouses...</td></tr> : warehouses.length === 0 ? <tr><td colSpan="5" className="empty-state">No warehouses created yet.</td></tr> : warehouses.map((warehouse) => (
-                <tr key={warehouse.id}>
+                <tr key={warehouse.id} className={`warehouse-row ${selectedWarehouse?.id === warehouse.id ? "selected" : ""}`} onClick={() => selectWarehouse(warehouse)}>
                   <td><strong>{warehouse.name}</strong></td>
                   <td className="warehouse-address-cell">{warehouse.address}</td>
                   <td><code>{Number(warehouse.latitude).toFixed(5)}, {Number(warehouse.longitude).toFixed(5)}</code></td>
                   <td><span className={`badge ${warehouse.is_active ? "badge-active" : "badge-suspended"}`}>{warehouse.is_active ? "ACTIVE" : "INACTIVE"}</span></td>
-                  <td><button className="icon-button" title={`Edit ${warehouse.name}`} onClick={() => editWarehouse(warehouse)}><Edit3 size={16} /></button></td>
+                  <td><div className="warehouse-row-actions"><button className="icon-button" title={`Edit ${warehouse.name}`} onClick={(event) => { event.stopPropagation(); editWarehouse(warehouse); }}><Edit3 size={16} /></button><span className="warehouse-row-hint">Manage stock</span></div></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </section>
+
+      {selectedWarehouse && (
+        <section className="admin-panel inventory-panel">
+          <div className="panel-heading panel-heading-spread">
+            <div>
+              <p className="eyebrow">Warehouse inventory</p>
+              <h2>{selectedWarehouse.name}</h2>
+              <p>{selectedWarehouse.address}</p>
+            </div>
+            <button className="icon-button" title="Close inventory" onClick={() => setSelectedWarehouse(null)}><X size={16} /></button>
+          </div>
+          <form className="inventory-form" onSubmit={saveInventory}>
+            <div className="form-group">
+              <label className="form-label" htmlFor="inventory-product">Product from catalog</label>
+              <select id="inventory-product" className="form-select no-icon" value={inventoryForm.productId} onChange={(event) => setInventoryForm((current) => ({ ...current, productId: event.target.value }))} required>
+                <option value="">Select a product</option>
+                {products.map((product) => <option key={product.id} value={product.id}>{product.name} ({product.sku})</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="inventory-quantity">Quantity available</label>
+              <input id="inventory-quantity" className="form-input no-icon" type="number" min="0" step="1" value={inventoryForm.quantity} onChange={(event) => setInventoryForm((current) => ({ ...current, quantity: event.target.value }))} required />
+            </div>
+            <button className="btn-primary inventory-save-button" type="submit" disabled={inventorySaving}>{inventorySaving ? "Saving..." : "Add / update product"}</button>
+          </form>
+          <div className="selected-warehouse-chart">
+            <div><p className="eyebrow">Selected warehouse</p><h3>Product mix</h3></div>
+            <div className="warehouse-chart warehouse-pie-chart"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={inventory.map((item) => ({ ...item, quantity: Number(item.quantity) })).filter((item) => item.quantity > 0)} dataKey="quantity" nameKey="name" innerRadius={52} outerRadius={88} paddingAngle={3}>{inventory.map((item, index) => <Cell key={item.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart></ResponsiveContainer></div>
+          </div>
+          <div className="inventory-table-wrap">
+            {inventoryLoading ? <p className="empty-state">Loading inventory...</p> : inventory.length === 0 ? <p className="empty-state">No products assigned to this warehouse yet.</p> : (
+              <table className="data-table">
+                <thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>Quantity</th><th /></tr></thead>
+                <tbody>{inventory.map((item) => <tr key={item.id}><td><strong>{item.name}</strong></td><td><code>{item.sku}</code></td><td>{item.category}</td><td className="inventory-quantity">{item.quantity}</td><td><button className="icon-button danger-icon" title={`Remove ${item.name}`} onClick={() => removeInventory(item)}><Trash2 size={16} /></button></td></tr>)}</tbody>
+              </table>
+            )}
+          </div>
+          <p className="warehouse-map-help"><Package size={15} /> Choose an existing catalog product and save its available quantity for this warehouse. Saving the same product updates its quantity.</p>
+        </section>
+      )}
     </main>
   );
 }
