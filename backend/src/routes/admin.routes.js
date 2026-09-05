@@ -8,6 +8,7 @@ const {
   validateRejection,
   validateStaff,
   validateStaffUpdate,
+  validateProduct,
   validateWarehouse
 } = require("../validators/auth.validator");
 
@@ -27,6 +28,9 @@ router.get("/stats", adminController.getAdminStats);
 router.get("/staff", adminController.getStaff);
 router.post("/staff", validateStaff, adminController.createStaff);
 router.put("/staff/:id", validateStaffUpdate, adminController.updateStaff);
+router.get("/products", adminController.getProducts);
+router.post("/products", validateProduct, adminController.createProduct);
+router.put("/products/:id", validateProduct, adminController.updateProduct);
 router.get("/warehouses", adminController.getWarehouses);
 router.post("/warehouses", validateWarehouse, adminController.createWarehouse);
 router.put("/warehouses/:id", validateWarehouse, adminController.updateWarehouse);

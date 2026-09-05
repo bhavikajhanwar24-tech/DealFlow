@@ -6,6 +6,7 @@ import AuthPage from "./pages/AuthPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminApprovals from "./pages/AdminApprovals";
 import AdminStaff from "./pages/AdminStaff";
+import ProductManagement from "./pages/ProductManagement";
 import AdminWarehouses from "./pages/AdminWarehouses";
 import SalesDashboard from "./pages/SalesDashboard";
 import Quotations from "./pages/Quotations";
@@ -153,6 +154,13 @@ function AppContent() {
       return <AdminStaff />;
     }
 
+    if (currentRoute === "/admin/products") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <ProductManagement />;
+    }
+
     if (currentRoute === "/admin/warehouses") {
       if (user.role !== "ADMIN") {
         return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
@@ -228,6 +236,7 @@ function AppContent() {
     currentRoute === "/admin/dashboard" ||
     currentRoute === "/admin/employee-approvals" ||
     currentRoute === "/admin/staff" ||
+    currentRoute === "/admin/products" ||
     currentRoute === "/admin/warehouses" ||
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||

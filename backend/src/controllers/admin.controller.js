@@ -105,6 +105,36 @@ async function updateStaff(req, res) {
   }
 }
 
+async function getProducts(req, res) {
+  try {
+    const products = await adminService.getProducts();
+    return res.status(200).json({ success: true, count: products.length, data: products });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to retrieve products." });
+  }
+}
+
+async function createProduct(req, res) {
+  try {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const product = await adminService.createProduct(req.body, req.user.id, ip);
+    return res.status(201).json({ success: true, message: "Product created successfully.", data: product });
+  } catch (error) {
+    const statusCode = error.code === "23505" ? 409 : error.statusCode || 500;
+    return res.status(statusCode).json({ success: false, message: error.code === "23505" ? "Product ID is already in use." : error.message || "Failed to create product." });
+  }
+}
+
+async function updateProduct(req, res) {
+  try {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const product = await adminService.updateProduct(req.params.id, req.body, req.user.id, ip);
+    return res.status(200).json({ success: true, message: "Product updated successfully.", data: product });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to update product." });
+  }
+}
+
 async function getWarehouses(req, res) {
   try {
     const warehouses = await adminService.getWarehouses();
@@ -142,6 +172,9 @@ module.exports = {
   getStaff,
   createStaff,
   updateStaff,
+  getProducts,
+  createProduct,
+  updateProduct,
   getWarehouses,
   createWarehouse,
   updateWarehouse

@@ -243,6 +243,81 @@ async function updateStaff(userId, data, adminUserId, ipAddress) {
   return staff;
 }
 
+function mapProduct(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    productId: row.sku,
+    sku: row.sku,
+    category: row.category,
+    description: row.description || "",
+    sellingPrice: Number(row.unit_price),
+    cost: Number(row.cost),
+    inventoryReference: row.inventory_reference || "",
+    status: row.is_active ? "ACTIVE" : "INACTIVE",
+    currency: row.currency,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+async function getProducts() {
+  const result = await db.query(`
+    SELECT id, name, sku, category, description, unit_price, cost,
+           inventory_reference, is_active, currency, created_at, updated_at
+    FROM public.products
+    ORDER BY created_at DESC, name
+  `);
+  return result.rows.map(mapProduct);
+}
+
+async function createProduct(data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    INSERT INTO public.products
+      (name, sku, category, description, unit_price, cost, inventory_reference, is_active)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    RETURNING id, name, sku, category, description, unit_price, cost,
+              inventory_reference, is_active, currency, created_at, updated_at
+  `, [
+    data.name.trim(), data.sku.trim().toUpperCase(), data.category.toUpperCase(),
+    data.description?.trim() || null, Number(data.unitPrice), Number(data.cost),
+    data.inventoryReference?.trim() || null, String(data.status || "ACTIVE").toUpperCase() === "ACTIVE"
+  ]);
+  const product = mapProduct(result.rows[0]);
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "PRODUCT_CREATED", JSON.stringify({ productId: product.id, sku: product.sku }), ipAddress || null]
+  );
+  return product;
+}
+
+async function updateProduct(productId, data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    UPDATE public.products
+    SET name = $1, category = $2, description = $3, unit_price = $4,
+        cost = $5, inventory_reference = $6, is_active = $7,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $8
+    RETURNING id, name, sku, category, description, unit_price, cost,
+              inventory_reference, is_active, currency, created_at, updated_at
+  `, [
+    data.name.trim(), data.category.toUpperCase(), data.description?.trim() || null,
+    Number(data.unitPrice), Number(data.cost), data.inventoryReference?.trim() || null,
+    String(data.status || "ACTIVE").toUpperCase() === "ACTIVE", productId
+  ]);
+  if (result.rows.length === 0) {
+    const error = new Error("Product not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+  const product = mapProduct(result.rows[0]);
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "PRODUCT_UPDATED", JSON.stringify({ productId: product.id, sku: product.sku }), ipAddress || null]
+  );
+  return product;
+}
+
 async function getWarehouses() {
   const result = await db.query(`
     SELECT id, name, address, latitude, longitude, is_active, created_at, updated_at
@@ -317,6 +392,9 @@ module.exports = {
   getStaff,
   createStaff,
   updateStaff,
+  getProducts,
+  createProduct,
+  updateProduct,
   getWarehouses,
   createWarehouse,
   updateWarehouse
