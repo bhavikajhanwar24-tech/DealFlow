@@ -84,12 +84,20 @@ class AiService {
 
     // Current line items
     const itemsRes = await pool.query(
-      `SELECT qi.quantity, qi.unit_price, qi.discount_percent, qi.line_total,
+          `SELECT qi.product_id, qi.quantity, qi.unit_price, qi.discount_percent, qi.line_total,
               COALESCE(p.cost, 0) AS cost, p.name, p.sku, p.category
        FROM public.quotation_items qi
        LEFT JOIN public.products p ON qi.product_id = p.id
        WHERE qi.quotation_id = $1`,
       [quotationId]
+    );
+
+    const catalogRes = await pool.query(
+      `SELECT id AS product_id, name, category, unit_price, cost
+       FROM public.products
+       WHERE is_active = TRUE
+       ORDER BY name
+       LIMIT 200`
     );
 
     // Entire chat negotiation thread (last 20 messages)
@@ -125,6 +133,7 @@ class AiService {
     return {
       quotation: q,
       items: itemsRes.rows,
+      catalog: catalogRes.rows,
       chatHistory: msgRes.rows,
       negotiationRequests: negRes.rows,
       customerHistory: pastHistoryRes.rows,
@@ -144,11 +153,14 @@ class AiService {
     const itemsSummary = ctx.items.length > 0
       ? ctx.items
           .map(
-            (i) =>
-              `${i.name} (Qty ${i.quantity}, Price ₹${i.unit_price}, Cost ₹${i.cost})`
+                (i) =>
+                  `${i.name} [Product ID ${i.product_id}] (Qty ${i.quantity}, Price ₹${i.unit_price}, Cost ₹${i.cost}, Discount ${i.discount_percent}%)`
           )
           .join("; ")
       : "Standard line items";
+    const catalogSummary = ctx.catalog
+      .map((item) => `${item.name} [Product ID ${item.product_id}] (${item.category}, Price ₹${item.unit_price}, Cost ₹${item.cost})`)
+      .join("; ");
 
     // Recent chat messages
     const chatTranscript =
@@ -193,14 +205,21 @@ The JSON schema must be exactly:
   "summary": "1-2 concise sentences analyzing the client's position, latest message, and past history.",
   "dealHealth": "Clear margin assessment explaining current margin vs the 18% floor.",
   "strategy": "Actionable tactic (e.g., concession trade-off, bundling, delivery terms).",
-  "suggestedDraft": "The complete, polished, ready-to-send professional message to the client."
+  "suggestedDraft": "The complete, polished, ready-to-send professional message to the client.",
+  "quoteUpdate": {
+    "shouldRecreate": false,
+    "rationale": "string",
+    "items": [{"productId": "existing Product ID", "quantity": 1, "unitPrice": 0, "discountPercent": 0}]
+  }
 }
 
 Rules:
 1. Ground the response on the chat transcript and client's actual messages.
 2. Protect the 18% minimum gross margin floor.
 3. The draft message must be professional, courteous, persuasive, and directly applicable.
-4. Output raw JSON only.`;
+      4. Output raw JSON only.
+      5. quoteUpdate may only use Product IDs from the Available Catalog Products list. Do not invent products.
+      6. Set shouldRecreate true only when the negotiation requires changing quote lines, quantities, prices, or discounts. Otherwise use false and copy the current items unchanged.`;
 
     const userMessage = `DEAL FINANCIALS:
 - Quote: #${q.quotation_number}
@@ -209,6 +228,7 @@ Rules:
 - Deal Total: ₹${q.final_amount} (Subtotal: ₹${q.subtotal})
 - Current Gross Margin: ${q.margin_percentage || 20}% (Cost: ₹${q.total_cost || 0})
 - Line Items: ${itemsSummary}
+- Available Catalog Products: ${catalogSummary}
 
 PAST NEGOTIATION TICKETS:
 ${portalNegotiations}
@@ -261,6 +281,9 @@ Request: "${userPrompt}"`;
         strategy,
         reply: formattedReply,
         suggestedDraft: suggestedDraft.trim(),
+            quoteUpdate: parsed.quoteUpdate && Array.isArray(parsed.quoteUpdate.items)
+              ? parsed.quoteUpdate
+              : { shouldRecreate: false, rationale: "No structured quotation change recommended.", items: [] },
         margin: `${currentMargin}%`,
         finalAmount: q.final_amount,
       };
@@ -281,6 +304,7 @@ Request: "${userPrompt}"`;
       strategy: fallbackStrategy,
       reply: `📋 Context Analysis:\n${fallbackSummary}\n\n💡 Recommended Strategy:\n${fallbackStrategy}\n\n🛡️ Margin Health:\n${fallbackHealth}`,
       suggestedDraft: fallbackDraft,
+           quoteUpdate: { shouldRecreate: false, rationale: "No structured quotation change recommended.", items: [] },
       margin: `${currentMargin}%`,
       finalAmount: q.final_amount,
     };

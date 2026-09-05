@@ -410,6 +410,17 @@ a {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
+/* Remove number input increment/decrement up/down arrows */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+input[type="number"] {
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1099,6 +1110,31 @@ a {
   margin: 0 auto;
 }
 
+.quotation-customer-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: 0.8rem;
+  padding: 1.15rem 1.25rem;
+  margin-bottom: 1.1rem;
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.quotation-customer-field {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.quotation-email-value {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 /* Split layout: main content left, sticky scrollable sidebar right */
 .split-panel-layout {
   display: grid;
@@ -1116,8 +1152,8 @@ a {
 .split-panel-sidebar {
   position: sticky;
   top: calc(var(--topbar-height) + 0.75rem);
-  height: calc(100vh - var(--topbar-height) - 1.5rem);
-  max-height: calc(100vh - var(--topbar-height) - 1.5rem);
+  height: fit-content;
+  max-height: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1131,12 +1167,49 @@ a {
 .split-panel-sidebar-scroll {
   overflow-y: auto;
   overflow-x: hidden;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
+}
+
+.recommendation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.18rem 0.45rem;
+  border-radius: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.recommendation-swipe-stamp {
+  position: absolute;
+  top: 1rem;
+  z-index: 2;
+  padding: 0.35rem 0.55rem;
+  border: 2px solid currentColor;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  transform: rotate(-8deg);
+}
+
+.recommendation-swipe-stamp.accept {
+  right: 1rem;
+  color: #15803d;
+}
+
+.recommendation-swipe-stamp.reject {
+  left: 1rem;
+  color: #b91c1c;
+  transform: rotate(8deg);
 }
 
 .split-panel-sidebar-scroll::-webkit-scrollbar {

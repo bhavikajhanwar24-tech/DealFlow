@@ -80,7 +80,7 @@ async function createCustomerQuoteRequest(customer, input) {
     if (productsRes.rows.length !== productIds.length) {
       throw quotationError("One or more selected products are unavailable.", 404);
     }
-    
+
     let totalQuantity = 0;
     for (const item of items) {
       const q = Number(item.quantity);
@@ -92,13 +92,13 @@ async function createCustomerQuoteRequest(customer, input) {
 
     const comment = input.customerComment?.trim() || "";
     const lowerComment = comment.toLowerCase();
-    
+
     // Auto-approval rule: Standard quantity (<= 10 items) and no custom discount requests
-    const needsManualReview = 
-      totalQuantity > 10 || 
-      lowerComment.includes("discount") || 
-      lowerComment.includes("negotiat") || 
-      lowerComment.includes("special") || 
+    const needsManualReview =
+      totalQuantity > 10 ||
+      lowerComment.includes("discount") ||
+      lowerComment.includes("negotiat") ||
+      lowerComment.includes("special") ||
       lowerComment.includes("concession") ||
       lowerComment.includes("bulk price");
 
@@ -338,7 +338,7 @@ async function getDashboardSummary(user) {
 
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const fullMonthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  
+
   const currentMonthIdx = new Date().getMonth();
   const recent6Months = [];
   for (let i = 5; i >= 0; i--) {
@@ -361,8 +361,8 @@ async function getDashboardSummary(user) {
           revenueLakhs: Number((revAmount / 100000).toFixed(2)),
           marginPct: Number(marginPct.toFixed(1)),
           grossMarginRaw: grossMargin,
-          grossMarginVal: revAmount >= 100000 
-            ? `₹${(grossMargin / 100000).toFixed(2)}L` 
+          grossMarginVal: revAmount >= 100000
+            ? `₹${(grossMargin / 100000).toFixed(2)}L`
             : `₹${Number(grossMargin.toFixed(0)).toLocaleString("en-IN")}`
         });
       }
@@ -392,14 +392,14 @@ async function getDashboardSummary(user) {
   const formattedTotalRevenue = totalRevenueNum >= 10000000
     ? `₹${(totalRevenueNum / 10000000).toFixed(2)}Cr`
     : totalRevenueNum >= 100000
-    ? `₹${(totalRevenueNum / 100000).toFixed(2)}L`
-    : `₹${Number(totalRevenueNum.toFixed(0)).toLocaleString("en-IN")}`;
+      ? `₹${(totalRevenueNum / 100000).toFixed(2)}L`
+      : `₹${Number(totalRevenueNum.toFixed(0)).toLocaleString("en-IN")}`;
 
   const formattedGrossMargin = totalGrossMarginNum >= 10000000
     ? `₹${(totalGrossMarginNum / 10000000).toFixed(2)}Cr`
     : totalGrossMarginNum >= 100000
-    ? `₹${(totalGrossMarginNum / 100000).toFixed(2)}L`
-    : `₹${Number(totalGrossMarginNum.toFixed(0)).toLocaleString("en-IN")}`;
+      ? `₹${(totalGrossMarginNum / 100000).toFixed(2)}L`
+      : `₹${Number(totalGrossMarginNum.toFixed(0)).toLocaleString("en-IN")}`;
 
   const formattedAvgMargin = `${avgMarginNum.toFixed(1)}%`;
 
@@ -651,6 +651,169 @@ async function createDraft(user, input) {
   }
 }
 
+async function updateQuotation(user, quotationId, input) {
+  if (!SALES_ROLES.includes(user.role) && user.role !== "ADMIN") {
+    throw quotationError("Only Sales Representatives and Sales Managers can edit quotations.", 403);
+  }
+
+  // Fetch existing quotation to verify ownership
+  const existing = await getQuotation(quotationId, user);
+  if (!existing) throw quotationError("Quotation not found.", 404);
+
+  // Only allow editing DRAFT or PENDING_APPROVAL quotations (not finalized/confirmed)
+  const editableStatuses = ["DRAFT", "PENDING_APPROVAL", "NEGOTIATION"];
+  if (!editableStatuses.includes(existing.status)) {
+    throw quotationError(
+      `Only quotations in DRAFT, PENDING_APPROVAL, or NEGOTIATION status can be edited. Current status: ${existing.status}.`
+    );
+  }
+
+  const items = Array.isArray(input.items) ? input.items : [];
+  if (items.length === 0) throw quotationError("At least one product is required.");
+
+  const seenProducts = new Set();
+  const productIds = [];
+  for (const item of items) {
+    if (!item.productId || seenProducts.has(item.productId)) {
+      throw quotationError("Each product can only appear once in a quotation.");
+    }
+    seenProducts.add(item.productId);
+    const quantity = Number(item.quantity);
+    const discountPercent = Number(item.discountPercent || 0);
+    const unitPrice = item.unitPrice === undefined ? null : Number(item.unitPrice);
+    if (!Number.isInteger(quantity) || quantity <= 0) throw quotationError("Quantity must be a positive whole number.");
+    if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+      throw quotationError("Discount must be between 0 and 100 percent.");
+    }
+    if (unitPrice !== null && (!Number.isFinite(unitPrice) || unitPrice < 0)) throw quotationError("Selling price cannot be negative.");
+    productIds.push(item.productId);
+  }
+
+  const client = await db.pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const productsResult = await client.query(
+      `SELECT id, name, sku, category, unit_price, cost
+       FROM public.products WHERE id = ANY($1::uuid[]) AND is_active = TRUE`,
+      [productIds]
+    );
+    if (productsResult.rows.length !== productIds.length) throw quotationError("One or more selected products are unavailable.", 404);
+
+    const productsById = new Map(productsResult.rows.map((product) => [product.id, product]));
+    let subtotal = 0;
+    let discountAmount = 0;
+    const calculatedItems = items.map((item) => {
+      const product = productsById.get(item.productId);
+      const costPrice = Number(product.cost);
+      const quantity = Number(item.quantity);
+      const discountPercent = Number(item.discountPercent || 0);
+      const unitPrice = item.unitPrice === undefined ? Number(product.unit_price) : Number(item.unitPrice);
+      const lineSubtotal = money(unitPrice * quantity);
+      const lineDiscount = money(lineSubtotal * discountPercent / 100);
+      const lineTotal = money(lineSubtotal - lineDiscount);
+      subtotal += lineSubtotal;
+      discountAmount += lineDiscount;
+      return { product, quantity, unitPrice, costPrice, discountPercent, lineDiscount, lineTotal };
+    });
+    subtotal = money(subtotal);
+    discountAmount = money(discountAmount);
+    const finalAmount = money(subtotal - discountAmount);
+    const totalCost = money(calculatedItems.reduce((sum, item) => sum + item.costPrice * item.quantity, 0));
+    const grossMargin = money(finalAmount - totalCost);
+    const marginPercentage = finalAmount === 0 ? 0 : money((grossMargin / finalAmount) * 100);
+
+    // Update the quotation header & reset to DRAFT (risk data cleared for re-submission)
+    await client.query(
+      `UPDATE public.quotations
+       SET status = 'DRAFT',
+           subtotal = $1,
+           discount_amount = $2,
+           final_amount = $3,
+           total_cost = $4,
+           gross_margin = $5,
+           margin_percentage = $6,
+           risk_score = NULL,
+           risk_level = NULL,
+           approval_route = NULL,
+           risk_factors = NULL,
+           risk_analysis = NULL,
+           risk_analyzed_at = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $7`,
+      [subtotal, discountAmount, finalAmount, totalCost, grossMargin, marginPercentage, quotationId]
+    );
+
+    // Delete all old items and re-insert new ones
+    await client.query("DELETE FROM public.quotation_items WHERE quotation_id = $1", [quotationId]);
+
+    for (const item of calculatedItems) {
+      await client.query(
+        `INSERT INTO public.quotation_items
+         (quotation_id, product_id, quantity, unit_price, discount_percent, discount_amount, line_total)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [quotationId, item.product.id, item.quantity, item.unitPrice, item.discountPercent, item.lineDiscount, item.lineTotal]
+      );
+    }
+
+    await client.query("COMMIT");
+    return getQuotation(quotationId, user);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function previewQuotationRisk(user, input) {
+  if (!SALES_ROLES.includes(user.role)) throw quotationError("Only sales users can preview quotation risk.", 403);
+  const items = Array.isArray(input.items) ? input.items : [];
+  if (!items.length) throw quotationError("Add at least one product before previewing risk.");
+  const subtotal = items.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0), 0);
+  const discountAmount = items.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0) * Number(item.discountPercent || 0) / 100, 0);
+  const finalPrice = subtotal - discountAmount;
+  const totalCost = items.reduce((sum, item) => sum + Number(item.costPrice || 0) * Number(item.quantity || 0), 0);
+  const marginDeal = finalPrice > 0 ? Math.max(0, Math.min(1, (finalPrice - totalCost) / finalPrice)) : 0;
+  const request = { dealId: `preview-${user.id}`, customerTier: "STANDARD", repAverageDiscount: 0, dealAverageDiscount: subtotal > 0 ? discountAmount / subtotal : 0, marginDeal, lines: items.map((item, index) => ({ productId: item.productId || `line-${index}`, category: item.category || "OTHER", discount: Number(item.discountPercent || 0) / 100, grossValue: Number(item.unitPrice || 0) * Number(item.quantity || 0), categoryCeiling: CATEGORY_CEILINGS[item.category] || 0.10, tierCeiling: 0.10, unitPrice: Number(item.unitPrice || 0), quantity: Number(item.quantity || 0) })) };
+  let response;
+  try { response = await fetch(`${RISK_ENGINE_URL}/api/ai/risk/analyze`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) }); }
+  catch (error) { throw quotationError("Risk engine unavailable. Start it with `npm run risk:dev` from the backend folder.", 503); }
+  const risk = await response.json();
+  if (!response.ok) throw quotationError(risk.detail || "Risk preview failed.", 422);
+  const safeDiscount = subtotal > 0 ? Math.max(0, Math.min(20, ((subtotal - totalCost / 0.82) / subtotal) * 100)) : 0;
+  return { risk, pricing: { subtotal: money(subtotal), currentDiscount: money(discountAmount), finalPrice: money(finalPrice), totalCost: money(totalCost), marginPercentage: Number((marginDeal * 100).toFixed(1)), suggestedDiscountPercent: Number(safeDiscount.toFixed(1)), suggestedFinalPrice: money(subtotal * (1 - safeDiscount / 100)) } };
+}
+
+async function applyNegotiationSuggestion(user, quotationId, input) {
+  if (!SALES_ROLES.includes(user.role) && user.role !== "ADMIN") {
+    throw quotationError("Only sales users and administrators can apply negotiation suggestions.", 403);
+  }
+  const quotation = await getQuotation(quotationId, user);
+  const discountPercent = Number(input.discountPercent);
+  if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+    throw quotationError("A valid suggested discount percentage is required.");
+  }
+  const items = quotation.items.map((item) => ({
+    productId: item.productId,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    discountPercent,
+  }));
+  await updateQuotation(user, quotationId, { items });
+  return submitQuotation(user, quotationId);
+}
+
+async function applyAiQuoteUpdate(user, quotationId, input) {
+  if (!SALES_ROLES.includes(user.role) && user.role !== "ADMIN") {
+    throw quotationError("Only sales users and administrators can recreate quotations.", 403);
+  }
+  const items = Array.isArray(input.items) ? input.items : [];
+  if (!items.length) throw quotationError("The AI proposal contains no quotation items.");
+  const updated = await updateQuotation(user, quotationId, { items });
+  return { quotation: updated, message: "AI proposal applied. Review the recreated draft and submit it when ready." };
+}
+
 async function submitQuotation(user, quotationId) {
   const quotation = await getQuotation(quotationId, user);
   if (quotation.status !== "DRAFT") {
@@ -777,7 +940,7 @@ async function getCustomerQuotation(id, customer) {
 
 async function createNegotiationRequest(id, customer, input) {
   const quotation = await getCustomerQuotation(id, customer);
-  if (!["DRAFT", "APPROVED", "NEGOTIATION"].includes(quotation.status)) {
+  if (!["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION"].includes(quotation.status)) {
     throw quotationError("This quotation is not currently available for negotiation.");
   }
   if (quotation.negotiations.some((request) => request.status === "PENDING")) {
@@ -801,6 +964,18 @@ async function createNegotiationRequest(id, customer, input) {
      RETURNING id, requested_discount_percent, requested_delivery_date, customer_comment, status, created_at`,
     [id, customer.id, requestedDiscountPercent, deliveryDate, input.customerComment?.trim() || null],
   );
+  const negotiationMessage = [
+    "Customer negotiation request",
+    hasDiscount ? `Requested discount: ${requestedDiscountPercent}%` : null,
+    deliveryDate ? `Requested delivery date: ${deliveryDate}` : null,
+    input.customerComment?.trim() ? `Comment: ${input.customerComment.trim()}` : null,
+  ].filter(Boolean).join("\n");
+  await db.query(
+    `INSERT INTO public.quotation_messages
+      (quotation_id, sender_id, sender_role, sender_name, message, recipient_role, recipient_id)
+     VALUES ($1, $2, 'CUSTOMER', $3, $4, 'SALES_REP', $5)`,
+    [id, customer.id, customer.full_name || customer.email, negotiationMessage, quotation.salesRep.id],
+  );
   await db.query(
     `UPDATE public.quotations SET status = 'NEGOTIATION', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND customer_id = $2`,
     [id, customer.id],
@@ -810,7 +985,7 @@ async function createNegotiationRequest(id, customer, input) {
 
 async function confirmCustomerQuotation(id, customer) {
   const quotation = await getCustomerQuotation(id, customer);
-  if (!["DRAFT", "APPROVED", "NEGOTIATION"].includes(quotation.status)) {
+  if (!["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION"].includes(quotation.status)) {
     if (quotation.status === "CONFIRMED") throw quotationError("This quotation has already been confirmed.");
     throw quotationError("This quotation is not currently available for confirmation.");
   }
@@ -828,7 +1003,7 @@ async function confirmCustomerQuotation(id, customer) {
 
 async function rejectCustomerQuotation(id, customer) {
   const quotation = await getCustomerQuotation(id, customer);
-  if (!["DRAFT", "APPROVED", "NEGOTIATION"].includes(quotation.status)) {
+  if (!["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION"].includes(quotation.status)) {
     if (quotation.status === "REJECTED") throw quotationError("This quotation has already been rejected.");
     if (quotation.status === "CONFIRMED") throw quotationError("This quotation has already been confirmed.");
     throw quotationError("This quotation is not currently available for rejection.");
@@ -981,7 +1156,11 @@ module.exports = {
   listQuotations,
   getQuotation,
   createDraft,
+  updateQuotation,
   submitQuotation,
+    previewQuotationRisk,
+    applyNegotiationSuggestion,
+    applyAiQuoteUpdate,
   listCustomerQuotations,
   getCustomerQuotation,
   createNegotiationRequest,

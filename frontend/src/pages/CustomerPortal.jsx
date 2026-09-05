@@ -48,7 +48,7 @@ const statusLabel = {
   REJECTED: "Declined / Rejected",
 };
 
-export default function CustomerPortal() {
+export default function CustomerPortal({ onNavigate }) {
   const { user, token } = useAuth();
   const [quotations, setQuotations] = useState([]);
   const [selectedQuotationId, setSelectedQuotationId] = useState(null);
@@ -452,7 +452,9 @@ async function loadRequestData() {
   }
 
   const isDetail = Boolean(selectedQuotationId);
-  const canRespond = quotation && ["DRAFT", "APPROVED", "NEGOTIATION"].includes(quotation.status);
+  const canRespond =
+    quotation &&
+    ["DRAFT", "APPROVED", "NEGOTIATION", "PENDING_APPROVAL", "SENT"].includes(quotation.status);
   const pendingRequest = quotation?.negotiations?.find((request) => request.status === "PENDING");
 
   const glassStyle = {
@@ -1299,7 +1301,7 @@ async function loadRequestData() {
                   />
                 </label>
 
-                <div style={{ display: "flex", gap: "0.85rem", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "0.85rem", flexWrap: "wrap", alignItems: "center" }}>
                   <button
                     className="btn-primary"
                     type="submit"
@@ -1327,6 +1329,15 @@ async function loadRequestData() {
                     style={{ padding: "0.65rem 1.25rem" }}
                   >
                     <XCircle size={16} /> Decline Quotation
+                  </button>
+
+                  <button
+                    className="btn-secondary"
+                    type="button"
+                    onClick={() => onNavigate && onNavigate(`/customer/messages`)}
+                    style={{ padding: "0.65rem 1.25rem", background: "#eff6ff", color: "#1d4ed8", borderColor: "#bfdbfe" }}
+                  >
+                    <MessageSquare size={16} color="#1d4ed8" /> Open Live Chat & Negotiation
                   </button>
                 </div>
               </form>

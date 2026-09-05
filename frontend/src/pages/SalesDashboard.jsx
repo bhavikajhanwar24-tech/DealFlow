@@ -516,9 +516,7 @@ export default function SalesDashboard({ onNavigate }) {
                 Quotation & Deal Export Reports
               </h2>
             </div>
-            <p style={{ color: "#64748b", fontSize: "0.825rem", margin: "0.25rem 0 0" }}>
-              Filter sales deals by period, approval stage, and search query. Download as CSV/XLS or formatted PDF.
-            </p>
+            
           </div>
 
           {/* Export Buttons */}

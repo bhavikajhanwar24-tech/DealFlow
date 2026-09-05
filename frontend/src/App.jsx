@@ -204,7 +204,7 @@ function AppContent() {
       if (!allowed.includes(user.role)) return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
       return <AdminInvoices />;
     }
-    
+
     if (currentRoute === "/admin/reports") {
       const allowed = ["ADMIN", "FINANCE", "OPERATIONS", "SALES_MANAGER"];
       if (!allowed.includes(user.role)) return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
