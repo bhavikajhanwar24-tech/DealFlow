@@ -409,6 +409,17 @@ a {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
+/* Remove number input increment/decrement up/down arrows */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+input[type="number"] {
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

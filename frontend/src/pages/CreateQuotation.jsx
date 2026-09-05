@@ -78,17 +78,9 @@ export default function CreateQuotation({ onNavigate }) {
 
   function addItem() {
     const product = products.find((entry) => entry.id === productId);
-    const safeQuantity = Number(quantity);
-    const safeDiscount = Number(discountPercent);
+    const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
+    const safeDiscount = Math.min(100, Math.max(0, Number(discountPercent) || 0));
     if (!product) return setError("Select a product before adding it.");
-    if (!Number.isInteger(safeQuantity) || safeQuantity <= 0)
-      return setError("Quantity must be a positive whole number.");
-    if (
-      !Number.isFinite(safeDiscount) ||
-      safeDiscount < 0 ||
-      safeDiscount > 100
-    )
-      return setError("Discount must be between 0 and 100 percent.");
     if (items.some((item) => item.productId === product.id))
       return setError("That product is already in the quotation.");
     setItems((current) => [
@@ -97,8 +89,8 @@ export default function CreateQuotation({ onNavigate }) {
         productId: product.id,
         name: product.name,
         category: product.category,
-        unitPrice: product.unitPrice,
-        costPrice: product.costPrice,
+        unitPrice: Math.max(0, Number(product.unitPrice) || 0),
+        costPrice: Math.max(0, Number(product.costPrice) || 0),
         quantity: safeQuantity,
         discountPercent: safeDiscount,
       },
@@ -118,8 +110,8 @@ export default function CreateQuotation({ onNavigate }) {
         productId: recommendation.id,
         name: recommendation.name,
         category: recommendation.category,
-        unitPrice: recommendation.unitPrice,
-        costPrice: recommendation.cost,
+        unitPrice: Math.max(0, Number(recommendation.unitPrice) || 0),
+        costPrice: Math.max(0, Number(recommendation.cost) || 0),
         quantity: 1,
         discountPercent: 0,
       },
@@ -129,11 +121,19 @@ export default function CreateQuotation({ onNavigate }) {
 
   function updateItem(productIdToUpdate, field, value) {
     setItems((current) =>
-      current.map((item) =>
-        item.productId === productIdToUpdate
-          ? { ...item, [field]: Math.max(0, Number(value)) }
-          : item,
-      ),
+      current.map((item) => {
+        if (item.productId !== productIdToUpdate) return item;
+        let val = Number(value);
+        if (isNaN(val)) val = 0;
+        if (field === "quantity") {
+          val = Math.max(1, Math.floor(val));
+        } else if (field === "discountPercent") {
+          val = Math.min(100, Math.max(0, val));
+        } else if (field === "unitPrice") {
+          val = Math.max(0, val);
+        }
+        return { ...item, [field]: val };
+      })
     );
   }
 
@@ -266,33 +266,117 @@ export default function CreateQuotation({ onNavigate }) {
           {selectedCustomer && (
             <div
               style={{
-                marginTop: "1rem",
+                marginTop: "1.25rem",
+                padding: "1rem 1.25rem",
+                background: "#f8fafc",
+                borderRadius: "12px",
+                border: "1px solid #e2e8f0",
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: "0.75rem",
+                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gap: "1rem 1.75rem",
                 color: "#475569",
                 fontSize: "0.875rem",
               }}
             >
-              <div>
-                <strong>Name</strong>
-                <br />
-                {selectedCustomer.fullName}
+              <div style={{ minWidth: 0 }}>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    display: "block",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Name
+                </span>
+                <span
+                  style={{
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    wordBreak: "break-word",
+                    display: "block",
+                  }}
+                >
+                  {selectedCustomer.fullName || "-"}
+                </span>
               </div>
-              <div>
-                <strong>Customer ID</strong>
-                <br />
-                {selectedCustomer.customerCode}
+              <div style={{ minWidth: 0 }}>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    display: "block",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Customer ID
+                </span>
+                <span
+                  style={{
+                    fontWeight: 700,
+                    color: "#2563eb",
+                    wordBreak: "break-word",
+                    display: "block",
+                  }}
+                >
+                  {selectedCustomer.customerCode || "-"}
+                </span>
               </div>
-              <div>
-                <strong>Email</strong>
-                <br />
-                {selectedCustomer.email}
+              <div style={{ minWidth: 0 }}>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    display: "block",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Email
+                </span>
+                <span
+                  style={{
+                    color: "#334155",
+                    wordBreak: "break-all",
+                    overflowWrap: "break-word",
+                    display: "block",
+                  }}
+                >
+                  {selectedCustomer.email || "-"}
+                </span>
               </div>
-              <div>
-                <strong>Company</strong>
-                <br />
-                {selectedCustomer.companyName || "-"}
+              <div style={{ minWidth: 0 }}>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    display: "block",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  Company
+                </span>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    color: "#0f172a",
+                    wordBreak: "break-word",
+                    display: "block",
+                  }}
+                >
+                  {selectedCustomer.companyName || "-"}
+                </span>
               </div>
             </div>
           )}
@@ -318,22 +402,23 @@ export default function CreateQuotation({ onNavigate }) {
             }}
           >
             <h2 style={{ fontSize: "1.1rem", fontWeight: 800 }}>Products</h2>
-            <span style={{ color: "#64748b", fontSize: "0.8rem" }}>
-              {products.length} active products
-            </span>
           </div>
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "minmax(220px, 2fr) 120px 130px auto",
-              gap: "0.75rem",
-              alignItems: "end",
+              gridTemplateColumns: "minmax(240px, 1fr) 130px 140px auto",
+              gap: "0.85rem",
+              alignItems: "flex-end",
             }}
           >
-            <label className="form-group">
-              <span className="form-label">Product</span>
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <label htmlFor="product-select" className="form-label" style={{ marginBottom: "0.35rem", fontWeight: 700 }}>
+                Product
+              </label>
               <select
+                id="product-select"
                 className="form-input no-icon"
+                style={{ height: "42px" }}
                 value={productId}
                 onChange={(event) => setProductId(event.target.value)}
                 disabled={loading || !availableProducts.length}
@@ -347,38 +432,88 @@ export default function CreateQuotation({ onNavigate }) {
                 </option>
                 {availableProducts.map((product) => (
                   <option key={product.id} value={product.id}>
-                    {product.name} - {currency(product.unitPrice)} (
-                    {product.category})
+                    {product.name} - {currency(product.unitPrice)} ({product.category})
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="form-group">
-              <span className="form-label">Quantity</span>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <label htmlFor="product-qty" className="form-label" style={{ marginBottom: "0.35rem", fontWeight: 700 }}>
+                Quantity
+              </label>
               <input
+                id="product-qty"
                 className="form-input no-icon"
+                style={{ height: "42px" }}
                 type="number"
                 min="1"
                 step="1"
                 value={quantity}
-                onChange={(event) => setQuantity(event.target.value)}
+                onKeyDown={(e) => { if (e.key === "-" || e.key === "e" || e.key === ".") e.preventDefault(); }}
+                onChange={(event) => {
+                  const val = Math.max(1, Math.floor(Number(event.target.value) || 1));
+                  setQuantity(val);
+                }}
               />
-            </label>
-            <label className="form-group">
-              <span className="form-label">Discount %</span>
-              <input
-                className="form-input no-icon"
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                value={discountPercent}
-                onChange={(event) => setDiscountPercent(event.target.value)}
-              />
-            </label>
-            <button type="button" className="btn-secondary" onClick={addItem}>
-              <Plus size={16} /> Add
-            </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <label htmlFor="product-discount" className="form-label" style={{ marginBottom: "0.35rem", fontWeight: 700 }}>
+                Discount
+              </label>
+              <div style={{ position: "relative", width: "100%" }}>
+                <input
+                  id="product-discount"
+                  className="form-input no-icon"
+                  style={{ height: "42px", paddingRight: "1.75rem" }}
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={discountPercent}
+                  onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
+                  onChange={(event) => {
+                    const val = Math.min(100, Math.max(0, Number(event.target.value) || 0));
+                    setDiscountPercent(val);
+                  }}
+                />
+                <span
+                  style={{
+                    position: "absolute",
+                    right: "10px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "#64748b",
+                    fontSize: "0.85rem",
+                    fontWeight: 700,
+                    pointerEvents: "none",
+                  }}
+                >
+                  %
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={addItem}
+                style={{
+                  height: "42px",
+                  padding: "0 1.25rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.4rem",
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Plus size={16} /> Add Product
+              </button>
+            </div>
           </div>
         </section>
 
@@ -392,16 +527,16 @@ export default function CreateQuotation({ onNavigate }) {
         >
           <section className="data-table-card">
             <div style={{ overflowX: "auto" }}>
-              <table className="data-table">
+              <table className="data-table" style={{ width: "100%" }}>
                 <thead>
                   <tr>
-                    <th>Product</th>
-                    <th>Category</th>
-                    <th>Unit Price</th>
-                    <th>Quantity</th>
-                    <th>Discount</th>
-                    <th>Total</th>
-                    <th />
+                    <th style={{ minWidth: "150px" }}>Product</th>
+                    <th style={{ minWidth: "105px" }}>Category</th>
+                    <th style={{ minWidth: "115px" }}>Unit Price</th>
+                    <th style={{ minWidth: "90px" }}>Quantity</th>
+                    <th style={{ minWidth: "110px" }}>Discount</th>
+                    <th style={{ minWidth: "105px" }}>Total</th>
+                    <th style={{ width: "40px" }} />
                   </tr>
                 </thead>
                 <tbody>
@@ -425,16 +560,21 @@ export default function CreateQuotation({ onNavigate }) {
                         subtotal - (subtotal * item.discountPercent) / 100;
                       return (
                         <tr key={item.productId}>
-                          <td style={{ fontWeight: 700 }}>{item.name}</td>
-                          <td>{item.category}</td>
+                          <td style={{ fontWeight: 700, wordBreak: "break-word", minWidth: "150px" }}>
+                            {item.name}
+                          </td>
+                          <td style={{ color: "#64748b", fontSize: "0.85rem", whiteSpace: "nowrap" }}>
+                            {item.category}
+                          </td>
                           <td>
                             <input
                               className="form-input no-icon"
-                              style={{ width: "120px" }}
+                              style={{ width: "110px", height: "36px", fontSize: "0.875rem" }}
                               type="number"
                               min="0"
                               step="0.01"
                               value={item.unitPrice}
+                              onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
                               onChange={(event) =>
                                 updateItem(
                                   item.productId,
@@ -447,11 +587,12 @@ export default function CreateQuotation({ onNavigate }) {
                           <td>
                             <input
                               className="form-input no-icon"
-                              style={{ width: "90px" }}
+                              style={{ width: "85px", height: "36px", fontSize: "0.875rem" }}
                               type="number"
                               min="1"
                               step="1"
                               value={item.quantity}
+                              onKeyDown={(e) => { if (e.key === "-" || e.key === "e" || e.key === ".") e.preventDefault(); }}
                               onChange={(event) =>
                                 updateItem(
                                   item.productId,
@@ -462,29 +603,62 @@ export default function CreateQuotation({ onNavigate }) {
                             />
                           </td>
                           <td>
-                            <input
-                              className="form-input no-icon"
-                              style={{ width: "90px" }}
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="0.01"
-                              value={item.discountPercent}
-                              onChange={(event) =>
-                                updateItem(
-                                  item.productId,
-                                  "discountPercent",
-                                  event.target.value,
-                                )
-                              }
-                            />
-                            %
+                            <div style={{ position: "relative", width: "95px" }}>
+                              <input
+                                className="form-input no-icon"
+                                style={{
+                                  width: "100%",
+                                  paddingRight: "1.65rem",
+                                  height: "36px",
+                                  fontSize: "0.875rem",
+                                }}
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                value={item.discountPercent}
+                                onKeyDown={(e) => { if (e.key === "-" || e.key === "e") e.preventDefault(); }}
+                                onChange={(event) =>
+                                  updateItem(
+                                    item.productId,
+                                    "discountPercent",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                              <span
+                                style={{
+                                  position: "absolute",
+                                  right: "8px",
+                                  top: "50%",
+                                  transform: "translateY(-50%)",
+                                  color: "#64748b",
+                                  fontSize: "0.8rem",
+                                  fontWeight: 700,
+                                  pointerEvents: "none",
+                                }}
+                              >
+                                %
+                              </span>
+                            </div>
                           </td>
-                          <td style={{ fontWeight: 800 }}>{currency(total)}</td>
-                          <td>
+                          <td style={{ fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap" }}>
+                            {currency(total)}
+                          </td>
+                          <td style={{ textAlign: "center" }}>
                             <button
                               type="button"
                               title="Remove product"
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: "4px 6px",
+                                borderRadius: "6px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
                               onClick={() =>
                                 setItems((current) =>
                                   current.filter(
@@ -494,7 +668,7 @@ export default function CreateQuotation({ onNavigate }) {
                                 )
                               }
                             >
-                              <Trash2 size={17} color="#ef4444" />
+                              <Trash2 size={16} color="#ef4444" />
                             </button>
                           </td>
                         </tr>

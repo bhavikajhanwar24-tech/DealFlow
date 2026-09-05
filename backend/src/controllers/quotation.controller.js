@@ -53,6 +53,19 @@ async function createQuotation(req, res) {
   }
 }
 
+async function updateQuotation(req, res) {
+  try {
+    const quotation = await quotationService.updateQuotation(req.user, req.params.id, req.body);
+    return res.status(200).json({
+      success: true,
+      message: `Quotation ${quotation.quotationNumber} updated and reset to DRAFT for re-submission.`,
+      data: quotation,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+}
+
 async function submitQuotation(req, res) {
   try {
     const quotation = await quotationService.submitQuotation(req.user, req.params.id);
@@ -114,6 +127,7 @@ module.exports = {
   listQuotations,
   getQuotation,
   createQuotation,
+  updateQuotation,
   submitQuotation,
   listCustomerRequests,
   convertCustomerRequest,

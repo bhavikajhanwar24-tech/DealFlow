@@ -18,6 +18,7 @@ router.post("/customer-requests/:requestId/convert", internalSales, quotationCon
 router.get("/", internalSales, quotationController.listQuotations);
 router.get("/:id", internalSales, quotationController.getQuotation);
 router.post("/", salesCreators, quotationController.createQuotation);
+router.put("/:id", salesCreators, quotationController.updateQuotation);
 router.post("/:id/submit", salesCreators, quotationController.submitQuotation);
 router.post("/:id/finalize", internalSales, quotationController.finalizeQuotation);
 
