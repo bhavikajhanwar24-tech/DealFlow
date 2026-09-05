@@ -145,10 +145,27 @@ async function loadRequestData() {
     }
   }
 
+  async function loadProducts() {
+    try {
+      const response = await fetch(`${API_BASE}/customer/quotations/products`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (response.ok && data.data) {
+        setProducts(data.data);
+      }
+    } catch (err) {
+      console.error("Failed to load catalog in customer portal:", err);
+    }
+  }
+
   useEffect(() => {
-  loadQuotations();
-  loadRequestData();
-}, [token]);
+    if (token) {
+      loadQuotations();
+      loadRequestData();
+      loadProducts();
+    }
+  }, [token]);
 
   function addRequestItem(productToAdd = null) {
     const product = productToAdd || products.find((entry) => entry.id === requestProductId);
@@ -198,15 +215,22 @@ async function loadRequestData() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Unable to send quotation request.");
-      setSuccess(data.message);
+      
+      if (data.data?.isAutoApproved) {
+        setSuccess(`⚡ Instant Auto-Approval! Quotation ${data.data.quotationNumber} has been generated and approved. You can review and confirm it below.`);
+      } else {
+        setSuccess(data.message || "Your custom quotation request has been submitted to the sales team for review.");
+      }
+
       setRequestItems([]);
       setRequestDeliveryDate("");
       setRequestComment("");
-      const requestsResponse = await fetch(`${API_BASE}/customer/quotations/requests`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const requestsData = await requestsResponse.json();
-      if (requestsResponse.ok) setCustomerRequests(requestsData.data || []);
+      
+      // Reload both requests and quotations
+      await Promise.all([
+        loadQuotations(),
+        loadRequestData()
+      ]);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
