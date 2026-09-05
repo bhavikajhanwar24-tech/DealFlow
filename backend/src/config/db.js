@@ -126,14 +126,17 @@ async function initDatabase() {
     `);
 
     await client.query(`
-      ALTER TABLE public.products
-      DROP CONSTRAINT IF EXISTS products_category_check
-    `);
-
-    await client.query(`
-      ALTER TABLE public.products
-      ADD CONSTRAINT products_category_check
-      CHECK (category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION', 'ELECTRONICS', 'FURNITURE', 'SOFTWARE', 'SERVICES', 'OTHER'))
+      DO $$
+      BEGIN
+        ALTER TABLE public.products
+        DROP CONSTRAINT IF EXISTS products_category_check;
+        
+        ALTER TABLE public.products
+        ADD CONSTRAINT products_category_check
+        CHECK (category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION', 'ELECTRONICS', 'FURNITURE', 'SOFTWARE', 'SERVICES', 'OTHER'));
+      EXCEPTION
+        WHEN duplicate_object THEN NULL;
+      END $$;
     `);
 
     await client.query(`

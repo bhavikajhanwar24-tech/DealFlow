@@ -102,7 +102,8 @@ class MessageService {
 
   async getQuotation(quotationId) {
     const result = await pool.query(`
-      SELECT q.id, q.quotation_number, q.status, q.final_amount,
+      SELECT q.id, q.quotation_number, q.status, q.subtotal, q.discount_amount, q.final_amount,
+             q.total_cost, q.gross_margin, q.margin_percentage, q.risk_score, q.risk_level,
              c.id AS customer_id, c.full_name AS customer_name, c.company_name AS customer_company,
              sr.id AS sales_rep_id, sr.full_name AS sales_rep_name,
              (SELECT id FROM public.users WHERE role = 'ADMIN' AND status = 'ACTIVE' ORDER BY created_at LIMIT 1) AS admin_id
@@ -248,7 +249,7 @@ class MessageService {
     if (!rows.length) throw messageError("Quotation not found.", 404);
 
     const items = await pool.query(`
-      SELECT qi.quantity, qi.unit_price, qi.discount_percent, qi.total_price,
+      SELECT qi.quantity, qi.unit_price, qi.discount_percent, qi.line_total,
              p.cost, p.category, p.name
       FROM public.quotation_items qi
       JOIN public.products p ON qi.product_id = p.id

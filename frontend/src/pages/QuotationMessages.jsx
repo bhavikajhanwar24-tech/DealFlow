@@ -87,7 +87,8 @@ export default function QuotationMessages({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [aiRunning, setAiRunning] = useState(false);
+  const [copilotLoading, setCopilotLoading] = useState(false);
+  const [copilotResult, setCopilotResult] = useState(null);
   const [error, setError] = useState("");
 
   const chatEndRef = useRef(null);
@@ -229,21 +230,36 @@ export default function QuotationMessages({ onNavigate }) {
     }
   };
 
-  const handleRunAIAutoReply = async () => {
-    if (!selectedQuotationId || aiRunning) return;
-    setAiRunning(true);
+  const handleRunCopilot = async () => {
+    if (!selectedQuotationId || copilotLoading || !activeQuotation) return;
+    setCopilotLoading(true);
+    setError("");
     try {
-      await safeFetchJson(`${API_BASE}/messages/quotations/${selectedQuotationId}/auto-reply`, {
+      const discAmt = Number(activeQuotation.discount_amount || 0);
+      const subTot = Number(activeQuotation.subtotal || activeQuotation.final_amount || 1);
+      const discountPct = subTot > 0 ? Math.round((discAmt / subTot) * 100) : 0;
+      const marginPct = Number(activeQuotation.margin_percentage || 20);
+
+      const response = await fetch(`${API_BASE}/ai/negotiation-copilot`, {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({
+          currentDiscount: discountPct,
+          allowedDiscount: 15,
+          currentMargin: marginPct,
+          messages: messages || []
+        })
       });
-      await loadMessages(selectedQuotationId, recipientRoleRef.current, false);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Failed to run Copilot");
+      setCopilotResult(data.data);
     } catch (err) {
       setError(err.message);
     } finally {
-      setAiRunning(false);
+      setCopilotLoading(false);
     }
   };
 
@@ -521,10 +537,10 @@ export default function QuotationMessages({ onNavigate }) {
                         background: "linear-gradient(135deg, #0284c7, #2563eb)",
                         border: "none",
                       }}
-                      onClick={handleRunAIAutoReply}
-                      disabled={aiRunning}
+                      onClick={handleRunCopilot}
+                      disabled={copilotLoading}
                     >
-                      <Bot size={15} /> {aiRunning ? "Analyzing..." : "⚡ AI Auto-Respond"}
+                      <Sparkles size={15} /> {copilotLoading ? "Analyzing..." : "Analyze with Copilot"}
                     </button>
                   )}
 
@@ -652,6 +668,69 @@ export default function QuotationMessages({ onNavigate }) {
                         <Sparkles size={13} /> HEALTHY DEAL MARGIN
                       </span>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Copilot Result Pinned Banner */}
+              {copilotResult && !isCustomer && (
+                <div style={{
+                  margin: '0.75rem 1.5rem 0.25rem',
+                  padding: '1rem 1.25rem',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                  border: '1.5px solid #7dd3fc',
+                  boxShadow: '0 6px 16px -4px rgba(14, 165, 233, 0.15)',
+                  position: 'relative',
+                  zIndex: 2,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.6rem' }}>
+                    <h3 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0369a1', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Sparkles size={16} color="#0284c7" /> AI Negotiation Copilot Recommendation
+                    </h3>
+                    <button 
+                      onClick={() => setCopilotResult(null)}
+                      style={{ background: '#e0f2fe', border: 'none', borderRadius: '50%', width: '22px', height: '22px', cursor: 'pointer', color: '#0369a1', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title="Close Insight"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', fontSize: '0.82rem', color: '#0c4a6e', marginBottom: '0.75rem' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.7)', padding: '0.5rem 0.75rem', borderRadius: '8px' }}>
+                      <span style={{ color: '#64748b', fontSize: '0.74rem', textTransform: 'uppercase', fontWeight: 700 }}>Request Context</span>
+                      <div style={{ fontWeight: 600, color: '#0f172a' }}>{copilotResult.detectedRequest || "Standard Negotiation"}</div>
+                      <div style={{ fontSize: '0.78rem', color: '#0369a1' }}>Target: {copilotResult.requestedValue || "Policy terms"}</div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.7)', padding: '0.5rem 0.75rem', borderRadius: '8px' }}>
+                      <span style={{ color: '#64748b', fontSize: '0.74rem', textTransform: 'uppercase', fontWeight: 700 }}>Financial Impact</span>
+                      <div>
+                        Risk: <span className={`badge ${copilotResult.riskLevel === 'High' ? 'badge-rejected' : 'badge-pending'}`} style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem' }}>{copilotResult.riskLevel}</span>
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#166534', fontWeight: 600 }}>Est. Margin: {copilotResult.estimatedMargin}</div>
+                    </div>
+                  </div>
+                  
+                  <div style={{ background: 'rgba(255,255,255,0.85)', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.83rem', border: '1px solid #bae6fd' }}>
+                    <div style={{ marginBottom: '0.4rem' }}>
+                      <strong style={{ color: '#0369a1' }}>Strategy:</strong> <span style={{ color: '#334155' }}>{copilotResult.suggestedAction}</span>
+                    </div>
+                    <div style={{ paddingTop: '0.4rem', borderTop: '1px dashed #bae6fd', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      <strong style={{ color: '#0369a1' }}>Suggested Reply:</strong> 
+                      <p style={{ margin: 0, fontStyle: 'italic', color: '#1e293b', background: '#f8fafc', padding: '0.5rem 0.75rem', borderRadius: '6px', borderLeft: '3px solid #0284c7' }}>
+                        "{copilotResult.suggestedReply}"
+                      </p>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                        <button 
+                          onClick={() => setNewMessage(copilotResult.suggestedReply)}
+                          className="btn-primary" 
+                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.76rem', background: '#0284c7' }}
+                        >
+                          Insert into chat compose
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

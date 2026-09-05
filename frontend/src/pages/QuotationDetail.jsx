@@ -12,6 +12,34 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
   const [error, setError] = useState("");
   const [finalizing, setFinalizing] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [pricingAiLoading, setPricingAiLoading] = useState(false);
+  const [pricingAiResult, setPricingAiResult] = useState(null);
+
+  const handleRecommendPricing = async () => {
+    setPricingAiLoading(true);
+    setPricingAiResult(null);
+    try {
+      const response = await fetch(`${API_BASE}/ai/pricing-recommendation`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          productCosts: quotation.items.map(i => ({ name: i.name, category: i.category, unitPrice: i.unitPrice })),
+          currentMargin: quotation.marginPercentage,
+          tierMaxDiscount: quotation.customer?.tierMaxDiscount || 15
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Failed to fetch AI pricing");
+      setPricingAiResult(data.data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPricingAiLoading(false);
+    }
+  };
 
   useEffect(() => {
     async function loadQuotation() {
@@ -142,8 +170,49 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
               )}
             </button>
           )}
+          {quotation.status !== "FINALIZED" && (
+            <button
+              className="btn-secondary"
+              onClick={handleRecommendPricing}
+              disabled={pricingAiLoading}
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              {pricingAiLoading ? "Analyzing Pricing..." : "✨ AI Pricing Suggestion"}
+            </button>
+          )}
         </div>
       </div>
+
+      {pricingAiResult && (
+        <div style={{
+          margin: '0 0 1.5rem',
+          padding: '1.25rem',
+          borderRadius: '12px',
+          background: 'linear-gradient(135deg, #fdf4ff 0%, #fae8ff 100%)',
+          border: '1px solid #f5d0fe',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#86198f', margin: 0 }}>
+              AI Pricing Strategy
+            </h3>
+            <button 
+              onClick={() => setPricingAiResult(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c026d3' }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ padding: '0.5rem 1rem', background: '#fdf4ff', border: '2px solid #d946ef', borderRadius: '8px', color: '#a21caf', fontWeight: 800, fontSize: '1.25rem' }}>
+              Recommend: {pricingAiResult.recommendedDiscount}% Discount
+            </div>
+          </div>
+          <p style={{ margin: 0, fontSize: '0.9rem', color: '#701a75', lineHeight: '1.5' }}>
+            <strong>Reasoning:</strong> {pricingAiResult.reasoning}
+          </p>
+        </div>
+      )}
 
       {notification && (
         <div
