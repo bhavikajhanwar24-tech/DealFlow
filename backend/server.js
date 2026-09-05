@@ -5,9 +5,12 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 const express = require("express");
 const cors = require("cors");
 
+// Route imports
 const authRoutes = require("./src/routes/auth.routes");
 const adminRoutes = require("./src/routes/admin.routes");
 const dashboardRoutes = require("./src/routes/dashboard.routes");
+const quotationRoutes = require("./src/routes/quotation.routes");
+const catalogRoutes = require("./src/routes/catalog.routes");
 
 // PostgreSQL connection
 const pool = require("./src/config/db");
@@ -25,6 +28,8 @@ app.use(express.urlencoded({ extended: true }));
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/quotations", quotationRoutes);
+app.use("/api", catalogRoutes);
 app.use("/api", dashboardRoutes);
 
 // ===============================

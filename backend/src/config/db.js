@@ -1,9 +1,11 @@
 const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
 
+const isLocalDB = process.env.DB_HOST === "localhost" || process.env.DB_HOST === "127.0.0.1";
+
 const pool = new Pool({
   host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
+  port: Number(process.env.DB_PORT) || 5432,
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
@@ -55,6 +57,49 @@ async function initDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.products (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        sku VARCHAR(100) UNIQUE NOT NULL,
+        category VARCHAR(30) NOT NULL CHECK (category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION')),
+        description TEXT,
+        unit_price NUMERIC(14, 2) NOT NULL CHECK (unit_price >= 0),
+        currency VARCHAR(3) NOT NULL DEFAULT 'INR',
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.quotations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        quotation_number VARCHAR(30) UNIQUE NOT NULL,
+        customer_id UUID NOT NULL REFERENCES public.users(id),
+        sales_rep_id UUID NOT NULL REFERENCES public.users(id),
+        status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+        subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        discount_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        final_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.quotation_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        quotation_id UUID NOT NULL REFERENCES public.quotations(id) ON DELETE CASCADE,
+        product_id UUID NOT NULL REFERENCES public.products(id),
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        unit_price NUMERIC(14, 2) NOT NULL CHECK (unit_price >= 0),
+        discount_percent NUMERIC(5, 2) NOT NULL DEFAULT 0 CHECK (discount_percent >= 0 AND discount_percent <= 100),
+        discount_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        line_total NUMERIC(14, 2) NOT NULL DEFAULT 0
+      );
+    `);
+
     // Create indexes for performance if not exist
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
@@ -62,6 +107,19 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_users_status ON public.users(status);
       CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);
       CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON public.audit_logs(user_id);
+      CREATE INDEX IF NOT EXISTS idx_products_active ON public.products(is_active);
+      CREATE INDEX IF NOT EXISTS idx_quotations_customer ON public.quotations(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_quotations_sales_rep ON public.quotations(sales_rep_id);
+      CREATE INDEX IF NOT EXISTS idx_quotation_items_quotation ON public.quotation_items(quotation_id);
+    `);
+
+    await client.query(`
+      INSERT INTO public.products (name, sku, category, description, unit_price)
+      VALUES
+        ('Laptop Pro', 'HW-LP-2025', 'HARDWARE', 'Enterprise mobile workstation', 85000),
+        ('Support Plan', 'SVC-SLA-5YR', 'SERVICE', '24/7 dedicated enterprise response SLA', 12000),
+        ('Cloud Pro', 'SUB-CLOUD-PRO', 'SUBSCRIPTION', 'Monthly cloud platform subscription', 5000)
+      ON CONFLICT (sku) DO NOTHING;
     `);
 
     // Seed default Admin if not exists

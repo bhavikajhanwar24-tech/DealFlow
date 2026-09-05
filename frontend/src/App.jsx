@@ -5,7 +5,11 @@ import ScrollVideoHero from "./components/ScrollVideoHero";
 import AuthPage from "./pages/AuthPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminApprovals from "./pages/AdminApprovals";
+import AdminStaff from "./pages/AdminStaff";
 import SalesDashboard from "./pages/SalesDashboard";
+import Quotations from "./pages/Quotations";
+import CreateQuotation from "./pages/CreateQuotation";
+import QuotationDetail from "./pages/QuotationDetail";
 import FinanceDashboard from "./pages/FinanceDashboard";
 import OperationsDashboard from "./pages/OperationsDashboard";
 import CustomerPortal from "./pages/CustomerPortal";
@@ -59,9 +63,7 @@ function AppContent() {
     if (!loading) {
       if (
         user &&
-        (currentRoute === "/" ||
-          currentRoute === "/login" ||
-          currentRoute === "/signup")
+        (currentRoute === "/login" || currentRoute === "/signup")
       ) {
         const dest = getRoleDestination(user);
         navigate(dest);
@@ -119,7 +121,6 @@ function AppContent() {
     if (currentRoute === "/") {
       return <ScrollVideoHero onNavigate={navigate} />;
     }
-
     return (
       <AuthPage
         onLoginSuccess={(loggedInUser) => {
@@ -147,13 +148,44 @@ function AppContent() {
       return <AdminApprovals />;
     }
 
+    if (currentRoute === "/admin/staff") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <AdminStaff />;
+    }
+
     // 2. Sales Routes
+    if (currentRoute.startsWith("/sales/quotations/")) {
+      const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
+      if (!allowed.includes(user.role)) {
+        return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      }
+      if (currentRoute === "/sales/quotations/new") {
+        return <CreateQuotation onNavigate={navigate} />;
+      }
+      return (
+        <QuotationDetail
+          quotationId={currentRoute.split("/").pop()}
+          onNavigate={navigate}
+        />
+      );
+    }
+
+    if (currentRoute === "/sales/quotations") {
+      const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
+      if (!allowed.includes(user.role)) {
+        return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      }
+      return <Quotations onNavigate={navigate} />;
+    }
+
     if (currentRoute === "/sales/dashboard" || currentRoute === "/approvals") {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
       if (!allowed.includes(user.role)) {
         return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
       }
-      return <SalesDashboard />;
+      return <SalesDashboard onNavigate={navigate} />;
     }
 
     // 3. Finance Routes
@@ -188,7 +220,12 @@ function AppContent() {
   };
 
   const showNavbar =
-    currentRoute === "/sales/dashboard" || currentRoute === "/approvals";
+    currentRoute === "/admin/dashboard" ||
+    currentRoute === "/admin/employee-approvals" ||
+    currentRoute === "/admin/staff" ||
+    currentRoute === "/sales/dashboard" ||
+    currentRoute === "/approvals" ||
+    currentRoute.startsWith("/sales/quotations");
   return (
     <div className="app-layout">
       {showNavbar && (
