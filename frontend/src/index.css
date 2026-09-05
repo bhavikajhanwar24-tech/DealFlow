@@ -38,6 +38,7 @@
   --radius-md: 10px;
   --radius-lg: 16px;
   --radius-xl: 24px;
+  --topbar-height: 4rem;
 }
 
 @keyframes spin {
@@ -1099,6 +1100,68 @@ a {
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;
+}
+
+/* Split layout: main content left, sticky scrollable sidebar right */
+.split-panel-layout {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.split-panel-main {
+  min-width: 0;
+  align-self: start;
+  height: fit-content;
+}
+
+.split-panel-sidebar {
+  position: sticky;
+  top: calc(var(--topbar-height) + 0.75rem);
+  height: calc(100vh - var(--topbar-height) - 1.5rem);
+  max-height: calc(100vh - var(--topbar-height) - 1.5rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  align-self: start;
+}
+
+.split-panel-sidebar > :not(.split-panel-sidebar-scroll) {
+  flex-shrink: 0;
+}
+
+.split-panel-sidebar-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.split-panel-sidebar-scroll::-webkit-scrollbar {
+  display: block !important;
+  width: 5px;
+}
+
+.split-panel-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+@media (max-width: 900px) {
+  .split-panel-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .split-panel-sidebar {
+    position: static;
+    height: auto;
+    max-height: 70vh;
+  }
 }
 
 /* Modals */
