@@ -528,78 +528,10 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
                             Operations Dashboard
                           </div>
                           <div className="mega-item-desc">
-                            Supply chain health metrics
+                            Smart warehouse route optimizer
                           </div>
                         </div>
                         {currentRoute === "/operations/dashboard" && (
-                          <span className="active-dot" />
-                        )}
-                      </button>
-                      <button
-                        className={`mega-item-card ${currentRoute === "/admin/invoices" ? "active" : ""}`}
-                        onClick={() => {
-                          setCurrentRoute("/admin/invoices");
-                          setIsMoreOpen(false);
-                        }}
-                      >
-                        <div className="mega-item-icon green">
-                          <CreditCardIcon size={18} />
-                        </div>
-                        <div className="mega-item-body">
-                          <div className="mega-item-title">
-                            Invoices & Payments
-                          </div>
-                          <div className="mega-item-desc">
-                            Manage generated invoices
-                          </div>
-                        </div>
-                        {currentRoute === "/admin/invoices" && (
-                          <span className="active-dot" />
-                        )}
-                      </button>
-
-                      <button
-                        className={`mega-item-card ${currentRoute === "/admin/reports" ? "active" : ""}`}
-                        onClick={() => {
-                          setCurrentRoute("/admin/reports");
-                          setIsMoreOpen(false);
-                        }}
-                      >
-                        <div className="mega-item-icon cyan">
-                          <PieChartIcon size={18} />
-                        </div>
-                        <div className="mega-item-body">
-                          <div className="mega-item-title">
-                            Business Reports
-                          </div>
-                          <div className="mega-item-desc">
-                            Sales & product analytics
-                          </div>
-                        </div>
-                        {currentRoute === "/admin/reports" && (
-                          <span className="active-dot" />
-                        )}
-                      </button>
-
-                      <button
-                        className={`mega-item-card ${currentRoute === "/admin/deal-health" ? "active" : ""}`}
-                        onClick={() => {
-                          setCurrentRoute("/admin/deal-health");
-                          setIsMoreOpen(false);
-                        }}
-                      >
-                        <div className="mega-item-icon orange">
-                          <ActivityIcon size={18} />
-                        </div>
-                        <div className="mega-item-body">
-                          <div className="mega-item-title">
-                            Deal Health Monitor
-                          </div>
-                          <div className="mega-item-desc">
-                            At-risk deals tracker
-                          </div>
-                        </div>
-                        {currentRoute === "/admin/deal-health" && (
                           <span className="active-dot" />
                         )}
                       </button>

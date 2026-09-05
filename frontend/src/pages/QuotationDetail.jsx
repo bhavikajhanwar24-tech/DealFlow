@@ -251,9 +251,22 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
                 fontSize: "0.85rem",
               }}
             >
-              ⚠️ Status updated to FINALIZED in database. (Email notification status: {notification.error || "Bypassed / Pending SMTP configuration"})
+              ⚠️ Status updated to FINALIZED in database.
             </div>
           )}
+
+          <div style={{ marginTop: "0.85rem", paddingTop: "0.85rem", borderTop: "1px dashed #bbf7d0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+            <span style={{ fontSize: "0.875rem", color: "#166534", fontWeight: 700 }}>
+              🚚 Order created in fulfillment queue. Customer has been prompted to submit delivery address.
+            </span>
+            <button
+              className="btn-primary"
+              onClick={() => onNavigate("/operations/dashboard")}
+              style={{ fontSize: "0.85rem", padding: "0.45rem 0.95rem", width: "auto" }}
+            >
+              Open Operations Route Optimizer →
+            </button>
+          </div>
         </div>
       )}
       <section

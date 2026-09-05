@@ -287,7 +287,7 @@ function AppContent() {
 
     // 4. Operations Routes
     if (currentRoute === "/operations/dashboard") {
-      const allowed = ["OPERATIONS", "ADMIN"];
+      const allowed = ["OPERATIONS", "ADMIN", "SALES_MANAGER", "SALES_REP"];
       if (!allowed.includes(user.role)) {
         return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
       }
@@ -296,7 +296,7 @@ function AppContent() {
 
     // 5. Customer Routes
     if (currentRoute === "/customer/portal") {
-      const allowed = ["CUSTOMER"];
+      const allowed = ["CUSTOMER", "ADMIN", "SALES_REP", "SALES_MANAGER"];
       if (!allowed.includes(user.role)) {
         return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
       }

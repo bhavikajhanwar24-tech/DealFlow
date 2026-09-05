@@ -5,7 +5,7 @@ const controller = require("../controllers/customerQuotation.controller");
 const { requireAuth, requireActiveUser } = require("../middleware/auth.middleware");
 const { requireRole } = require("../middleware/role.middleware");
 
-router.use(requireAuth, requireActiveUser, requireRole("CUSTOMER"));
+router.use(requireAuth, requireActiveUser, requireRole("CUSTOMER", "ADMIN", "SALES_REP", "SALES_MANAGER"));
 router.get("/", controller.list);
 router.post("/requests", controller.createRequest);
 router.get("/requests", controller.listRequests);
@@ -14,5 +14,6 @@ router.get("/:id", controller.detail);
 router.post("/:id/negotiate", controller.negotiate);
 router.post("/:id/confirm", controller.confirm);
 router.post("/:id/reject", controller.reject);
+router.post("/:id/destination", controller.submitDestination);
 
 module.exports = router;

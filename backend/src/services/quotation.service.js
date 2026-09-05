@@ -124,7 +124,15 @@ async function listCustomerQuoteRequests(customer) {
      ORDER BY r.created_at DESC`,
     [customer.id],
   );
-  return result.rows;
+  return result.rows.map((row) => ({
+    id: row.id,
+    status: row.status,
+    requestedDeliveryDate: row.requested_delivery_date,
+    customerComment: row.customer_comment,
+    quotationId: row.quotation_id,
+    createdAt: row.created_at,
+    items: row.items,
+  }));
 }
 
 async function listPendingCustomerQuoteRequests(user) {
@@ -627,24 +635,31 @@ async function submitQuotation(user, quotationId) {
 
 // Drafts are visible for review until the approval workflow is implemented.
 // Customer actions remain restricted to approved or negotiation states.
-const CUSTOMER_VISIBLE_STATUSES = ["DRAFT", "APPROVED", "NEGOTIATION", "CONFIRMED", "REJECTED"];
+const CUSTOMER_VISIBLE_STATUSES = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION", "CONFIRMED", "FINALIZED", "REJECTED"];
 
 async function listCustomerQuotations(customer) {
+  const isCustomer = customer.role === "CUSTOMER";
+  const params = isCustomer ? [customer.id, CUSTOMER_VISIBLE_STATUSES] : [CUSTOMER_VISIBLE_STATUSES];
+  const filter = isCustomer
+    ? "WHERE q.customer_id = $1 AND q.status = ANY($2::text[])"
+    : "WHERE q.status = ANY($1::text[])";
+
   const result = await db.query(
     `${quotationSelect}
-     WHERE q.customer_id = $1 AND q.status = ANY($2::text[])
+     ${filter}
      ORDER BY q.created_at DESC`,
-    [customer.id, CUSTOMER_VISIBLE_STATUSES],
+    params,
   );
   return result.rows.map(mapQuotation);
 }
 
 async function getCustomerQuotation(id, customer) {
   const ownership = await db.query("SELECT customer_id FROM public.quotations WHERE id = $1", [id]);
-  if (ownership.rows.length > 0 && ownership.rows[0].customer_id !== customer.id) {
+  if (customer.role === "CUSTOMER" && ownership.rows.length > 0 && ownership.rows[0].customer_id !== customer.id) {
     throw quotationError("You do not have permission to access this quotation.", 403);
   }
-  const quotation = await getQuotation(id, { ...customer, role: "CUSTOMER" });
+  const targetCustomerId = ownership.rows[0]?.customer_id || customer.id;
+  const quotation = await getQuotation(id, { id: targetCustomerId, role: "CUSTOMER" });
   if (!CUSTOMER_VISIBLE_STATUSES.includes(quotation.status)) {
     throw quotationError("Quotation not found.", 404);
   }
@@ -653,9 +668,9 @@ async function getCustomerQuotation(id, customer) {
     `SELECT id, requested_discount_percent, requested_delivery_date,
             customer_comment, status, created_at, updated_at
      FROM public.negotiation_requests
-     WHERE quotation_id = $1 AND customer_id = $2
+     WHERE quotation_id = $1
      ORDER BY created_at DESC`,
-    [id, customer.id],
+    [id],
   );
   return {
     ...quotation,
@@ -714,9 +729,9 @@ async function confirmCustomerQuotation(id, customer) {
   const result = await db.query(
     `UPDATE public.quotations
      SET status = 'CONFIRMED', confirmed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-     WHERE id = $1 AND customer_id = $2
+     WHERE id = $1 AND (customer_id = $2 OR $3 = 'ADMIN')
      RETURNING id, quotation_number, status, confirmed_at`,
-    [id, customer.id],
+    [id, customer.id, customer.role],
   );
   const order = await fulfillmentService.createOrderForQuotation(id);
   return { ...result.rows[0], orderId: order.id, orderNumber: order.order_number };
@@ -790,16 +805,80 @@ async function finalizeQuotation(quotationId, user) {
     emailResult = { success: false, error: emailErr.message };
   }
 
+  let order = null;
+  try {
+    order = await fulfillmentService.createOrderForQuotation(quotationId);
+  } catch (orderErr) {
+    console.error(`[Quotation Service] Order creation error for ${quotationId}:`, orderErr.message);
+  }
+
   return {
     success: true,
     message: `Quotation ${updatedQuotation.quotationNumber} finalized successfully.`,
-    data: updatedQuotation,
+    data: { ...updatedQuotation, orderId: order?.id, orderNumber: order?.order_number },
     notification: {
       emailSent: Boolean(emailResult.success),
       email: targetEmail,
       error: emailResult.success ? null : emailResult.error
     }
   };
+}
+
+async function updateCustomerOrderDestination(quotationOrOrderId, customer, destinationData) {
+  const { address, city, state, zip, country, latitude, longitude } = destinationData || {};
+
+  if (!address || !city || !state || !zip || !country) {
+    throw quotationError("Full delivery address, City, State, PIN/ZIP, and Country are required.", 400);
+  }
+
+  // Geocode defaults for major cities if lat/lng not provided
+  let lat = Number(latitude);
+  let lng = Number(longitude);
+
+  if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
+    const lowerCity = String(city).toLowerCase().trim();
+    if (lowerCity.includes("delhi")) { lat = 28.6139; lng = 77.2090; }
+    else if (lowerCity.includes("mumbai")) { lat = 19.0760; lng = 72.8777; }
+    else if (lowerCity.includes("pune")) { lat = 18.5204; lng = 73.8567; }
+    else if (lowerCity.includes("bangalore") || lowerCity.includes("bengaluru")) { lat = 12.9716; lng = 77.5946; }
+    else if (lowerCity.includes("chennai")) { lat = 13.0827; lng = 80.2707; }
+    else if (lowerCity.includes("kolkata")) { lat = 22.5726; lng = 88.3639; }
+    else if (lowerCity.includes("hyderabad")) { lat = 17.3850; lng = 78.4867; }
+    else if (lowerCity.includes("ahmedabad")) { lat = 23.0225; lng = 72.5714; }
+    else { lat = 28.6139; lng = 77.2090; } // Default to Delhi coordinates
+  }
+
+  const orderRes = await db.query(
+    `SELECT o.id, o.order_number, o.quotation_id
+     FROM public.orders o
+     WHERE (o.id = $1 OR o.quotation_id = $1)
+       AND (o.customer_id = $2 OR $3 = 'ADMIN')`,
+    [quotationOrOrderId, customer.id, customer.role]
+  );
+
+  if (!orderRes.rows.length) {
+    throw quotationError("Confirmed order not found for this customer.", 404);
+  }
+
+  const orderId = orderRes.rows[0].id;
+
+  const result = await db.query(
+    `UPDATE public.orders
+     SET delivery_address = $1,
+         delivery_city = $2,
+         delivery_state = $3,
+         delivery_zip = $4,
+         delivery_country = $5,
+         delivery_latitude = $6,
+         delivery_longitude = $7,
+         destination_submitted_at = CURRENT_TIMESTAMP,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $8
+     RETURNING id, order_number, delivery_address, delivery_city, delivery_state, delivery_zip, delivery_country, delivery_latitude, delivery_longitude, destination_submitted_at`,
+    [address, city, state, zip, country, lat, lng, orderId]
+  );
+
+  return result.rows[0];
 }
 
 module.exports = {
@@ -820,5 +899,6 @@ module.exports = {
   confirmCustomerQuotation,
   rejectCustomerQuotation,
   finalizeQuotation,
+  updateCustomerOrderDestination,
   QUOTATION_STATUSES
 };

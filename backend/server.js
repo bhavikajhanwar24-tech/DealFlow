@@ -15,6 +15,7 @@ const customerQuotationRoutes = require("./src/routes/customerQuotation.routes")
 const fulfillmentRoutes = require("./src/routes/fulfillment.routes");
 const recommendationRoutes = require("./src/routes/recommendation.routes");
 const messageRoutes = require("./src/routes/message.routes");
+const operationsRoutes = require("./src/routes/operations.routes");
 const invoiceRoutes = require("./src/routes/invoice.routes");
 const analyticsRoutes = require("./src/routes/analytics.routes");
 
@@ -40,6 +41,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/quotations", quotationRoutes);
 app.use("/api/customer/quotations", customerQuotationRoutes);
 app.use("/api/fulfillment", fulfillmentRoutes);
+app.use("/api/operations", operationsRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api", catalogRoutes);
