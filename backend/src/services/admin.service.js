@@ -253,6 +253,7 @@ function mapProduct(row) {
     description: row.description || "",
     sellingPrice: Number(row.unit_price),
     cost: Number(row.cost),
+    quantity: Number(row.quantity || 0),
     inventoryReference: row.inventory_reference || "",
     status: row.is_active ? "ACTIVE" : "INACTIVE",
     currency: row.currency,
@@ -264,7 +265,7 @@ function mapProduct(row) {
 async function getProducts() {
   const result = await db.query(`
     SELECT id, name, sku, category, description, unit_price, cost,
-           inventory_reference, is_active, currency, created_at, updated_at
+           inventory_reference, quantity, is_active, currency, created_at, updated_at
     FROM public.products
     ORDER BY created_at DESC, name
   `);
@@ -274,14 +275,16 @@ async function getProducts() {
 async function createProduct(data, adminUserId, ipAddress) {
   const result = await db.query(`
     INSERT INTO public.products
-      (name, sku, category, description, unit_price, cost, inventory_reference, is_active)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      (name, sku, category, description, unit_price, cost, inventory_reference, is_active, quantity)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING id, name, sku, category, description, unit_price, cost,
-              inventory_reference, is_active, currency, created_at, updated_at
+              inventory_reference, is_active, quantity, currency, created_at, updated_at
   `, [
     data.name.trim(), data.sku.trim().toUpperCase(), data.category.toUpperCase(),
     data.description?.trim() || null, Number(data.unitPrice), Number(data.cost),
-    data.inventoryReference?.trim() || null, String(data.status || "ACTIVE").toUpperCase() === "ACTIVE"
+    data.inventoryReference?.trim() || null,
+    String(data.status || "ACTIVE").toUpperCase() === "ACTIVE",
+    Number(data.quantity || 0)
   ]);
   const product = mapProduct(result.rows[0]);
   await db.query(
@@ -295,15 +298,15 @@ async function updateProduct(productId, data, adminUserId, ipAddress) {
   const result = await db.query(`
     UPDATE public.products
     SET name = $1, category = $2, description = $3, unit_price = $4,
-        cost = $5, inventory_reference = $6, is_active = $7,
+        cost = $5, inventory_reference = $6, is_active = $7, quantity = $8,
         updated_at = CURRENT_TIMESTAMP
-    WHERE id = $8
+    WHERE id = $9
     RETURNING id, name, sku, category, description, unit_price, cost,
-              inventory_reference, is_active, currency, created_at, updated_at
+              inventory_reference, is_active, quantity, currency, created_at, updated_at
   `, [
     data.name.trim(), data.category.toUpperCase(), data.description?.trim() || null,
     Number(data.unitPrice), Number(data.cost), data.inventoryReference?.trim() || null,
-    String(data.status || "ACTIVE").toUpperCase() === "ACTIVE", productId
+    String(data.status || "ACTIVE").toUpperCase() === "ACTIVE", Number(data.quantity || 0), productId
   ]);
   if (result.rows.length === 0) {
     const error = new Error("Product not found.");

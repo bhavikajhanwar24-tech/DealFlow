@@ -79,4 +79,17 @@ async function products(req, res) {
   }
 }
 
-module.exports = { list, detail, negotiate, confirm, reject, createRequest, listRequests, products };
+async function submitDestination(req, res) {
+  try {
+    const destination = await quotationService.updateCustomerOrderDestination(req.params.id, req.user, req.body || {});
+    return res.json({
+      success: true,
+      message: "Delivery destination confirmed successfully.",
+      data: destination,
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+module.exports = { list, detail, negotiate, confirm, reject, createRequest, listRequests, products, submitDestination };

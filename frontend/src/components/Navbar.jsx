@@ -481,10 +481,33 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
                             Operations Dashboard
                           </div>
                           <div className="mega-item-desc">
-                            Supply chain health metrics
+                            Smart warehouse route optimizer
                           </div>
                         </div>
                         {currentRoute === "/operations/dashboard" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/customer/portal" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/customer/portal");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon blue">
+                          <BriefcaseIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">
+                            Customer Portal
+                          </div>
+                          <div className="mega-item-desc">
+                            Delivery destination & quote approval
+                          </div>
+                        </div>
+                        {currentRoute === "/customer/portal" && (
                           <span className="active-dot" />
                         )}
                       </button>

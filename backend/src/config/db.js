@@ -109,11 +109,12 @@ async function initDatabase() {
         sku VARCHAR(100) UNIQUE NOT NULL,
         category VARCHAR(30) NOT NULL CHECK (category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION')),
         description TEXT,
-        unit_price NUMERIC(14, 2) NOT NULL CHECK (unit_price >= 0),
-        cost NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (cost >= 0),
+        unit_price NUMERIC(14, 2) NOT NULL CHECK (unit_price > 0),
+        cost NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (cost > 0),
         inventory_reference VARCHAR(150),
-        currency VARCHAR(3) NOT NULL DEFAULT 'INR',
+        quantity INTEGER NOT NULL DEFAULT 0,
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        currency VARCHAR(3) NOT NULL DEFAULT 'INR',
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
@@ -121,9 +122,9 @@ async function initDatabase() {
 
     await client.query(`
       ALTER TABLE public.products
-      ADD COLUMN IF NOT EXISTS cost NUMERIC(14, 2) NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS inventory_reference VARCHAR(150)
+      ADD COLUMN IF NOT EXISTS quantity INTEGER NOT NULL DEFAULT 0;
     `);
+
 
     await client.query(`
       ALTER TABLE public.products
@@ -300,9 +301,35 @@ async function initDatabase() {
         customer_id UUID NOT NULL REFERENCES public.users(id),
         status VARCHAR(30) NOT NULL DEFAULT 'CONFIRMED',
         fulfillment_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+        delivery_address TEXT,
+        delivery_city VARCHAR(100),
+        delivery_state VARCHAR(100),
+        delivery_zip VARCHAR(30),
+        delivery_country VARCHAR(100),
+        delivery_latitude NUMERIC(10, 7),
+        delivery_longitude NUMERIC(10, 7),
+        destination_submitted_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    await client.query(`
+      ALTER TABLE public.orders
+      ADD COLUMN IF NOT EXISTS delivery_address TEXT,
+      ADD COLUMN IF NOT EXISTS delivery_city VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS delivery_state VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS delivery_zip VARCHAR(30),
+      ADD COLUMN IF NOT EXISTS delivery_country VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS delivery_latitude NUMERIC(10, 7),
+      ADD COLUMN IF NOT EXISTS delivery_longitude NUMERIC(10, 7),
+      ADD COLUMN IF NOT EXISTS destination_submitted_at TIMESTAMPTZ;
+    `);
+
+    await client.query(`
+      ALTER TABLE public.warehouses
+      ADD COLUMN IF NOT EXISTS city VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS state VARCHAR(100);
     `);
 
     await client.query(`
@@ -402,6 +429,44 @@ async function initDatabase() {
         ('Cloud Pro', 'SUB-CLOUD-PRO', 'SUBSCRIPTION', 'Monthly cloud platform subscription', 5000)
       ON CONFLICT (sku) DO NOTHING;
     `);
+
+    // Seed default Warehouses for Route Optimizer Demo if absent
+    const whCheck = await client.query("SELECT COUNT(*)::int AS count FROM public.warehouses");
+    if (whCheck.rows[0].count === 0) {
+      const whMumbai = await client.query(
+        `INSERT INTO public.warehouses (name, address, city, state, latitude, longitude, is_active)
+         VALUES ('Mumbai Warehouse', 'Bandra Kurla Complex, Mumbai', 'Mumbai', 'Maharashtra', 19.0760, 72.8777, TRUE)
+         RETURNING id`
+      );
+      const whPune = await client.query(
+        `INSERT INTO public.warehouses (name, address, city, state, latitude, longitude, is_active)
+         VALUES ('Pune Warehouse', 'Hinjewadi Tech Park, Pune', 'Pune', 'Maharashtra', 18.5204, 73.8567, TRUE)
+         RETURNING id`
+      );
+      const whBlr = await client.query(
+        `INSERT INTO public.warehouses (name, address, city, state, latitude, longitude, is_active)
+         VALUES ('Bangalore Warehouse', 'Electronic City, Bengaluru', 'Bengaluru', 'Karnataka', 12.9716, 77.5946, TRUE)
+         RETURNING id`
+      );
+
+      const laptop = await client.query("SELECT id FROM public.products WHERE sku = 'HW-LP-2025'");
+      if (laptop.rows.length > 0) {
+        const laptopId = laptop.rows[0].id;
+        await client.query(
+          `INSERT INTO public.warehouse_inventory (warehouse_id, product_id, quantity)
+           VALUES ($1, $4, 40), ($2, $4, 10), ($3, $4, 30)
+           ON CONFLICT (warehouse_id, product_id) DO UPDATE SET quantity = EXCLUDED.quantity`,
+          [whMumbai.rows[0].id, whPune.rows[0].id, whBlr.rows[0].id, laptopId]
+        );
+      }
+    } else {
+      // Ensure city and state fields are filled if missing
+      await client.query(`
+        UPDATE public.warehouses SET city = 'Mumbai', state = 'Maharashtra' WHERE name ILIKE '%Mumbai%' AND city IS NULL;
+        UPDATE public.warehouses SET city = 'Pune', state = 'Maharashtra' WHERE name ILIKE '%Pune%' AND city IS NULL;
+        UPDATE public.warehouses SET city = 'Bengaluru', state = 'Karnataka' WHERE name ILIKE '%Bangalore%' AND city IS NULL;
+      `);
+    }
 
     // Seed default Admin if not exists
     const adminCheck = await client.query(

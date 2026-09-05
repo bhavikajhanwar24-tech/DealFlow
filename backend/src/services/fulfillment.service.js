@@ -32,7 +32,7 @@ async function createOrderForQuotation(quotationId) {
     const quotation = await client.query(
       `SELECT q.id, q.customer_id
        FROM public.quotations q
-       WHERE q.id = $1 AND q.status = 'CONFIRMED'
+       WHERE q.id = $1 AND q.status IN ('CONFIRMED', 'FINALIZED')
        FOR UPDATE`,
       [quotationId],
     );
@@ -139,7 +139,7 @@ async function listOrders(user) {
   const confirmed = await db.query(
     `SELECT q.id FROM public.quotations q
      LEFT JOIN public.orders o ON o.quotation_id = q.id
-     WHERE q.status = 'CONFIRMED' AND o.id IS NULL
+     WHERE q.status IN ('CONFIRMED', 'FINALIZED') AND o.id IS NULL
      ${user.role === "SALES_REP" ? "AND q.sales_rep_id = $1" : ""}`,
     user.role === "SALES_REP" ? [user.id] : [],
   );
