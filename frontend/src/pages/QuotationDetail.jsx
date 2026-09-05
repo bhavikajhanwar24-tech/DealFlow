@@ -173,6 +173,44 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
           </table>
         </div>
       </div>
+      {quotation.risk && (
+        <section
+          style={{
+            marginTop: "1.25rem",
+            background: "#fff",
+            border: "1px solid var(--border-light)",
+            borderRadius: "16px",
+            padding: "1.5rem",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ color: "#2563eb", fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Risk engine analysis</div>
+              <h2 style={{ fontSize: "1.2rem", marginTop: "0.35rem" }}>Submission governance</h2>
+            </div>
+            <span className={`badge ${quotation.risk.level === "CRITICAL" || quotation.risk.level === "HIGH" ? "badge-rejected" : quotation.risk.level === "MEDIUM" ? "badge-pending" : "badge-active"}`}>
+              {quotation.risk.level} · {quotation.risk.score.toFixed(1)}/100
+            </span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.85rem", marginTop: "1.25rem" }}>
+            <div><strong>Approval route</strong><br />{quotation.risk.approvalRoute}</div>
+            <div><strong>Analyzed at</strong><br />{new Date(quotation.risk.analyzedAt).toLocaleString("en-IN")}</div>
+          </div>
+          <div style={{ marginTop: "1.25rem" }}>
+            <strong>Risk factors</strong>
+            <div style={{ display: "grid", gap: "0.65rem", marginTop: "0.65rem" }}>
+              {quotation.risk.factors.map((factor) => (
+                <div key={factor.name} style={{ display: "grid", gridTemplateColumns: "minmax(150px, 0.7fr) minmax(0, 1.5fr) auto", gap: "0.75rem", alignItems: "center", padding: "0.75rem", borderRadius: "8px", background: "#f8fafc" }}>
+                  <strong>{factor.name.replaceAll("_", " ")}</strong>
+                  <span style={{ color: "#64748b", fontSize: "0.85rem" }}>{factor.reason}</span>
+                  <span style={{ fontWeight: 800, color: "#2563eb" }}>+{Number(factor.contribution).toFixed(1)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
       <div
         style={{
           display: "flex",
@@ -183,50 +221,34 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
         <div
           className="pricing-margin-card"
           style={{
-            minWidth: "280px",
+            display: "flex",
+            alignItems: "center",
+            gap: "1.25rem",
+            flexWrap: "wrap",
             background: "#fff",
             border: "1px solid var(--border-light)",
-            borderRadius: "16px",
-            padding: "1.25rem",
+            borderRadius: "14px",
+            padding: "0.85rem 1.25rem",
             boxShadow: "var(--shadow-sm)",
           }}
         >
-          <h2 className="pricing-margin-heading">Pricing &amp; Margin</h2>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              color: "#64748b",
-              marginBottom: "0.65rem",
-            }}
-          >
-            <span>Subtotal</span>
-            <strong>{currency(quotation.subtotal)}</strong>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Subtotal:</span>
+            <strong style={{ color: "#0f172a", fontSize: "0.95rem" }}>{currency(quotation.subtotal)}</strong>
           </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              color: "#ef4444",
-              marginBottom: "0.65rem",
-            }}
-          >
-            <span>Discount Total</span>
-            <strong>-{currency(quotation.discountAmount)}</strong>
+
+          <span style={{ color: "#cbd5e1" }}>•</span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Discount:</span>
+            <strong style={{ color: "#ef4444", fontSize: "0.95rem" }}>-{currency(quotation.discountAmount)}</strong>
           </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              color: "#0f172a",
-              fontSize: "1.15rem",
-              fontWeight: 800,
-              borderTop: "1px solid #e2e8f0",
-              paddingTop: "0.75rem",
-            }}
-          >
-            <span>Final Price</span>
-            <strong>{currency(quotation.finalAmount)}</strong>
+
+          <span style={{ color: "#cbd5e1" }}>•</span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Final Price:</span>
+            <strong style={{ color: "#2563eb", fontSize: "1.15rem", fontWeight: 800 }}>{currency(quotation.finalAmount)}</strong>
           </div>
           <div className="margin-summary-row"><span>Total Product Cost</span><strong>{currency(quotation.totalCost)}</strong></div>
           <div className="margin-summary-row"><span>Gross Margin</span><strong>{currency(quotation.grossMargin)}</strong></div>

@@ -1,3 +1,6 @@
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "../../.env") });
+
 const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
 
@@ -104,6 +107,12 @@ async function initDatabase() {
         total_cost NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (total_cost >= 0),
         gross_margin NUMERIC(14, 2) NOT NULL DEFAULT 0,
         margin_percentage NUMERIC(7, 2) NOT NULL DEFAULT 0 CHECK (margin_percentage >= -100 AND margin_percentage <= 100),
+        risk_score NUMERIC(6, 3),
+        risk_level VARCHAR(20),
+        approval_route VARCHAR(40),
+        risk_factors JSONB,
+        risk_analysis JSONB,
+        risk_analyzed_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
@@ -113,7 +122,13 @@ async function initDatabase() {
       ALTER TABLE public.quotations
       ADD COLUMN IF NOT EXISTS total_cost NUMERIC(14, 2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS gross_margin NUMERIC(14, 2) NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS margin_percentage NUMERIC(7, 2) NOT NULL DEFAULT 0
+  ADD COLUMN IF NOT EXISTS margin_percentage NUMERIC(7, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS risk_score NUMERIC(6, 3),
+      ADD COLUMN IF NOT EXISTS risk_level VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS approval_route VARCHAR(40),
+      ADD COLUMN IF NOT EXISTS risk_factors JSONB,
+      ADD COLUMN IF NOT EXISTS risk_analysis JSONB,
+      ADD COLUMN IF NOT EXISTS risk_analyzed_at TIMESTAMPTZ
     `);
 
     await client.query(`
@@ -235,6 +250,18 @@ async function initDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.quotation_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        quotation_id UUID NOT NULL REFERENCES public.quotations(id) ON DELETE CASCADE,
+        sender_id UUID NOT NULL REFERENCES public.users(id),
+        sender_role VARCHAR(50) NOT NULL,
+        sender_name VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Create indexes for performance if not exist
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
@@ -245,6 +272,7 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_products_active ON public.products(is_active);
       CREATE INDEX IF NOT EXISTS idx_quotations_customer ON public.quotations(customer_id);
       CREATE INDEX IF NOT EXISTS idx_quotations_sales_rep ON public.quotations(sales_rep_id);
+      CREATE INDEX IF NOT EXISTS idx_quotation_messages_quotation ON public.quotation_messages(quotation_id);
       CREATE INDEX IF NOT EXISTS idx_quotation_items_quotation ON public.quotation_items(quotation_id);
       CREATE INDEX IF NOT EXISTS idx_negotiation_requests_quotation ON public.negotiation_requests(quotation_id);
       CREATE INDEX IF NOT EXISTS idx_negotiation_requests_customer ON public.negotiation_requests(customer_id);

@@ -123,6 +123,12 @@ const FileTextIcon = ({ size = 16 }) => (
   </svg>
 );
 
+const MessageSquareIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
 const LogOutIcon = ({ size = 15 }) => (
   <svg
     width={size}
@@ -231,13 +237,23 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
           </>
         )}
 
-        {isSales && (
-          <button
-            className={`nav-link-btn ${currentRoute === "/sales/dashboard" ? "active" : ""}`}
-            onClick={() => setCurrentRoute("/sales/dashboard")}
-          >
-            <BriefcaseIcon size={16} /> Sales Dashboard
-          </button>
+        {(isSales || isAdmin) && (
+          <>
+            {isSales && (
+              <button
+                className={`nav-link-btn ${currentRoute === "/sales/dashboard" ? "active" : ""}`}
+                onClick={() => setCurrentRoute("/sales/dashboard")}
+              >
+                <BriefcaseIcon size={16} /> Sales Dashboard
+              </button>
+            )}
+            <button
+              className={`nav-link-btn ${currentRoute.includes("messages") ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/sales/messages")}
+            >
+              <MessageSquareIcon size={16} /> Messages
+            </button>
+          </>
         )}
 
         {isFinance && (
@@ -267,18 +283,10 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               <FileTextIcon size={16} /> My Quotations
             </button>
             <button
-              className="nav-link-btn"
-              onClick={() => window.alert("Messages will be available soon.")}
+              className={`nav-link-btn ${currentRoute.includes("messages") ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/customer/messages")}
             >
-              <FileTextIcon size={16} /> Messages
-            </button>
-            <button
-              className="nav-link-btn"
-              onClick={() =>
-                window.alert("Profile settings will be available soon.")
-              }
-            >
-              <UserCheckIcon size={16} /> Profile
+              <MessageSquareIcon size={16} /> Messages
             </button>
           </>
         )}

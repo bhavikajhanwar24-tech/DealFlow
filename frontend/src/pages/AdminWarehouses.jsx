@@ -1,8 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Edit3, MapPin, Package, Plus, RefreshCw, Search, Trash2, Warehouse as WarehouseIcon, X } from "lucide-react";
-import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 import { useAuth } from "../context/AuthContext";
 import {
   Bar,
@@ -31,30 +28,56 @@ const EMPTY_FORM = {
 };
 const CHART_COLORS = ["#2563eb", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 
-const warehouseIcon = new L.DivIcon({
-  className: "warehouse-map-marker",
-  html: "<span></span>",
-  iconSize: [24, 30],
-  iconAnchor: [12, 30],
-});
-
-function MapViewport({ latitude, longitude }) {
-  const map = useMap();
+function WarehouseMap({ position, onSelect }) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
 
   useEffect(() => {
-    map.flyTo([latitude, longitude], Math.max(map.getZoom(), 12), { duration: 0.7 });
-  }, [map, latitude, longitude]);
+    const L = window.L;
+    if (!L || !containerRef.current || mapRef.current) return;
 
-  return null;
-}
+    const map = L.map(containerRef.current).setView(position, 5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(map);
 
-function MapClickHandler({ onSelect }) {
-  useMapEvents({
-    click(event) {
-      onSelect(event.latlng.lat, event.latlng.lng);
-    },
-  });
-  return null;
+    const warehouseIcon = new L.DivIcon({
+      className: "warehouse-map-marker",
+      html: "<span></span>",
+      iconSize: [24, 30],
+      iconAnchor: [12, 30],
+    });
+
+    const marker = L.marker(position, { icon: warehouseIcon }).addTo(map);
+    markerRef.current = marker;
+
+    map.on("click", (event) => {
+      if (onSelect) {
+        onSelect(event.latlng.lat, event.latlng.lng);
+      }
+    });
+
+    mapRef.current = map;
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mapRef.current && position && Number.isFinite(position[0]) && Number.isFinite(position[1])) {
+      mapRef.current.flyTo(position, Math.max(mapRef.current.getZoom(), 12), { duration: 0.7 });
+      if (markerRef.current) {
+        markerRef.current.setLatLng(position);
+      }
+    }
+  }, [position[0], position[1]]);
+
+  return <div ref={containerRef} className="warehouse-map" style={{ width: "100%", height: "100%", minHeight: "380px" }} />;
 }
 
 export default function AdminWarehouses() {
@@ -419,12 +442,7 @@ export default function AdminWarehouses() {
             <span className="warehouse-coordinates">{position[0].toFixed(5)}, {position[1].toFixed(5)}</span>
           </div>
           <div className="warehouse-map-wrap">
-            <MapContainer center={DEFAULT_CENTER} zoom={5} scrollWheelZoom className="warehouse-map">
-              <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <MapViewport latitude={position[0]} longitude={position[1]} />
-              <MapClickHandler onSelect={selectLocation} />
-              <Marker position={position} icon={warehouseIcon} />
-            </MapContainer>
+            <WarehouseMap position={position} onSelect={selectLocation} />
           </div>
           <p className="warehouse-map-help"><MapPin size={15} /> Search an address or click anywhere on the map to move the pin. The selected coordinates are stored with this warehouse.</p>
         </section>
