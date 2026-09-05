@@ -265,6 +265,23 @@ function validateWarehouse(req, res, next) {
   next();
 }
 
+const CUSTOMER_TIERS = ["BRONZE", "SILVER", "GOLD"];
+const POLICY_CATEGORIES = ["HARDWARE", "SERVICE", "SUBSCRIPTION", "ELECTRONICS", "FURNITURE", "SOFTWARE", "SERVICES", "OTHER"];
+
+function validateDiscountPolicy(req, res, next) {
+  const { customerTier, productCategory, maxDiscount, status } = req.body;
+  const discount = Number(maxDiscount);
+  const errors = [];
+
+  if (!CUSTOMER_TIERS.includes(String(customerTier || "").toUpperCase())) errors.push("Customer tier must be Bronze, Silver, or Gold.");
+  if (!productCategory || typeof productCategory !== "string" || !productCategory.trim() || productCategory.trim().length > 30) errors.push("Product category is required and must be 30 characters or fewer.");
+  if (!Number.isFinite(discount) || discount < 0 || discount > 100) errors.push("Maximum discount must be a number between 0 and 100.");
+  if (status && !["ACTIVE", "INACTIVE"].includes(String(status).toUpperCase())) errors.push("Status must be ACTIVE or INACTIVE.");
+
+  if (errors.length > 0) return res.status(400).json({ success: false, message: errors[0], errors });
+  next();
+}
+
 module.exports = {
   validateEmployeeRegister,
   validateCustomerRegister,
@@ -275,6 +292,9 @@ module.exports = {
   validateProduct,
   PRODUCT_CATEGORIES,
   validateWarehouse,
+  validateDiscountPolicy,
+  CUSTOMER_TIERS,
+  POLICY_CATEGORIES,
   ALLOWED_EMPLOYEE_ROLES,
   ALLOWED_DEPARTMENTS
 };

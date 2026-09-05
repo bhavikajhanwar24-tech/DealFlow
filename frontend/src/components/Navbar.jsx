@@ -34,6 +34,14 @@ const PackageIcon = ({ size = 16 }) => (
   </svg>
 );
 
+const PercentIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="19" y1="5" x2="5" y2="19" />
+    <circle cx="6.5" cy="6.5" r="2.5" />
+    <circle cx="17.5" cy="17.5" r="2.5" />
+  </svg>
+);
+
 const DollarSignIcon = ({ size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="12" y1="1" x2="12" y2="23" />
@@ -137,6 +145,12 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               onClick={() => setCurrentRoute("/admin/warehouses")}
             >
               <TruckIcon size={16} /> Warehouses
+            </button>
+            <button
+              className={`nav-link-btn ${currentRoute === "/admin/discount-policies" ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/admin/discount-policies")}
+            >
+              <PercentIcon size={16} /> Discount Policies
             </button>
           </>
         )}
