@@ -846,27 +846,40 @@ input[type="number"] {
 
 .more-mega-menu {
   position: absolute;
-  top: calc(100% + 0.75rem);
-  left: -120px;
-  width: 580px;
-  background: rgba(255, 255, 255, 0.97);
+  top: calc(100% + 0.65rem);
+  right: 0 !important;
+  left: auto !important;
+  width: 740px;
+  max-width: calc(100vw - 3rem);
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 20px;
-  box-shadow: 0 20px 48px -6px rgba(15, 23, 42, 0.2), 0 6px 16px -3px rgba(15, 23, 42, 0.08);
-  padding: 1.1rem;
+  box-shadow: 0 20px 48px -6px rgba(15, 23, 42, 0.18), 0 6px 16px -3px rgba(15, 23, 42, 0.08);
+  padding: 1.35rem;
   z-index: 120;
   animation: dropdownFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+  .more-mega-menu {
+    width: 560px;
+  }
+  .mega-menu-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
 }
 
 @media (max-width: 768px) {
   .more-mega-menu {
-    left: -200px;
+    right: 0 !important;
     width: 320px;
   }
   .mega-menu-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 }
 
@@ -900,14 +913,14 @@ input[type="number"] {
 
 .mega-menu-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
 }
 
 .mega-column {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
 .mega-section-label {
@@ -923,8 +936,8 @@ input[type="number"] {
 .mega-item-card {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.55rem 0.7rem;
+  gap: 0.65rem;
+  padding: 0.5rem 0.6rem;
   border-radius: 12px;
   background: transparent;
   border: 1px solid transparent;
@@ -933,6 +946,7 @@ input[type="number"] {
   transition: all 0.18s ease;
   position: relative;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .mega-item-card:hover {
@@ -947,9 +961,9 @@ input[type="number"] {
 }
 
 .mega-item-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -959,6 +973,20 @@ input[type="number"] {
 
 .mega-item-card:hover .mega-item-icon {
   transform: scale(1.08);
+}
+
+.mega-item-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.mega-item-desc {
+  font-size: 0.7rem;
+  color: #64748b;
+  line-height: 1.25;
+  margin-top: 0.1rem;
 }
 
 .mega-item-icon.blue { background: #dbeafe; color: #2563eb; }
