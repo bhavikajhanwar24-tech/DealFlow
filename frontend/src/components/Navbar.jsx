@@ -117,6 +117,12 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
             >
               <BriefcaseIcon size={16} /> Staff
             </button>
+            <button
+              className={`nav-link-btn ${currentRoute === "/admin/warehouses" ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/admin/warehouses")}
+            >
+              <TruckIcon size={16} /> Warehouses
+            </button>
           </>
         )}
 

@@ -243,6 +243,72 @@ async function updateStaff(userId, data, adminUserId, ipAddress) {
   return staff;
 }
 
+async function getWarehouses() {
+  const result = await db.query(`
+    SELECT id, name, address, latitude, longitude, is_active, created_at, updated_at
+    FROM public.warehouses
+    ORDER BY name ASC
+  `);
+  return result.rows;
+}
+
+async function createWarehouse(data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    INSERT INTO public.warehouses (name, address, latitude, longitude, created_by)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, name, address, latitude, longitude, is_active, created_at, updated_at
+  `, [
+    data.name.trim(),
+    data.address.trim(),
+    Number(data.latitude),
+    Number(data.longitude),
+    adminUserId,
+  ]);
+
+  const warehouse = result.rows[0];
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address)
+     VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "WAREHOUSE_CREATED", JSON.stringify({ warehouseId: warehouse.id }), ipAddress || null]
+  );
+  return warehouse;
+}
+
+async function updateWarehouse(warehouseId, data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    UPDATE public.warehouses
+    SET name = $1,
+        address = $2,
+        latitude = $3,
+        longitude = $4,
+        is_active = $5,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $6
+    RETURNING id, name, address, latitude, longitude, is_active, created_at, updated_at
+  `, [
+    data.name.trim(),
+    data.address.trim(),
+    Number(data.latitude),
+    Number(data.longitude),
+    data.isActive !== false,
+    warehouseId,
+  ]);
+
+  if (result.rows.length === 0) {
+    const error = new Error("Warehouse not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const warehouse = result.rows[0];
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address)
+     VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "WAREHOUSE_UPDATED", JSON.stringify({ warehouseId: warehouse.id }), ipAddress || null]
+  );
+  return warehouse;
+}
+
 module.exports = {
   getEmployeeRegistrations,
   approveEmployee,
@@ -250,5 +316,8 @@ module.exports = {
   getAdminStats,
   getStaff,
   createStaff,
-  updateStaff
+  updateStaff,
+  getWarehouses,
+  createWarehouse,
+  updateWarehouse
 };

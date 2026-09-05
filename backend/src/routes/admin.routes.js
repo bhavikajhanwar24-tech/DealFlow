@@ -7,7 +7,8 @@ const { requireRole } = require("../middleware/role.middleware");
 const {
   validateRejection,
   validateStaff,
-  validateStaffUpdate
+  validateStaffUpdate,
+  validateWarehouse
 } = require("../validators/auth.validator");
 
 // Apply authentication, active status, and ADMIN role to all routes in this router
@@ -26,5 +27,8 @@ router.get("/stats", adminController.getAdminStats);
 router.get("/staff", adminController.getStaff);
 router.post("/staff", validateStaff, adminController.createStaff);
 router.put("/staff/:id", validateStaffUpdate, adminController.updateStaff);
+router.get("/warehouses", adminController.getWarehouses);
+router.post("/warehouses", validateWarehouse, adminController.createWarehouse);
+router.put("/warehouses/:id", validateWarehouse, adminController.updateWarehouse);
 
 module.exports = router;
