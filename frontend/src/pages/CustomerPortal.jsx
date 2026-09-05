@@ -9,7 +9,7 @@ import {
   Eye,
   ShieldCheck,
   Lock,
-  LogOut
+  LogOut,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -26,7 +26,7 @@ export default function CustomerPortal() {
     async function fetchPortal() {
       try {
         const res = await fetch(`${API_BASE}/customer/portal`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
         if (data.success) {
@@ -45,7 +45,9 @@ export default function CustomerPortal() {
 
   const handleAcceptQuote = (quoteId) => {
     setAcceptedQuotes((prev) => [...prev, quoteId]);
-    alert(`Quotation ${quoteId} officially accepted! Your account executive has been notified.`);
+    alert(
+      `Quotation ${quoteId} officially accepted! Your account executive has been notified.`,
+    );
   };
 
   return (
@@ -61,26 +63,69 @@ export default function CustomerPortal() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          boxShadow: "var(--shadow-sm)"
+          boxShadow: "var(--shadow-sm)",
         }}
       >
         <div>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#dcfce7", color: "#166534", padding: "0.25rem 0.625rem", borderRadius: "9999px", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "#dcfce7",
+              color: "#166534",
+              padding: "0.25rem 0.625rem",
+              borderRadius: "9999px",
+              fontSize: "0.75rem",
+              fontWeight: 700,
+              marginBottom: "0.5rem",
+            }}
+          >
             <CheckCircle size={14} /> Verified Customer Account
           </div>
-          <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#0f172a" }}>
+          <h1
+            style={{ fontSize: "1.75rem", fontWeight: 800, color: "#0f172a" }}
+          >
             {user?.company_name || "Enterprise Customer"} Quotation Portal
           </h1>
-          <p style={{ color: "#64748b", fontSize: "0.875rem", marginTop: "4px" }}>
-            Authorized contact: <strong>{user?.full_name}</strong> ({user?.email})
+          <p
+            style={{ color: "#64748b", fontSize: "0.875rem", marginTop: "4px" }}
+          >
+            Authorized contact: <strong>{user?.full_name}</strong> (
+            {user?.email})
           </p>
         </div>
 
-        <div style={{ textAlign: "right", display: "flex", alignItems: "flex-end", flexDirection: "column", gap: "0.75rem" }}>
-          <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>
+        <div
+          style={{
+            textAlign: "right",
+            display: "flex",
+            alignItems: "flex-end",
+            flexDirection: "column",
+            gap: "0.75rem",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "0.75rem",
+              fontWeight: 700,
+              color: "#94a3b8",
+              textTransform: "uppercase",
+            }}
+          >
             Access Isolation Policy
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#2563eb", fontSize: "0.875rem", fontWeight: 600, marginTop: "4px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              color: "#2563eb",
+              fontSize: "0.875rem",
+              fontWeight: 600,
+              marginTop: "4px",
+            }}
+          >
             <Lock size={15} /> Strict Single-Tenant Portal
           </div>
           <button
@@ -112,22 +157,36 @@ export default function CustomerPortal() {
           gap: "0.75rem",
           marginBottom: "1.5rem",
           fontSize: "0.875rem",
-          color: "#1e40af"
+          color: "#1e40af",
         }}
       >
         <ShieldCheck size={20} color="#2563eb" style={{ flexShrink: 0 }} />
         <div>
-          <strong>Role Governance Active:</strong> As a verified customer, you are restricted to viewing only quotations authored for <strong>{user?.company_name || "your company"}</strong>. Internal sales margins, cost floors, and administrative tools are safeguarded.
+          <strong>Role Governance Active:</strong> As a verified customer, you
+          are restricted to viewing only quotations authored for{" "}
+          <strong>{user?.company_name || "your company"}</strong>. Internal
+          sales margins, cost floors, and administrative tools are safeguarded.
         </div>
       </div>
 
       {/* Quotations List */}
       <div className="data-table-card">
-        <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div
+          style={{
+            padding: "1.25rem 1.5rem",
+            borderBottom: "1px solid var(--border-light)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <div>
-            <h2 style={{ fontSize: "1.125rem", fontWeight: 700 }}>Your Active Quotations</h2>
+            <h2 style={{ fontSize: "1.125rem", fontWeight: 700 }}>
+              Your Active Quotations
+            </h2>
             <div style={{ fontSize: "0.8125rem", color: "#64748b" }}>
-              Quotes generated by DealFlow360 commercial operations for your organization.
+              Quotes generated by DealFlow360 commercial operations for your
+              organization.
             </div>
           </div>
         </div>
@@ -147,53 +206,83 @@ export default function CustomerPortal() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>
+                  <td
+                    colSpan="6"
+                    style={{
+                      textAlign: "center",
+                      padding: "3rem",
+                      color: "#64748b",
+                    }}
+                  >
                     Loading customer quotes...
                   </td>
                 </tr>
-              ) : portalData?.quotations?.map((quote) => {
-                const isAccepted = acceptedQuotes.includes(quote.id) || quote.status === "Accepted";
+              ) : (
+                portalData?.quotations?.map((quote) => {
+                  const isAccepted =
+                    acceptedQuotes.includes(quote.id) ||
+                    quote.status === "Accepted";
 
-                return (
-                  <tr key={quote.id}>
-                    <td style={{ fontWeight: 700, color: "#1e293b" }}>
-                      <code>{quote.id}</code>
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{quote.description}</td>
-                    <td style={{ fontSize: "0.8125rem", color: "#64748b" }}>
-                      {quote.validUntil}
-                    </td>
-                    <td style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
-                      {quote.amount}
-                    </td>
-                    <td>
-                      <span className={`badge ${isAccepted ? "badge-active" : "badge-pending"}`}>
-                        {isAccepted ? "Accepted" : quote.status}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                      <div style={{ display: "inline-flex", gap: "0.5rem" }}>
-                        <button
-                          className="btn-secondary"
-                          style={{ padding: "0.4rem 0.75rem", fontSize: "0.8125rem" }}
-                          onClick={() => alert(`Downloading signed quotation PDF for ${quote.id}...`)}
+                  return (
+                    <tr key={quote.id}>
+                      <td style={{ fontWeight: 700, color: "#1e293b" }}>
+                        <code>{quote.id}</code>
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{quote.description}</td>
+                      <td style={{ fontSize: "0.8125rem", color: "#64748b" }}>
+                        {quote.validUntil}
+                      </td>
+                      <td
+                        style={{
+                          fontSize: "1rem",
+                          fontWeight: 700,
+                          color: "#0f172a",
+                        }}
+                      >
+                        {quote.amount}
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${isAccepted ? "badge-active" : "badge-pending"}`}
                         >
-                          <Download size={14} /> PDF
-                        </button>
-                        {!isAccepted && (
+                          {isAccepted ? "Accepted" : quote.status}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        <div style={{ display: "inline-flex", gap: "0.5rem" }}>
                           <button
-                            className="btn-primary"
-                            style={{ width: "auto", padding: "0.4rem 0.85rem", fontSize: "0.8125rem" }}
-                            onClick={() => handleAcceptQuote(quote.id)}
+                            className="btn-secondary"
+                            style={{
+                              padding: "0.4rem 0.75rem",
+                              fontSize: "0.8125rem",
+                            }}
+                            onClick={() =>
+                              alert(
+                                `Downloading signed quotation PDF for ${quote.id}...`,
+                              )
+                            }
                           >
-                            <CheckCircle size={14} /> Accept Quote
+                            <Download size={14} /> PDF
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                          {!isAccepted && (
+                            <button
+                              className="btn-primary"
+                              style={{
+                                width: "auto",
+                                padding: "0.4rem 0.85rem",
+                                fontSize: "0.8125rem",
+                              }}
+                              onClick={() => handleAcceptQuote(quote.id)}
+                            >
+                              <CheckCircle size={14} /> Accept Quote
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

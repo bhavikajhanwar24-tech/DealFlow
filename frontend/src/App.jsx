@@ -159,7 +159,12 @@ function AppContent() {
       if (currentRoute === "/sales/quotations/new") {
         return <CreateQuotation onNavigate={navigate} />;
       }
-      return <QuotationDetail quotationId={currentRoute.split("/").pop()} onNavigate={navigate} />;
+      return (
+        <QuotationDetail
+          quotationId={currentRoute.split("/").pop()}
+          onNavigate={navigate}
+        />
+      );
     }
 
     if (currentRoute === "/sales/quotations") {
