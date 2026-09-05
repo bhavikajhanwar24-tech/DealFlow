@@ -8,14 +8,15 @@ import {
   AlertCircle,
   Eye,
   ShieldCheck,
-  Lock
+  Lock,
+  LogOut
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
 
 export default function CustomerPortal() {
-  const { user, token } = useAuth();
+  const { user, token, logout } = useAuth();
   const [portalData, setPortalData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -75,13 +76,20 @@ export default function CustomerPortal() {
           </p>
         </div>
 
-        <div style={{ textAlign: "right" }}>
+        <div style={{ textAlign: "right", display: "flex", alignItems: "flex-end", flexDirection: "column", gap: "0.75rem" }}>
           <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>
             Access Isolation Policy
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#2563eb", fontSize: "0.875rem", fontWeight: 600, marginTop: "4px" }}>
             <Lock size={15} /> Strict Single-Tenant Portal
           </div>
+          <button
+            className="btn-secondary"
+            style={{ padding: "0.45rem 0.75rem", fontSize: "0.8125rem" }}
+            onClick={logout}
+          >
+            <LogOut size={15} /> Logout
+          </button>
         </div>
       </div>
 

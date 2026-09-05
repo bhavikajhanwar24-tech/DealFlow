@@ -6,6 +6,9 @@ import AuthPage from "./pages/AuthPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminApprovals from "./pages/AdminApprovals";
 import SalesDashboard from "./pages/SalesDashboard";
+import Quotations from "./pages/Quotations";
+import CreateQuotation from "./pages/CreateQuotation";
+import QuotationDetail from "./pages/QuotationDetail";
 import FinanceDashboard from "./pages/FinanceDashboard";
 import OperationsDashboard from "./pages/OperationsDashboard";
 import CustomerPortal from "./pages/CustomerPortal";
@@ -148,12 +151,31 @@ function AppContent() {
     }
 
     // 2. Sales Routes
+    if (currentRoute.startsWith("/sales/quotations/")) {
+      const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
+      if (!allowed.includes(user.role)) {
+        return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      }
+      if (currentRoute === "/sales/quotations/new") {
+        return <CreateQuotation onNavigate={navigate} />;
+      }
+      return <QuotationDetail quotationId={currentRoute.split("/").pop()} onNavigate={navigate} />;
+    }
+
+    if (currentRoute === "/sales/quotations") {
+      const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
+      if (!allowed.includes(user.role)) {
+        return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      }
+      return <Quotations onNavigate={navigate} />;
+    }
+
     if (currentRoute === "/sales/dashboard" || currentRoute === "/approvals") {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
       if (!allowed.includes(user.role)) {
         return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
       }
-      return <SalesDashboard />;
+      return <SalesDashboard onNavigate={navigate} />;
     }
 
     // 3. Finance Routes
@@ -188,7 +210,9 @@ function AppContent() {
   };
 
   const showNavbar =
-    currentRoute === "/sales/dashboard" || currentRoute === "/approvals";
+    currentRoute === "/sales/dashboard" ||
+    currentRoute === "/approvals" ||
+    currentRoute.startsWith("/sales/quotations");
   return (
     <div className="app-layout">
       {showNavbar && (
