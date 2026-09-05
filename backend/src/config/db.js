@@ -65,11 +65,30 @@ async function initDatabase() {
         category VARCHAR(30) NOT NULL CHECK (category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION')),
         description TEXT,
         unit_price NUMERIC(14, 2) NOT NULL CHECK (unit_price >= 0),
+        cost NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (cost >= 0),
+        inventory_reference VARCHAR(150),
         currency VARCHAR(3) NOT NULL DEFAULT 'INR',
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    await client.query(`
+      ALTER TABLE public.products
+      ADD COLUMN IF NOT EXISTS cost NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS inventory_reference VARCHAR(150)
+    `);
+
+    await client.query(`
+      ALTER TABLE public.products
+      DROP CONSTRAINT IF EXISTS products_category_check
+    `);
+
+    await client.query(`
+      ALTER TABLE public.products
+      ADD CONSTRAINT products_category_check
+      CHECK (category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION', 'ELECTRONICS', 'FURNITURE', 'SOFTWARE', 'SERVICES', 'OTHER'))
     `);
 
     await client.query(`

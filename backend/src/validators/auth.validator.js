@@ -210,6 +210,35 @@ function validateStaffUpdate(req, res, next) {
   next();
 }
 
+const PRODUCT_CATEGORIES = [
+  "HARDWARE",
+  "SERVICE",
+  "SUBSCRIPTION",
+  "ELECTRONICS",
+  "FURNITURE",
+  "SOFTWARE",
+  "SERVICES",
+  "OTHER"
+];
+
+function validateProduct(req, res, next) {
+  const { name, sku, category, unitPrice, cost, inventoryReference, status } = req.body;
+  const errors = [];
+  const price = Number(unitPrice);
+  const productCost = Number(cost);
+
+  if (!name || typeof name !== "string" || !name.trim()) errors.push("Product name is required.");
+  if (!sku || typeof sku !== "string" || !sku.trim()) errors.push("Product ID is required.");
+  if (!category || !PRODUCT_CATEGORIES.includes(String(category).toUpperCase())) errors.push("A valid product category is required.");
+  if (!Number.isFinite(price) || price < 0) errors.push("Selling price cannot be negative.");
+  if (!Number.isFinite(productCost) || productCost < 0) errors.push("Product cost cannot be negative.");
+  if (status && !["ACTIVE", "INACTIVE"].includes(String(status).toUpperCase())) errors.push("Status must be ACTIVE or INACTIVE.");
+  if (inventoryReference !== undefined && inventoryReference !== null && typeof inventoryReference !== "string") errors.push("Inventory reference must be text.");
+
+  if (errors.length > 0) return res.status(400).json({ success: false, message: errors[0], errors });
+  next();
+}
+
 module.exports = {
   validateEmployeeRegister,
   validateCustomerRegister,
@@ -217,6 +246,8 @@ module.exports = {
   validateRejection,
   validateStaff,
   validateStaffUpdate,
+  validateProduct,
+  PRODUCT_CATEGORIES,
   ALLOWED_EMPLOYEE_ROLES,
   ALLOWED_DEPARTMENTS
 };

@@ -1068,10 +1068,118 @@ a {
   line-height: 1.45;
 }
 
+.product-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.75fr) minmax(0, 1.75fr);
+  align-items: start;
+  gap: 1.25rem;
+}
+
+.product-form {
+  padding: 1.35rem;
+}
+
+.product-list-panel {
+  min-width: 0;
+}
+
+.product-search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 220px;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.product-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--text-main);
+  background: transparent;
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.product-table-wrap {
+  overflow-x: auto;
+  padding: 0 1.35rem;
+}
+
+.product-table td,
+.product-table th {
+  padding-left: 0.55rem;
+  padding-right: 0.55rem;
+  white-space: nowrap;
+}
+
+.product-table td:first-child strong,
+.product-table td:first-child small {
+  display: block;
+}
+
+.product-table td:first-child small {
+  max-width: 170px;
+  margin-top: 0.2rem;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+}
+
+.product-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.text-action-button {
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.text-action-button:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+.product-view-modal {
+  max-width: 560px;
+}
+
+.product-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.2fr);
+  gap: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+.product-detail-grid strong {
+  color: var(--text-muted);
+}
+
+.product-description {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-light);
+  font-size: 0.875rem;
+}
+
 @media (max-width: 850px) {
   .staff-layout,
+  .product-layout,
   .admin-action-grid {
     grid-template-columns: 1fr;
+  }
+
+  .product-search {
+    min-width: 0;
+    width: 100%;
   }
 
   .topbar {

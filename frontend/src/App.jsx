@@ -6,6 +6,7 @@ import AuthPage from "./pages/AuthPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminApprovals from "./pages/AdminApprovals";
 import AdminStaff from "./pages/AdminStaff";
+import ProductManagement from "./pages/ProductManagement";
 import SalesDashboard from "./pages/SalesDashboard";
 import Quotations from "./pages/Quotations";
 import CreateQuotation from "./pages/CreateQuotation";
@@ -155,6 +156,13 @@ function AppContent() {
       return <AdminStaff />;
     }
 
+    if (currentRoute === "/admin/products") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <ProductManagement />;
+    }
+
     // 2. Sales Routes
     if (currentRoute.startsWith("/sales/quotations/")) {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
@@ -223,6 +231,7 @@ function AppContent() {
     currentRoute === "/admin/dashboard" ||
     currentRoute === "/admin/employee-approvals" ||
     currentRoute === "/admin/staff" ||
+    currentRoute === "/admin/products" ||
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||
     currentRoute.startsWith("/sales/quotations");
