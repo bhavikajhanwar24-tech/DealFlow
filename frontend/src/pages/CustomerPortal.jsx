@@ -328,7 +328,7 @@ async function loadRequestData() {
   }
 
   const isDetail = Boolean(selectedQuotationId);
-  const canRespond = quotation && ["DRAFT", "APPROVED", "NEGOTIATION"].includes(quotation.status);
+  const canRespond = quotation && ["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION"].includes(quotation.status);
   const pendingRequest = quotation?.negotiations?.find((request) => request.status === "PENDING");
 
   const glassStyle = {

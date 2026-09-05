@@ -19,6 +19,8 @@ export default function CreateQuotation({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [riskPreview, setRiskPreview] = useState(null);
+  const [riskPreviewLoading, setRiskPreviewLoading] = useState(false);
 
   useEffect(() => {
     async function loadLookups() {
@@ -76,6 +78,31 @@ export default function CreateQuotation({ onNavigate }) {
   const marginPercentage =
     finalPrice === 0 ? 0 : (grossMargin / finalPrice) * 100;
 
+  useEffect(() => {
+    if (!items.length) {
+      setRiskPreview(null);
+      return undefined;
+    }
+    const timer = setTimeout(async () => {
+      setRiskPreviewLoading(true);
+      try {
+        const response = await fetch(`${API_BASE}/quotations/risk-preview`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ items }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Unable to preview risk.");
+        setRiskPreview(data.data);
+      } catch (previewError) {
+        setRiskPreview({ error: previewError.message });
+      } finally {
+        setRiskPreviewLoading(false);
+      }
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [items, token]);
+
   function addItem() {
     const product = products.find((entry) => entry.id === productId);
     const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
@@ -89,8 +116,8 @@ export default function CreateQuotation({ onNavigate }) {
         productId: product.id,
         name: product.name,
         category: product.category,
-        unitPrice: Math.max(0, Number(product.unitPrice) || 0),
-        costPrice: Math.max(0, Number(product.costPrice) || 0),
+        unitPrice: Math.max(0, Number(product.unitPrice ?? product.unit_price) || 0),
+        costPrice: Math.max(0, Number(product.costPrice ?? product.cost) || 0),
         quantity: safeQuantity,
         discountPercent: safeDiscount,
       },
@@ -110,8 +137,8 @@ export default function CreateQuotation({ onNavigate }) {
         productId: recommendation.id,
         name: recommendation.name,
         category: recommendation.category,
-        unitPrice: Math.max(0, Number(recommendation.unitPrice) || 0),
-        costPrice: Math.max(0, Number(recommendation.cost) || 0),
+        unitPrice: Math.max(0, Number(recommendation.unitPrice ?? recommendation.unit_price) || 0),
+        costPrice: Math.max(0, Number(recommendation.cost ?? recommendation.costPrice) || 0),
         quantity: 1,
         discountPercent: 0,
       },
@@ -517,15 +544,8 @@ export default function CreateQuotation({ onNavigate }) {
           </div>
         </section>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 350px",
-            gap: "1.25rem",
-            marginBottom: "1.25rem",
-          }}
-        >
-          <section className="data-table-card">
+        <div className="split-panel-layout" style={{ marginBottom: "1.25rem" }}>
+          <section className="data-table-card split-panel-main">
             <div style={{ overflowX: "auto" }}>
               <table className="data-table" style={{ width: "100%" }}>
                 <thead>
@@ -687,6 +707,32 @@ export default function CreateQuotation({ onNavigate }) {
             token={token}
           />
         </div>
+
+        <section style={{ marginTop: "1.25rem", background: "#fff", border: "1px solid var(--border-light)", borderRadius: "16px", padding: "1.25rem", boxShadow: "var(--shadow-sm)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+            <div><div className="eyebrow">Pre-submit intelligence</div><h2 style={{ fontSize: "1.1rem", marginTop: "0.25rem" }}>Pricing suggestion & risk preview</h2></div>
+            {riskPreviewLoading && <span style={{ color: "#64748b", fontSize: "0.8rem" }}>Analyzing current quote...</span>}
+          </div>
+          {riskPreview?.error ? <div className="alert alert-warning" style={{ marginTop: "0.85rem", marginBottom: 0 }}>{riskPreview.error}</div> : riskPreview && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "0.75rem", marginTop: "1rem" }}>
+            <div className="metric-card"><span className="metric-label">Risk score</span><strong className="metric-value">{Number(riskPreview.risk.riskScore).toFixed(1)}/100</strong></div>
+            <div className="metric-card"><span className="metric-label">Risk level</span><strong className="metric-value" style={{ fontSize: "1.05rem" }}>{riskPreview.risk.riskLevel}</strong></div>
+            <div className="metric-card"><span className="metric-label">Approval route</span><strong style={{ fontSize: "0.82rem", color: "#0f172a" }}>{riskPreview.risk.governanceRoute}</strong></div>
+            <div className="metric-card"><span className="metric-label">Suggested discount</span><strong className="metric-value">{riskPreview.pricing.suggestedDiscountPercent}%</strong></div>
+            <div className="metric-card"><span className="metric-label">Suggested final price</span><strong className="metric-value" style={{ fontSize: "1.05rem" }}>{currency(riskPreview.pricing.suggestedFinalPrice)}</strong></div>
+          </div>}
+          {riskPreview && !riskPreview.error && (
+            <div style={{ marginTop: "0.9rem", paddingTop: "0.85rem", borderTop: "1px solid #e2e8f0" }}>
+              <strong style={{ fontSize: "0.8rem", color: "#475569" }}>Why this score?</strong>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.55rem" }}>
+                {(riskPreview.risk.factors || []).map((factor) => (
+                  <span key={factor.name} style={{ padding: "0.35rem 0.55rem", borderRadius: "6px", background: Number(factor.contribution) > 0 ? "#fff7ed" : "#f8fafc", color: Number(factor.contribution) > 0 ? "#9a3412" : "#64748b", fontSize: "0.72rem" }}>
+                    {factor.name.replaceAll("_", " ")}: +{Number(factor.contribution).toFixed(1)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
 
         <div
           style={{

@@ -66,7 +66,7 @@ router.get(
   "/operations/dashboard",
   requireAuth,
   requireActiveUser,
-  requireRole("OPERATIONS", "ADMIN"),
+  requireRole("OPERATIONS", "ADMIN", "SALES_MANAGER", "SALES_REP"),
   (req, res) => {
     res.status(200).json({
       success: true,

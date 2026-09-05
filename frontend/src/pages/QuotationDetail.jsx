@@ -463,7 +463,7 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
             <div style={{ marginTop: "0.75rem", padding: "0.6rem 0.85rem", background: "#ffffff", border: "1px solid #86efac", borderRadius: "8px", display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "#14532d", fontSize: "0.875rem", fontWeight: 600 }}>
               <Mail size={16} color="#16a34a" />
               <span>Confirmation email sent to:</span>
-              <strong style={{ color: "#15803d", textDecoration: "underline" }}>{notification.email}</strong>
+              <strong className="quotation-email-value" style={{ color: "#15803d", textDecoration: "underline" }}>{notification.email}</strong>
             </div>
           ) : (
             <div style={{ marginTop: "0.75rem", padding: "0.6rem 0.85rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "8px", color: "#92400e", fontSize: "0.85rem" }}>
@@ -480,11 +480,11 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
       )}
 
       {/* ── Customer Info Card ── */}
-      <section style={{ background: "#fff", border: "1px solid var(--border-light)", borderRadius: "16px", padding: "1.5rem", boxShadow: "var(--shadow-sm)", marginBottom: "1.25rem", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "1rem" }}>
-        <div><strong>Customer</strong><br />{quotation.customer?.companyName || quotation.customer?.fullName}</div>
-        <div><strong>Customer ID</strong><br />{quotation.customer?.customerCode}</div>
-        <div><strong>Email</strong><br />{quotation.customer?.email}</div>
-        <div><strong>Sales Rep</strong><br />{quotation.salesRep?.fullName}</div>
+      <section className="quotation-customer-card">
+        <div className="quotation-customer-field"><strong>Customer</strong><br />{quotation.customer?.companyName || quotation.customer?.fullName}</div>
+        <div className="quotation-customer-field"><strong>Customer ID</strong><br />{quotation.customer?.customerCode}</div>
+        <div className="quotation-customer-field"><strong>Email</strong><br /><span className="quotation-email-value">{quotation.customer?.email}</span></div>
+        <div className="quotation-customer-field"><strong>Sales Rep</strong><br />{quotation.salesRep?.fullName}</div>
       </section>
 
       {/* ── Customer Request Banner ── */}

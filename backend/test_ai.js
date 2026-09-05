@@ -59,6 +59,21 @@ async function test() {
       console.log('STATUS:', response.status);
       console.log('RESPONSE:', text.substring(0, 500));
     }
+    const srRes = await pool.query("SELECT id FROM users WHERE role='SALES_REP' LIMIT 1");
+    if (srRes.rows.length > 0) {
+      const srToken = jwt.sign(
+        { userId: srRes.rows[0].id, role: 'SALES_REP' },
+        process.env.JWT_SECRET || 'dealflow360_fallback_secret_key',
+        { expiresIn: '1d' }
+      );
+      console.log('\nTesting /api/operations/warehouses with SALES_REP role...');
+      const opRes = await fetch('http://localhost:5000/api/operations/warehouses', {
+        headers: { Authorization: 'Bearer ' + srToken }
+      });
+      console.log('SALES_REP /operations/warehouses STATUS:', opRes.status);
+      const opText = await opRes.text();
+      console.log('SALES_REP RESPONSE:', opText.substring(0, 200));
+    }
   } catch (err) {
     console.error('ERROR:', err);
   } finally {
