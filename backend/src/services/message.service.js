@@ -103,21 +103,14 @@ class MessageService {
 
   async getQuotation(quotationId) {
     const result = await pool.query(`
-<<<<<<< HEAD
       SELECT q.id, q.quotation_number, q.status, q.subtotal, q.discount_amount, q.final_amount,
              q.total_cost, q.gross_margin, q.margin_percentage, q.risk_score, q.risk_level,
-             c.id AS customer_id, c.full_name AS customer_name, c.company_name AS customer_company,
-             sr.id AS sales_rep_id, sr.full_name AS sales_rep_name,
-             (SELECT id FROM public.users WHERE role = 'ADMIN' AND status = 'ACTIVE' ORDER BY created_at LIMIT 1) AS admin_id
-=======
-      SELECT q.id, q.quotation_number, q.status, q.final_amount,
              c.id AS customer_id, COALESCE(c.full_name, 'Valued Customer') AS customer_name, c.company_name AS customer_company,
              sr.id AS sales_rep_id, COALESCE(sr.full_name, 'Sales Representative') AS sales_rep_name,
              COALESCE(
                (SELECT id FROM public.users WHERE role = 'ADMIN' AND status = 'ACTIVE' ORDER BY created_at LIMIT 1),
                (SELECT id FROM public.users WHERE role = 'ADMIN' ORDER BY created_at LIMIT 1)
              ) AS admin_id
->>>>>>> bd541dcf9c2c76578c98a28fbdbb81556b14381c
       FROM public.quotations q
       LEFT JOIN public.users c ON q.customer_id = c.id
       LEFT JOIN public.users sr ON q.sales_rep_id = sr.id
@@ -283,11 +276,7 @@ class MessageService {
 
     const items = await pool.query(`
       SELECT qi.quantity, qi.unit_price, qi.discount_percent, qi.line_total,
-<<<<<<< HEAD
-             p.cost, p.category, p.name
-=======
              COALESCE(p.cost, 0) AS cost, p.category, p.name
->>>>>>> bd541dcf9c2c76578c98a28fbdbb81556b14381c
       FROM public.quotation_items qi
       LEFT JOIN public.products p ON qi.product_id = p.id
       WHERE qi.quotation_id = $1

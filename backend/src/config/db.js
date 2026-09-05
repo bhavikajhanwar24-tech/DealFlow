@@ -137,19 +137,6 @@ async function initDatabase() {
     `);
 
     await client.query(`
-<<<<<<< HEAD
-      DO $$
-      BEGIN
-        ALTER TABLE public.products
-        DROP CONSTRAINT IF EXISTS products_category_check;
-        
-        ALTER TABLE public.products
-        ADD CONSTRAINT products_category_check
-        CHECK (category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION', 'ELECTRONICS', 'FURNITURE', 'SOFTWARE', 'SERVICES', 'OTHER'));
-      EXCEPTION
-        WHEN duplicate_object THEN NULL;
-      END $$;
-=======
       CREATE TABLE IF NOT EXISTS public.product_promotions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
@@ -166,17 +153,18 @@ async function initDatabase() {
       ADD COLUMN IF NOT EXISTS quantity INTEGER NOT NULL DEFAULT 0;
     `);
 
-
     await client.query(`
-      ALTER TABLE public.products
-      DROP CONSTRAINT IF EXISTS products_category_check
-    `);
-
-    await client.query(`
-      ALTER TABLE public.products
-      ADD CONSTRAINT products_category_check
-      CHECK (category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION', 'ELECTRONICS', 'FURNITURE', 'SOFTWARE', 'SERVICES', 'OTHER'))
->>>>>>> bd541dcf9c2c76578c98a28fbdbb81556b14381c
+      DO $$
+      BEGIN
+        ALTER TABLE public.products
+        DROP CONSTRAINT IF EXISTS products_category_check;
+        
+        ALTER TABLE public.products
+        ADD CONSTRAINT products_category_check
+        CHECK (category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION', 'ELECTRONICS', 'FURNITURE', 'SOFTWARE', 'SERVICES', 'OTHER'));
+      EXCEPTION
+        WHEN duplicate_object THEN NULL;
+      END $$;
     `);
 
     await client.query(`
