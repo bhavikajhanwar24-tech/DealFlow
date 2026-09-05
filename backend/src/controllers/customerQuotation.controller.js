@@ -45,4 +45,13 @@ async function confirm(req, res) {
   }
 }
 
-module.exports = { list, detail, negotiate, confirm };
+async function reject(req, res) {
+  try {
+    const quotation = await quotationService.rejectCustomerQuotation(req.params.id, req.user);
+    return res.json({ success: true, message: "Quotation rejected successfully.", data: quotation });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+module.exports = { list, detail, negotiate, confirm, reject };

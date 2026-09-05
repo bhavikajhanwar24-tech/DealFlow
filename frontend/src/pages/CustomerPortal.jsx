@@ -6,11 +6,11 @@ import {
   MessageSquare,
   Send,
   AlertCircle,
+  XCircle,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
-const visibleStatuses = ["APPROVED", "NEGOTIATION", "CONFIRMED"];
 const currency = (value) =>
   `₹${Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const statusLabel = {
@@ -18,6 +18,7 @@ const statusLabel = {
   APPROVED: "Approved",
   NEGOTIATION: "Under Negotiation",
   CONFIRMED: "Confirmed",
+  REJECTED: "Rejected",
 };
 
 export default function CustomerPortal() {
@@ -157,9 +158,36 @@ export default function CustomerPortal() {
     }
   }
 
+  async function rejectQuotation() {
+    if (!quotation || !window.confirm("Reject this quotation?")) return;
+    setActionLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(
+        `${API_BASE}/customer/quotations/${quotation.id}/reject`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.message || "Unable to reject quotation.");
+      setSuccess(data.message);
+      await openQuotation(quotation.id);
+      await loadQuotations();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   const isDetail = Boolean(selectedQuotationId);
   const canRespond =
-    quotation && ["APPROVED", "NEGOTIATION"].includes(quotation.status);
+    quotation &&
+    ["DRAFT", "APPROVED", "NEGOTIATION"].includes(quotation.status);
   const pendingRequest = quotation?.negotiations?.find(
     (request) => request.status === "PENDING",
   );
@@ -517,9 +545,17 @@ export default function CustomerPortal() {
                     "Confirming quotation..."
                   ) : (
                     <>
-                      <CheckCircle size={16} /> Confirm Quotation
+                      <CheckCircle size={16} /> Approve Quotation
                     </>
                   )}
+                </button>
+                <button
+                  className="btn-danger"
+                  type="button"
+                  onClick={rejectQuotation}
+                  disabled={!canRespond || actionLoading}
+                >
+                  <XCircle size={16} /> Reject Quotation
                 </button>
               </div>
             </form>

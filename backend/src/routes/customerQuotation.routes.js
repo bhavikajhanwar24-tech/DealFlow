@@ -10,5 +10,6 @@ router.get("/", controller.list);
 router.get("/:id", controller.detail);
 router.post("/:id/negotiate", controller.negotiate);
 router.post("/:id/confirm", controller.confirm);
+router.post("/:id/reject", controller.reject);
 
 module.exports = router;

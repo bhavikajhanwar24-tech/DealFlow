@@ -163,6 +163,12 @@ function mapQuotation(row) {
       id: row.sales_rep_id,
       fullName: row.sales_rep_name,
       email: row.sales_rep_email
+    } : null,
+    customerRequest: row.customer_request_status ? {
+      status: row.customer_request_status,
+      requestedDiscountPercent: row.requested_discount_percent === null ? null : Number(row.requested_discount_percent),
+      requestedDeliveryDate: row.requested_delivery_date,
+      customerComment: row.customer_comment
     } : null
   };
 }
@@ -173,7 +179,11 @@ const quotationSelect = `
          customer.id AS customer_id, customer.full_name AS customer_name,
          customer.email AS customer_email, customer.company_name,
          sales_rep.id AS sales_rep_id, sales_rep.full_name AS sales_rep_name,
-         sales_rep.email AS sales_rep_email
+         sales_rep.email AS sales_rep_email,
+         (SELECT nr.status FROM public.negotiation_requests nr WHERE nr.quotation_id = q.id ORDER BY nr.created_at DESC LIMIT 1) AS customer_request_status,
+         (SELECT nr.requested_discount_percent FROM public.negotiation_requests nr WHERE nr.quotation_id = q.id ORDER BY nr.created_at DESC LIMIT 1) AS requested_discount_percent,
+         (SELECT nr.requested_delivery_date FROM public.negotiation_requests nr WHERE nr.quotation_id = q.id ORDER BY nr.created_at DESC LIMIT 1) AS requested_delivery_date,
+         (SELECT nr.customer_comment FROM public.negotiation_requests nr WHERE nr.quotation_id = q.id ORDER BY nr.created_at DESC LIMIT 1) AS customer_comment
   FROM public.quotations q
   JOIN public.users customer ON customer.id = q.customer_id
   JOIN public.users sales_rep ON sales_rep.id = q.sales_rep_id
@@ -334,7 +344,7 @@ async function createDraft(user, input) {
 
 // Drafts are visible for review until the approval workflow is implemented.
 // Customer actions remain restricted to approved or negotiation states.
-const CUSTOMER_VISIBLE_STATUSES = ["DRAFT", "APPROVED", "NEGOTIATION", "CONFIRMED"];
+const CUSTOMER_VISIBLE_STATUSES = ["DRAFT", "APPROVED", "NEGOTIATION", "CONFIRMED", "REJECTED"];
 
 async function listCustomerQuotations(customer) {
   const result = await db.query(
@@ -380,7 +390,7 @@ async function getCustomerQuotation(id, customer) {
 
 async function createNegotiationRequest(id, customer, input) {
   const quotation = await getCustomerQuotation(id, customer);
-  if (!["APPROVED", "NEGOTIATION"].includes(quotation.status)) {
+  if (!["DRAFT", "APPROVED", "NEGOTIATION"].includes(quotation.status)) {
     throw quotationError("This quotation is not currently available for negotiation.");
   }
   if (quotation.negotiations.some((request) => request.status === "PENDING")) {
@@ -413,7 +423,7 @@ async function createNegotiationRequest(id, customer, input) {
 
 async function confirmCustomerQuotation(id, customer) {
   const quotation = await getCustomerQuotation(id, customer);
-  if (!["APPROVED", "NEGOTIATION"].includes(quotation.status)) {
+  if (!["DRAFT", "APPROVED", "NEGOTIATION"].includes(quotation.status)) {
     if (quotation.status === "CONFIRMED") throw quotationError("This quotation has already been confirmed.");
     throw quotationError("This quotation is not currently available for confirmation.");
   }
@@ -423,6 +433,24 @@ async function confirmCustomerQuotation(id, customer) {
      SET status = 'CONFIRMED', confirmed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
      WHERE id = $1 AND customer_id = $2
      RETURNING id, quotation_number, status, confirmed_at`,
+    [id, customer.id],
+  );
+  return result.rows[0];
+}
+
+async function rejectCustomerQuotation(id, customer) {
+  const quotation = await getCustomerQuotation(id, customer);
+  if (!["DRAFT", "APPROVED", "NEGOTIATION"].includes(quotation.status)) {
+    if (quotation.status === "REJECTED") throw quotationError("This quotation has already been rejected.");
+    if (quotation.status === "CONFIRMED") throw quotationError("This quotation has already been confirmed.");
+    throw quotationError("This quotation is not currently available for rejection.");
+  }
+
+  const result = await db.query(
+    `UPDATE public.quotations
+     SET status = 'REJECTED', updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND customer_id = $2
+     RETURNING id, quotation_number, status`,
     [id, customer.id],
   );
   return result.rows[0];
@@ -439,5 +467,6 @@ module.exports = {
   getCustomerQuotation,
   createNegotiationRequest,
   confirmCustomerQuotation,
+  rejectCustomerQuotation,
   QUOTATION_STATUSES
 };
