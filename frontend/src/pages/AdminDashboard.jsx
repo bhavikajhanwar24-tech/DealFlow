@@ -107,9 +107,11 @@ export default function AdminDashboard({ onNavigate }) {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [dealSearchQuery, setDealSearchQuery] = useState("");
 
-  // Staff Table Filters
+  // Staff Table Filters & Data
+  const [staffList, setStaffList] = useState([]);
   const [staffDeptFilter, setStaffDeptFilter] = useState("ALL");
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
+  const [activeOperationsTab, setActiveOperationsTab] = useState("deals"); // "deals" | "staff"
 
   // Load all core data from database
   useEffect(() => {
@@ -118,7 +120,7 @@ export default function AdminDashboard({ onNavigate }) {
     async function loadAllData() {
       setLoading(true);
       try {
-        const [statsRes, alertsRes, quotesRes, reportsRes] = await Promise.all([
+        const [statsRes, alertsRes, quotesRes, reportsRes, staffRes] = await Promise.all([
           fetch(`${API_BASE}/admin/stats`, {
             headers: { Authorization: `Bearer ${token}` },
           }).then((r) => r.json()).catch(() => ({ success: false })),
@@ -131,12 +133,16 @@ export default function AdminDashboard({ onNavigate }) {
           fetch(`${API_BASE}/analytics/reports`, {
             headers: { Authorization: `Bearer ${token}` },
           }).then((r) => r.json()).catch(() => ({ success: false })),
+          fetch(`${API_BASE}/admin/staff`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }).then((r) => r.json()).catch(() => ({ success: false })),
         ]);
 
         if (statsRes.success) setStats(statsRes.data);
         if (alertsRes.success) setAlerts(alertsRes.data);
         if (quotesRes.success) setQuotationsList(quotesRes.data || []);
         if (reportsRes.success) setReportsData(reportsRes.data || null);
+        if (staffRes.success) setStaffList(staffRes.data || []);
       } catch (error) {
         console.error("Failed to load admin dashboard datasets:", error);
       } finally {
@@ -418,6 +424,35 @@ export default function AdminDashboard({ onNavigate }) {
 
   // Staff Table Data
   const allStaffPerformance = useMemo(() => {
+    if (staffList && staffList.length > 0) {
+      return staffList.map((s) => {
+        const sQuotes = quotationsList.filter(
+          (q) =>
+            q.salesRepId === s.id ||
+            q.sales_rep_id === s.id ||
+            (q.salesRep?.email && q.salesRep.email === s.email) ||
+            (q.salesRep?.fullName && q.salesRep.fullName === s.full_name)
+        );
+        const wonQuotes = sQuotes.filter((q) => normalizeQuotationStatus(q.status) === "CONFIRMED");
+        const revenue = wonQuotes.reduce((acc, q) => acc + Number(q.finalAmount || q.final_amount || 0), 0);
+        const pipeline = sQuotes.reduce((acc, q) => acc + Number(q.finalAmount || q.final_amount || 0), 0);
+        return {
+          id: s.id,
+          name: s.full_name || s.name || "Employee",
+          email: s.email || "",
+          employeeId: s.employee_id || s.employeeId || "N/A",
+          department: s.department || "General",
+          role: s.role || "STAFF",
+          status: s.status || "ACTIVE",
+          revenue,
+          totalDeals: sQuotes.length,
+          wonDeals: wonQuotes.length,
+          pipelineValue: pipeline,
+          discount: 0,
+        };
+      });
+    }
+
     if (reportsData?.salesRepPerformance && reportsData.salesRepPerformance.length > 0) {
       return reportsData.salesRepPerformance.map((rep) => ({
         id: rep.id,
@@ -435,7 +470,7 @@ export default function AdminDashboard({ onNavigate }) {
       }));
     }
     return [];
-  }, [reportsData]);
+  }, [staffList, quotationsList, reportsData]);
 
   const filteredStaff = useMemo(() => {
     return allStaffPerformance.filter((staff) => {
@@ -1247,7 +1282,7 @@ export default function AdminDashboard({ onNavigate }) {
       </div>
 
       {/* ========================================================================= */}
-      {/* 4. QUOTATION & DEAL EXPORT REPORTS (SYSTEM-WIDE TABLE BACKING THE CHARTS)  */}
+      {/* 4. UNIFIED OPERATIONS & AUDIT HUB (QUOTATIONS & DEALS + STAFF WORKFORCE)  */}
       {/* ========================================================================= */}
       <section
         style={{
@@ -1259,230 +1294,373 @@ export default function AdminDashboard({ onNavigate }) {
           marginBottom: "2.5rem",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem", marginBottom: "1.25rem" }}>
+        {/* Hub Header & Navigation Switcher */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "1.25rem",
+            marginBottom: "1.5rem",
+            paddingBottom: "1.25rem",
+            borderBottom: "1px solid #f1f5f9",
+          }}
+        >
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <FileSpreadsheet size={22} color="#10b981" />
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              <div
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "10px",
+                  background: activeOperationsTab === "deals" ? "#ecfdf5" : "#eff6ff",
+                  color: activeOperationsTab === "deals" ? "#10b981" : "#2563eb",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {activeOperationsTab === "deals" ? <FileSpreadsheet size={20} /> : <Briefcase size={20} />}
+              </div>
               <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: 0, color: "#0f172a" }}>
-                Quotation & Deal Export Reports (System-Wide)
+                {activeOperationsTab === "deals" ? "Quotation & Deal Export Reports (System-Wide)" : "Staff Workforce & Department Audit"}
               </h2>
             </div>
-            <p style={{ color: "#64748b", fontSize: "0.85rem", margin: "0.2rem 0 0 0" }}>
-              The exact dataset powering the visual charts above. Filter, inspect, and export seamlessly.
+            <p style={{ color: "#64748b", fontSize: "0.85rem", margin: "0.25rem 0 0 0" }}>
+              {activeOperationsTab === "deals"
+                ? "The exact system-wide dataset powering the executive charts. Filter, inspect, and export seamlessly."
+                : `Live connection to all ${allStaffPerformance.length} internal staff accounts across departments.`}
             </p>
           </div>
 
-          <div style={{ fontSize: "0.85rem", color: "#475569", fontWeight: 600 }}>
-            Showing <strong>{filteredDeals.length}</strong> of <strong>{quotationsList.length}</strong> total records
-          </div>
-        </div>
-
-        {/* Deals Table */}
-        <div style={{ overflowX: "auto" }}>
-          <table className="table" style={{ width: "100%", fontSize: "0.85rem" }}>
-            <thead>
-              <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "left", color: "#475569", fontWeight: 700 }}>QUOTATION #</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "left", color: "#475569", fontWeight: 700 }}>CUSTOMER</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "left", color: "#475569", fontWeight: 700 }}>SALES REP</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "center", color: "#475569", fontWeight: 700 }}>CREATED</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "center", color: "#475569", fontWeight: 700 }}>STATUS</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "right", color: "#475569", fontWeight: 700 }}>MARGIN</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "right", color: "#475569", fontWeight: 700 }}>FINAL AMOUNT</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredDeals.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>
-                    No quotations found matching the selected filter criteria.
-                  </td>
-                </tr>
-              ) : (
-                filteredDeals.map((q) => {
-                  const statusConfig = STAGE_CONFIG[q.status] || { label: q.status, color: "#64748b" };
-                  return (
-                    <tr key={q.id || q.quotationNumber} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                      <td style={{ padding: "0.85rem 1rem" }}>
-                        <strong style={{ color: "#2563eb" }}>{q.quotationNumber || q.quotation_number}</strong>
-                      </td>
-                      <td style={{ padding: "0.85rem 1rem" }}>
-                        <strong style={{ color: "#0f172a", display: "block" }}>
-                          {q.customer?.companyName || q.customer?.fullName || q.customer_name || "N/A"}
-                        </strong>
-                        <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                          {q.customer?.email || q.customer_email || ""}
-                        </span>
-                      </td>
-                      <td style={{ padding: "0.85rem 1rem" }}>
-                        <span style={{ fontWeight: 600, color: "#334155" }}>
-                          {q.salesRep?.fullName || q.sales_rep_name || "Unassigned"}
-                        </span>
-                      </td>
-                      <td style={{ padding: "0.85rem 1rem", textAlign: "center", color: "#64748b", fontSize: "0.8rem" }}>
-                        {new Date(q.createdAt || q.created_at).toLocaleDateString("en-IN")}
-                      </td>
-                      <td style={{ padding: "0.85rem 1rem", textAlign: "center" }}>
-                        <span
-                          style={{
-                            padding: "0.25rem 0.55rem",
-                            borderRadius: "6px",
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                            background: `${statusConfig.color}18`,
-                            color: statusConfig.color,
-                            border: `1px solid ${statusConfig.color}40`,
-                          }}
-                        >
-                          {statusConfig.label}
-                        </span>
-                      </td>
-                      <td style={{ padding: "0.85rem 1rem", textAlign: "right", fontWeight: 700, color: Number(q.marginPercentage || q.margin_percentage || 0) < 20 ? "#ef4444" : "#10b981" }}>
-                        {Number(q.marginPercentage || q.margin_percentage || 0).toFixed(1)}%
-                      </td>
-                      <td style={{ padding: "0.85rem 1rem", textAlign: "right", fontWeight: 800, color: "#0f172a" }}>
-                        {formatCurrency(q.finalAmount || q.final_amount)}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 5. COMPLETE STAFF ROSTER & DEPARTMENT PERFORMANCE AUDIT TABLE             */}
-      {/* ========================================================================= */}
-      <section
-        style={{
-          background: "#ffffff",
-          borderRadius: "16px",
-          padding: "1.5rem",
-          border: "1px solid #e2e8f0",
-          boxShadow: "0 4px 14px rgba(0, 0, 0, 0.05)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginBottom: "1.25rem" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <Briefcase size={20} color="#2563eb" />
-              <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: 0, color: "#0f172a" }}>
-                Staff Workforce & Department Audit
-              </h2>
-            </div>
-            <p style={{ color: "#64748b", fontSize: "0.85rem", margin: "0.2rem 0 0 0" }}>
-              Live connection to all {allStaffPerformance.length} internal staff accounts across departments.
-            </p>
-          </div>
-
-          {/* Department Filter & Search */}
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "0.35rem 0.65rem", gap: "0.4rem" }}>
-              <Search size={14} color="#64748b" />
-              <input
-                type="text"
-                placeholder="Search staff, ID, department..."
-                value={staffSearchQuery}
-                onChange={(e) => setStaffSearchQuery(e.target.value)}
-                style={{ border: "none", background: "transparent", outline: "none", fontSize: "0.82rem", width: "160px" }}
-              />
-            </div>
-
-            <select
-              value={staffDeptFilter}
-              onChange={(e) => setStaffDeptFilter(e.target.value)}
+          {/* Tab Switcher Pills */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              background: "#f1f5f9",
+              padding: "0.3rem",
+              borderRadius: "12px",
+              gap: "0.35rem",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setActiveOperationsTab("deals")}
               style={{
-                padding: "0.4rem 0.75rem",
-                borderRadius: "8px",
-                border: "1px solid #cbd5e1",
-                background: "#ffffff",
-                fontSize: "0.82rem",
-                fontWeight: 600,
-                color: "#334155",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.45rem",
+                padding: "0.45rem 0.9rem",
+                borderRadius: "9px",
+                border: "none",
+                background: activeOperationsTab === "deals" ? "#ffffff" : "transparent",
+                color: activeOperationsTab === "deals" ? "#0f172a" : "#64748b",
+                fontWeight: activeOperationsTab === "deals" ? 700 : 600,
+                fontSize: "0.83rem",
+                cursor: "pointer",
+                boxShadow: activeOperationsTab === "deals" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.18s ease",
               }}
             >
-              {staffDepartments.map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept === "ALL" ? "All Departments" : dept}
-                </option>
-              ))}
-            </select>
+              <FileSpreadsheet size={15} color={activeOperationsTab === "deals" ? "#10b981" : "#64748b"} />
+              Quotations & Deals
+              <span
+                style={{
+                  background: activeOperationsTab === "deals" ? "#eff6ff" : "#e2e8f0",
+                  color: activeOperationsTab === "deals" ? "#2563eb" : "#64748b",
+                  padding: "0.15rem 0.45rem",
+                  borderRadius: "999px",
+                  fontSize: "0.72rem",
+                  fontWeight: 800,
+                }}
+              >
+                {filteredDeals.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveOperationsTab("staff")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.45rem",
+                padding: "0.45rem 0.9rem",
+                borderRadius: "9px",
+                border: "none",
+                background: activeOperationsTab === "staff" ? "#ffffff" : "transparent",
+                color: activeOperationsTab === "staff" ? "#0f172a" : "#64748b",
+                fontWeight: activeOperationsTab === "staff" ? 700 : 600,
+                fontSize: "0.83rem",
+                cursor: "pointer",
+                boxShadow: activeOperationsTab === "staff" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.18s ease",
+              }}
+            >
+              <Briefcase size={15} color={activeOperationsTab === "staff" ? "#2563eb" : "#64748b"} />
+              Staff Workforce
+              <span
+                style={{
+                  background: activeOperationsTab === "staff" ? "#eff6ff" : "#e2e8f0",
+                  color: activeOperationsTab === "staff" ? "#2563eb" : "#64748b",
+                  padding: "0.15rem 0.45rem",
+                  borderRadius: "999px",
+                  fontSize: "0.72rem",
+                  fontWeight: 800,
+                }}
+              >
+                {filteredStaff.length}
+              </span>
+            </button>
           </div>
         </div>
 
-        {/* Staff Table */}
-        <div style={{ overflowX: "auto" }}>
-          <table className="table" style={{ width: "100%", fontSize: "0.85rem" }}>
-            <thead>
-              <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "left", color: "#475569", fontWeight: 700 }}>STAFF MEMBER</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "left", color: "#475569", fontWeight: 700 }}>STAFF ID</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "left", color: "#475569", fontWeight: 700 }}>DEPARTMENT / ROLE</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "center", color: "#475569", fontWeight: 700 }}>TOTAL DEALS</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "center", color: "#475569", fontWeight: 700 }}>WON DEALS</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "right", color: "#475569", fontWeight: 700 }}>CONFIRMED REVENUE</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "right", color: "#475569", fontWeight: 700 }}>TOTAL PIPELINE</th>
-                <th style={{ padding: "0.75rem 1rem", textAlign: "center", color: "#475569", fontWeight: 700 }}>STATUS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStaff.length === 0 ? (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>
-                    No staff members match the selected filter.
-                  </td>
-                </tr>
-              ) : (
-                filteredStaff.map((staff) => (
-                  <tr key={staff.id || staff.email} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={{ padding: "0.85rem 1rem" }}>
-                      <strong style={{ color: "#0f172a", display: "block" }}>{staff.name}</strong>
-                      <span style={{ fontSize: "0.75rem", color: "#64748b" }}>{staff.email}</span>
-                    </td>
-                    <td style={{ padding: "0.85rem 1rem" }}>
-                      <code style={{ background: "#f1f5f9", padding: "0.2rem 0.4rem", borderRadius: "4px", fontSize: "0.78rem" }}>
-                        {staff.employeeId}
-                      </code>
-                    </td>
-                    <td style={{ padding: "0.85rem 1rem" }}>
-                      <span style={{ fontWeight: 600, color: "#334155" }}>{staff.department}</span>
-                      <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b" }}>{staff.role}</span>
-                    </td>
-                    <td style={{ padding: "0.85rem 1rem", textAlign: "center", fontWeight: 700 }}>
-                      {staff.totalDeals}
-                    </td>
-                    <td style={{ padding: "0.85rem 1rem", textAlign: "center", fontWeight: 700, color: staff.wonDeals > 0 ? "#10b981" : "#64748b" }}>
-                      {staff.wonDeals}
-                    </td>
-                    <td style={{ padding: "0.85rem 1rem", textAlign: "right", fontWeight: 800, color: "#2563eb" }}>
-                      {formatCurrency(staff.revenue)}
-                    </td>
-                    <td style={{ padding: "0.85rem 1rem", textAlign: "right", fontWeight: 600, color: "#475569" }}>
-                      {formatCurrency(staff.pipelineValue)}
-                    </td>
-                    <td style={{ padding: "0.85rem 1rem", textAlign: "center" }}>
-                      <span
-                        style={{
-                          padding: "0.25rem 0.55rem",
-                          borderRadius: "6px",
-                          fontSize: "0.75rem",
-                          fontWeight: 700,
-                          background: staff.status === "ACTIVE" ? "#f0fdf4" : "#fef2f2",
-                          color: staff.status === "ACTIVE" ? "#166534" : "#991b1b",
-                        }}
-                      >
-                        {staff.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        {/* Tab 1 Content: Deals Table */}
+        {activeOperationsTab === "deals" && (
+          <>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "0.75rem",
+                marginBottom: "1rem",
+              }}
+            >
+              <div style={{ fontSize: "0.85rem", color: "#475569", fontWeight: 600 }}>
+                Showing <strong>{filteredDeals.length}</strong> of <strong>{quotationsList.length}</strong> system quotations
+              </div>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button
+                  type="button"
+                  onClick={handleExportDealsCSV}
+                  className="btn-secondary"
+                  style={{ fontSize: "0.8rem", padding: "0.4rem 0.75rem", display: "flex", alignItems: "center", gap: "0.35rem" }}
+                >
+                  <Download size={14} /> Export CSV
+                </button>
+              </div>
+            </div>
 
+            <div
+              style={{
+                maxHeight: "360px",
+                overflowY: "auto",
+                overflowX: "auto",
+                border: "1px solid #f1f5f9",
+                borderRadius: "10px",
+              }}
+            >
+              <table className="table" style={{ width: "100%", fontSize: "0.85rem", borderCollapse: "collapse" }}>
+                <thead style={{ position: "sticky", top: 0, zIndex: 10 }}>
+                  <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "left", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>QUOTATION #</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "left", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>CUSTOMER</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "left", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>SALES REP</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "center", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>CREATED</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "center", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>STATUS</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "right", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>MARGIN</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "right", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>FINAL AMOUNT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDeals.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: "center", padding: "2.5rem", color: "#94a3b8" }}>
+                        No quotations found matching the selected filter criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredDeals.map((q) => {
+                      const statusConfig = STAGE_CONFIG[q.status] || { label: q.status, color: "#64748b" };
+                      return (
+                        <tr key={q.id || q.quotationNumber} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "0.85rem 1rem" }}>
+                            <strong style={{ color: "#2563eb" }}>{q.quotationNumber || q.quotation_number}</strong>
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem" }}>
+                            <strong style={{ color: "#0f172a", display: "block" }}>
+                              {q.customer?.companyName || q.customer?.fullName || q.customer_name || "N/A"}
+                            </strong>
+                            <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                              {q.customer?.email || q.customer_email || ""}
+                            </span>
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem" }}>
+                            <span style={{ fontWeight: 600, color: "#334155" }}>
+                              {q.salesRep?.fullName || q.sales_rep_name || "Unassigned"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem", textAlign: "center", color: "#64748b", fontSize: "0.8rem" }}>
+                            {new Date(q.createdAt || q.created_at).toLocaleDateString("en-IN")}
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem", textAlign: "center" }}>
+                            <span
+                              style={{
+                                padding: "0.25rem 0.55rem",
+                                borderRadius: "6px",
+                                fontSize: "0.75rem",
+                                fontWeight: 700,
+                                background: `${statusConfig.color}18`,
+                                color: statusConfig.color,
+                                border: `1px solid ${statusConfig.color}40`,
+                              }}
+                            >
+                              {statusConfig.label}
+                            </span>
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem", textAlign: "right", fontWeight: 700, color: Number(q.marginPercentage || q.margin_percentage || 0) < 20 ? "#ef4444" : "#10b981" }}>
+                            {Number(q.marginPercentage || q.margin_percentage || 0).toFixed(1)}%
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem", textAlign: "right", fontWeight: 800, color: "#0f172a" }}>
+                            {formatCurrency(q.finalAmount || q.final_amount)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {/* Tab 2 Content: Staff Table */}
+        {activeOperationsTab === "staff" && (
+          <>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "0.75rem",
+                marginBottom: "1rem",
+              }}
+            >
+              <div style={{ fontSize: "0.85rem", color: "#475569", fontWeight: 600 }}>
+                Showing <strong>{filteredStaff.length}</strong> of <strong>{allStaffPerformance.length}</strong> staff members
+              </div>
+
+              {/* Department Filter & Search */}
+              <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "0.35rem 0.65rem", gap: "0.4rem" }}>
+                  <Search size={14} color="#64748b" />
+                  <input
+                    type="text"
+                    placeholder="Search staff, ID, department..."
+                    value={staffSearchQuery}
+                    onChange={(e) => setStaffSearchQuery(e.target.value)}
+                    style={{ border: "none", background: "transparent", outline: "none", fontSize: "0.82rem", width: "170px" }}
+                  />
+                </div>
+
+                <select
+                  value={staffDeptFilter}
+                  onChange={(e) => setStaffDeptFilter(e.target.value)}
+                  style={{
+                    padding: "0.4rem 0.75rem",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    color: "#334155",
+                  }}
+                >
+                  {staffDepartments.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept === "ALL" ? "All Departments" : dept}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Staff Table with 5-6 row scrollbar & sticky header */}
+            <div
+              style={{
+                maxHeight: "360px",
+                overflowY: "auto",
+                overflowX: "auto",
+                border: "1px solid #f1f5f9",
+                borderRadius: "10px",
+              }}
+            >
+              <table className="table" style={{ width: "100%", fontSize: "0.85rem", borderCollapse: "collapse" }}>
+                <thead style={{ position: "sticky", top: 0, zIndex: 10 }}>
+                  <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "left", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>STAFF MEMBER</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "left", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>STAFF ID</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "left", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>DEPARTMENT / ROLE</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "center", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>TOTAL DEALS</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "center", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>WON DEALS</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "right", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>CONFIRMED REVENUE</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "right", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>TOTAL PIPELINE</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "center", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>STATUS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStaff.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: "center", padding: "2.5rem", color: "#94a3b8" }}>
+                        No staff members match the selected filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStaff.map((staff) => (
+                      <tr key={staff.id || staff.email} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "0.85rem 1rem" }}>
+                          <strong style={{ color: "#0f172a", display: "block" }}>{staff.name}</strong>
+                          <span style={{ fontSize: "0.75rem", color: "#64748b" }}>{staff.email}</span>
+                        </td>
+                        <td style={{ padding: "0.85rem 1rem" }}>
+                          <code style={{ background: "#f1f5f9", padding: "0.2rem 0.4rem", borderRadius: "4px", fontSize: "0.78rem" }}>
+                            {staff.employeeId}
+                          </code>
+                        </td>
+                        <td style={{ padding: "0.85rem 1rem" }}>
+                          <span style={{ fontWeight: 600, color: "#334155" }}>{staff.department}</span>
+                          <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b" }}>{staff.role}</span>
+                        </td>
+                        <td style={{ padding: "0.85rem 1rem", textAlign: "center", fontWeight: 700 }}>
+                          {staff.totalDeals}
+                        </td>
+                        <td style={{ padding: "0.85rem 1rem", textAlign: "center", fontWeight: 700, color: staff.wonDeals > 0 ? "#10b981" : "#64748b" }}>
+                          {staff.wonDeals}
+                        </td>
+                        <td style={{ padding: "0.85rem 1rem", textAlign: "right", fontWeight: 800, color: "#2563eb" }}>
+                          {formatCurrency(staff.revenue)}
+                        </td>
+                        <td style={{ padding: "0.85rem 1rem", textAlign: "right", fontWeight: 600, color: "#475569" }}>
+                          {formatCurrency(staff.pipelineValue)}
+                        </td>
+                        <td style={{ padding: "0.85rem 1rem", textAlign: "center" }}>
+                          <span
+                            style={{
+                              padding: "0.25rem 0.55rem",
+                              borderRadius: "6px",
+                              fontSize: "0.75rem",
+                              fontWeight: 700,
+                              background: staff.status === "ACTIVE" ? "#f0fdf4" : "#fef2f2",
+                              color: staff.status === "ACTIVE" ? "#166534" : "#991b1b",
+                            }}
+                          >
+                            {staff.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </section>
     </main>
   );
