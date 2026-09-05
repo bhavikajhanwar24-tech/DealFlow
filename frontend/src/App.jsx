@@ -5,6 +5,7 @@ import ScrollVideoHero from "./components/ScrollVideoHero";
 import AuthPage from "./pages/AuthPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminApprovals from "./pages/AdminApprovals";
+import AdminStaff from "./pages/AdminStaff";
 import SalesDashboard from "./pages/SalesDashboard";
 import Quotations from "./pages/Quotations";
 import CreateQuotation from "./pages/CreateQuotation";
@@ -116,18 +117,10 @@ function AppContent() {
   }
 
   // Keep the public cinematic landing page at the root route.
-<<<<<<< HEAD
-  if (currentRoute === "/") {
-    return <ScrollVideoHero onNavigateToLogin={() => navigate("/login")} />;
-  }
-=======
   if (!user || user.status !== "ACTIVE") {
     if (currentRoute === "/") {
       return <ScrollVideoHero onNavigate={navigate} />;
     }
->>>>>>> 2ca274a4a1f288334fa6ccd6f2926b3ef4865720
-
-  if (!user || user.status !== "ACTIVE") {
     return (
       <AuthPage
         onLoginSuccess={(loggedInUser) => {
@@ -153,6 +146,13 @@ function AppContent() {
         return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
       }
       return <AdminApprovals />;
+    }
+
+    if (currentRoute === "/admin/staff") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <AdminStaff />;
     }
 
     // 2. Sales Routes
@@ -220,9 +220,17 @@ function AppContent() {
   };
 
   const showNavbar =
+<<<<<<< HEAD
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||
     currentRoute.startsWith("/sales/quotations");
+=======
+    currentRoute === "/admin/dashboard" ||
+    currentRoute === "/admin/employee-approvals" ||
+    currentRoute === "/admin/staff" ||
+    currentRoute === "/sales/dashboard" ||
+    currentRoute === "/approvals";
+>>>>>>> c0247ccac671987be41bb14d12e3092c1bf66374
   return (
     <div className="app-layout">
       {showNavbar && (

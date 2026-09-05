@@ -147,11 +147,76 @@ function validateRejection(req, res, next) {
   next();
 }
 
+function validateStaff(req, res, next) {
+  const { fullName, employeeId, email, password, department, role } = req.body;
+  const errors = [];
+
+  if (!fullName || typeof fullName !== "string" || fullName.trim().length < 2) {
+    errors.push("Full Name is required and must be at least 2 characters.");
+  }
+  if (!employeeId || typeof employeeId !== "string" || employeeId.trim().length < 2) {
+    errors.push("Staff ID is required.");
+  }
+  if (!email || !isValidEmail(email)) {
+    errors.push("A valid work email address is required.");
+  }
+  if (!department || typeof department !== "string" || !department.trim()) {
+    errors.push("Department is required.");
+  }
+  if (!role || !ALLOWED_EMPLOYEE_ROLES.includes(String(role).toUpperCase())) {
+    errors.push(`Role must be one of: ${ALLOWED_EMPLOYEE_ROLES.join(", ")}.`);
+  }
+  if (!password || typeof password !== "string" || password.length < 6) {
+    errors.push("Password must be at least 6 characters long.");
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ success: false, message: errors[0], errors });
+  }
+
+  next();
+}
+
+function validateStaffUpdate(req, res, next) {
+  const { fullName, employeeId, email, password, department, role, status } = req.body;
+  const errors = [];
+
+  if (!fullName || typeof fullName !== "string" || fullName.trim().length < 2) {
+    errors.push("Full Name is required and must be at least 2 characters.");
+  }
+  if (!employeeId || typeof employeeId !== "string" || employeeId.trim().length < 2) {
+    errors.push("Staff ID is required.");
+  }
+  if (!email || !isValidEmail(email)) {
+    errors.push("A valid work email address is required.");
+  }
+  if (!department || typeof department !== "string" || !department.trim()) {
+    errors.push("Department is required.");
+  }
+  if (!role || !ALLOWED_EMPLOYEE_ROLES.includes(String(role).toUpperCase())) {
+    errors.push(`Role must be one of: ${ALLOWED_EMPLOYEE_ROLES.join(", ")}.`);
+  }
+  if (password !== undefined && password !== "" && (typeof password !== "string" || password.length < 6)) {
+    errors.push("Password must be at least 6 characters long.");
+  }
+  if (status && !["ACTIVE", "SUSPENDED"].includes(String(status).toUpperCase())) {
+    errors.push("Status must be ACTIVE or SUSPENDED.");
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ success: false, message: errors[0], errors });
+  }
+
+  next();
+}
+
 module.exports = {
   validateEmployeeRegister,
   validateCustomerRegister,
   validateLogin,
   validateRejection,
+  validateStaff,
+  validateStaffUpdate,
   ALLOWED_EMPLOYEE_ROLES,
   ALLOWED_DEPARTMENTS
 };

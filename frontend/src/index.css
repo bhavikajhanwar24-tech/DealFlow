@@ -362,6 +362,11 @@ a {
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
+.category-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 /* Forms */
 .form-group {
   margin-bottom: 1.25rem;
@@ -854,6 +859,231 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Admin workspace */
+.admin-page {
+  background:
+    radial-gradient(circle at 90% 0%, rgba(219, 234, 254, 0.65), transparent 28rem),
+    #f8fafc;
+}
+
+.page-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.page-heading-row h1 {
+  font-size: clamp(1.65rem, 3vw, 2.35rem);
+  margin-bottom: 0.45rem;
+}
+
+.eyebrow,
+.admin-action-kicker {
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.page-subtitle {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.admin-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.admin-action-card {
+  min-height: 150px;
+  padding: 1.5rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.admin-action-card:hover {
+  border-color: var(--primary-subtle);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.admin-action-card strong,
+.admin-action-card > span:last-child {
+  display: block;
+}
+
+.admin-action-card strong {
+  margin: 0.65rem 0 0.4rem;
+  color: var(--text-main);
+  font-size: 1.15rem;
+}
+
+.admin-action-card > span:last-child {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.staff-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.4fr);
+  align-items: start;
+  gap: 1.25rem;
+}
+
+.admin-panel {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+  box-shadow: var(--shadow-sm);
+}
+
+.staff-form {
+  padding: 1.35rem;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.panel-heading-spread {
+  justify-content: space-between;
+  padding: 1.35rem 1.35rem 0;
+}
+
+.panel-heading h2 {
+  font-size: 1.05rem;
+  margin: 0.1rem 0 0.25rem;
+}
+
+.panel-heading p {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.panel-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.form-actions .btn-primary {
+  width: auto;
+}
+
+.staff-count,
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 0.3rem 0.6rem;
+}
+
+.staff-table-wrap {
+  overflow-x: auto;
+  padding: 0 1.35rem;
+}
+
+.staff-table td,
+.staff-table th {
+  padding-left: 0.65rem;
+  padding-right: 0.65rem;
+}
+
+.staff-table td:first-child strong,
+.staff-table td:first-child small {
+  display: block;
+}
+
+.staff-table td:first-child small {
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  color: var(--primary);
+  background: #ffffff;
+}
+
+.icon-button:hover {
+  background: var(--primary-light);
+}
+
+.empty-state {
+  padding: 2.5rem !important;
+  color: var(--text-muted) !important;
+  text-align: center;
+}
+
+.staff-security-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 1rem 1.35rem 1.35rem;
+  padding: 0.8rem;
+  border: 1px solid var(--color-brand-border);
+  border-radius: 8px;
+  background: var(--primary-light);
+  color: #1e40af;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 850px) {
+  .staff-layout,
+  .admin-action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .topbar-nav {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+  }
 }
 
 /* Completely hide side scrollbar for WebKit browsers (Chrome, Safari, Edge) */

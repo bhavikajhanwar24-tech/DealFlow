@@ -76,9 +76,41 @@ async function getAdminStats(req, res) {
   }
 }
 
+async function getStaff(req, res) {
+  try {
+    const staff = await adminService.getStaff();
+    return res.status(200).json({ success: true, count: staff.length, data: staff });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to retrieve staff." });
+  }
+}
+
+async function createStaff(req, res) {
+  try {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const staff = await adminService.createStaff(req.body, req.user.id, ip);
+    return res.status(201).json({ success: true, message: "Staff account created successfully.", data: staff });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to create staff account." });
+  }
+}
+
+async function updateStaff(req, res) {
+  try {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const staff = await adminService.updateStaff(req.params.id, req.body, req.user.id, ip);
+    return res.status(200).json({ success: true, message: "Staff account updated successfully.", data: staff });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to update staff account." });
+  }
+}
+
 module.exports = {
   getEmployeeApprovals,
   approveEmployee,
   rejectEmployee,
-  getAdminStats
+  getAdminStats,
+  getStaff,
+  createStaff,
+  updateStaff
 };

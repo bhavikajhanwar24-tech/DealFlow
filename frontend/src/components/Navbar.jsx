@@ -1,4 +1,3 @@
-import React from "react";
 import { useAuth } from "../context/AuthContext";
 
 // Inline SVG Icon components for React 19 stability
@@ -104,19 +103,19 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               className={`nav-link-btn ${currentRoute === "/admin/dashboard" ? "active" : ""}`}
               onClick={() => setCurrentRoute("/admin/dashboard")}
             >
-              <LayoutDashboardIcon size={16} /> Admin Dashboard
+              <LayoutDashboardIcon size={16} /> Dashboard
             </button>
             <button
               className={`nav-link-btn ${currentRoute === "/admin/employee-approvals" ? "active" : ""}`}
               onClick={() => setCurrentRoute("/admin/employee-approvals")}
             >
-              <UserCheckIcon size={16} /> Employee Approvals
+              <UserCheckIcon size={16} /> Approvals
             </button>
             <button
-              className={`nav-link-btn ${currentRoute === "/sales/dashboard" ? "active" : ""}`}
-              onClick={() => setCurrentRoute("/sales/dashboard")}
+              className={`nav-link-btn ${currentRoute === "/admin/staff" ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/admin/staff")}
             >
-              <BriefcaseIcon size={16} /> Sales Workspace
+              <BriefcaseIcon size={16} /> Staff
             </button>
           </>
         )}

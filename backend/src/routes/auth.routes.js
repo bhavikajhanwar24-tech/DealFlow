@@ -3,19 +3,12 @@ const router = express.Router();
 
 const authController = require("../controllers/auth.controller");
 const {
-  validateEmployeeRegister,
   validateCustomerRegister,
   validateLogin
 } = require("../validators/auth.validator");
 const { requireAuth } = require("../middleware/auth.middleware");
 
 // Public endpoints
-router.post(
-  "/employee/register",
-  validateEmployeeRegister,
-  authController.registerEmployee
-);
-
 router.post(
   "/customer/register",
   validateCustomerRegister,
