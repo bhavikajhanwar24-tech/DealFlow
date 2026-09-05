@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, AlertTriangle } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle2, Mail } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
@@ -10,6 +10,8 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
   const { token } = useAuth();
   const [quotation, setQuotation] = useState(null);
   const [error, setError] = useState("");
+  const [finalizing, setFinalizing] = useState(false);
+  const [notification, setNotification] = useState(null);
 
   useEffect(() => {
     async function loadQuotation() {
@@ -27,6 +29,33 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
     }
     loadQuotation();
   }, [quotationId, token]);
+
+  async function handleFinalizeQuotation() {
+    setFinalizing(true);
+    setError("");
+    setNotification(null);
+    try {
+      const response = await fetch(`${API_BASE}/quotations/${quotationId}/finalize`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to finalize quotation.");
+
+      setQuotation(data.data);
+      setNotification({
+        title: "Quotation Finalized",
+        quotationNumber: data.data.quotationNumber,
+        emailSent: Boolean(data.notification?.emailSent),
+        email: data.notification?.email || data.data.salesRep?.email,
+        error: data.notification?.error,
+      });
+    } catch (finalizeErr) {
+      setError(finalizeErr.message);
+    } finally {
+      setFinalizing(false);
+    }
+  }
 
   if (error)
     return (
@@ -93,8 +122,86 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
             Created {new Date(quotation.createdAt).toLocaleString("en-IN")}
           </p>
         </div>
-        <span className="badge badge-active">{quotation.status}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <span className={`badge ${quotation.status === "FINALIZED" ? "badge-active" : quotation.status === "REJECTED" ? "badge-rejected" : "badge-pending"}`}>
+            {quotation.status}
+          </span>
+          {quotation.status !== "FINALIZED" && (
+            <button
+              className="btn-success"
+              onClick={handleFinalizeQuotation}
+              disabled={finalizing}
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              {finalizing ? (
+                "Finalizing..."
+              ) : (
+                <>
+                  <CheckCircle2 size={16} /> Finalize Quotation
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
+
+      {notification && (
+        <div
+          style={{
+            background: "#f0fdf4",
+            border: "1px solid #bbf7d0",
+            borderRadius: "14px",
+            padding: "1.25rem 1.5rem",
+            marginBottom: "1.5rem",
+            boxShadow: "0 4px 12px rgba(16, 185, 129, 0.1)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#15803d", fontWeight: 800, fontSize: "1.05rem" }}>
+            <CheckCircle2 size={20} color="#16a34a" /> ✓ Quotation Finalized
+          </div>
+          <div style={{ color: "#166534", marginTop: "0.35rem", fontWeight: 700, fontSize: "0.95rem" }}>
+            {notification.quotationNumber} has been finalized successfully.
+          </div>
+
+          {notification.emailSent ? (
+            <div
+              style={{
+                marginTop: "0.75rem",
+                padding: "0.6rem 0.85rem",
+                background: "#ffffff",
+                border: "1px solid #86efac",
+                borderRadius: "8px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                color: "#14532d",
+                fontSize: "0.875rem",
+                fontWeight: 600,
+              }}
+            >
+              <Mail size={16} color="#16a34a" />
+              <span>Confirmation email sent to:</span>
+              <strong style={{ color: "#15803d", textDecoration: "underline" }}>
+                {notification.email}
+              </strong>
+            </div>
+          ) : (
+            <div
+              style={{
+                marginTop: "0.75rem",
+                padding: "0.6rem 0.85rem",
+                background: "#fffbeb",
+                border: "1px solid #fde68a",
+                borderRadius: "8px",
+                color: "#92400e",
+                fontSize: "0.85rem",
+              }}
+            >
+              ⚠️ Status updated to FINALIZED in database. (Email notification status: {notification.error || "Bypassed / Pending SMTP configuration"})
+            </div>
+          )}
+        </div>
+      )}
       <section
         style={{
           background: "#fff",

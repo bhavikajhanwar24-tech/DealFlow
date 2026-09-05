@@ -93,6 +93,20 @@ async function convertCustomerRequest(req, res) {
   }
 }
 
+async function finalizeQuotation(req, res) {
+  try {
+    const result = await quotationService.finalizeQuotation(req.params.id, req.user);
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result.data,
+      notification: result.notification,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+}
+
 module.exports = {
   getCustomers,
   getProducts,
@@ -103,4 +117,5 @@ module.exports = {
   submitQuotation,
   listCustomerRequests,
   convertCustomerRequest,
+  finalizeQuotation,
 };

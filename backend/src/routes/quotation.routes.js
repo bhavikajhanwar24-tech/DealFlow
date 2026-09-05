@@ -19,5 +19,6 @@ router.get("/", internalSales, quotationController.listQuotations);
 router.get("/:id", internalSales, quotationController.getQuotation);
 router.post("/", salesCreators, quotationController.createQuotation);
 router.post("/:id/submit", salesCreators, quotationController.submitQuotation);
+router.post("/:id/finalize", internalSales, quotationController.finalizeQuotation);
 
 module.exports = router;

@@ -1,8 +1,9 @@
 const db = require("../config/db");
 const fulfillmentService = require("./fulfillment.service");
+const emailService = require("./email.service");
 
 const SALES_ROLES = ["SALES_REP", "SALES_MANAGER"];
-const QUOTATION_STATUSES = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION", "CONFIRMED"];
+const QUOTATION_STATUSES = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION", "CONFIRMED", "FINALIZED"];
 const RISK_ENGINE_URL = process.env.RISK_ENGINE_URL || "http://127.0.0.1:8001";
 const CATEGORY_CEILINGS = {
   HARDWARE: 0.10,
@@ -686,6 +687,64 @@ async function rejectCustomerQuotation(id, customer) {
   return result.rows[0];
 }
 
+async function finalizeQuotation(quotationId, user) {
+  if (!["SALES_REP", "SALES_MANAGER", "ADMIN"].includes(user.role)) {
+    throw quotationError("Only sales representatives and administrators can finalize quotations.", 403);
+  }
+
+  const existingQuotation = await getQuotation(quotationId, user);
+  if (existingQuotation.status === "FINALIZED") {
+    throw quotationError("This quotation is already finalized.", 400);
+  }
+
+  const updateResult = await db.query(
+    `UPDATE public.quotations
+     SET status = 'FINALIZED',
+         confirmed_at = COALESCE(confirmed_at, CURRENT_TIMESTAMP),
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1
+     RETURNING id, quotation_number, status, confirmed_at`,
+    [quotationId]
+  );
+
+  if (updateResult.rows.length === 0) {
+    throw quotationError("Quotation not found or unable to finalize.", 404);
+  }
+
+  const updatedQuotation = await getQuotation(quotationId, user);
+
+  const salespersonName = updatedQuotation.salesRep?.fullName || user.full_name || "Sales Representative";
+  const salespersonEmail = updatedQuotation.salesRep?.email || user.email;
+  const customerName = updatedQuotation.customer?.companyName || updatedQuotation.customer?.fullName || "Customer";
+
+  let emailResult = { success: false, error: "Email execution bypassed" };
+  try {
+    emailResult = await emailService.sendQuotationFinalizedEmail({
+      salespersonName,
+      salespersonEmail,
+      quotationNumber: updatedQuotation.quotationNumber,
+      customerName,
+      totalAmount: updatedQuotation.finalAmount,
+      marginPercentage: updatedQuotation.marginPercentage,
+      grossMargin: updatedQuotation.grossMargin,
+    });
+  } catch (emailErr) {
+    console.error(`[Quotation Service] Non-fatal email error for ${updatedQuotation.quotationNumber}:`, emailErr.message);
+    emailResult = { success: false, error: emailErr.message };
+  }
+
+  return {
+    success: true,
+    message: `Quotation ${updatedQuotation.quotationNumber} finalized successfully.`,
+    data: updatedQuotation,
+    notification: {
+      emailSent: Boolean(emailResult.success),
+      email: salespersonEmail,
+      error: emailResult.success ? null : emailResult.error
+    }
+  };
+}
+
 module.exports = {
   getCustomers,
   getProducts,
@@ -703,5 +762,6 @@ module.exports = {
   createNegotiationRequest,
   confirmCustomerQuotation,
   rejectCustomerQuotation,
+  finalizeQuotation,
   QUOTATION_STATUSES
 };
