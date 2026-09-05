@@ -11,6 +11,7 @@ const adminRoutes = require("./src/routes/admin.routes");
 const dashboardRoutes = require("./src/routes/dashboard.routes");
 const quotationRoutes = require("./src/routes/quotation.routes");
 const catalogRoutes = require("./src/routes/catalog.routes");
+const customerQuotationRoutes = require("./src/routes/customerQuotation.routes");
 
 // PostgreSQL connection
 const pool = require("./src/config/db");
@@ -29,6 +30,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/quotations", quotationRoutes);
+app.use("/api/customer/quotations", customerQuotationRoutes);
 app.use("/api", catalogRoutes);
 app.use("/api", dashboardRoutes);
 

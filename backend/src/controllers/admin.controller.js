@@ -199,6 +199,44 @@ async function updateDiscountPolicy(req, res) {
   }
 }
 
+async function getWarehouseInventory(req, res) {
+  try {
+    const inventory = await adminService.getWarehouseInventory(req.params.id);
+    return res.status(200).json({ success: true, count: inventory.length, data: inventory });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to retrieve warehouse inventory." });
+  }
+}
+
+async function upsertWarehouseInventory(req, res) {
+  try {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const inventory = await adminService.upsertWarehouseInventory(req.params.id, req.body, req.user.id, ip);
+    return res.status(200).json({ success: true, message: "Warehouse inventory saved successfully.", data: inventory });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to save warehouse inventory." });
+  }
+}
+
+async function removeWarehouseInventory(req, res) {
+  try {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    await adminService.removeWarehouseInventory(req.params.inventoryId, req.user.id, ip);
+    return res.status(200).json({ success: true, message: "Product removed from warehouse inventory." });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to remove warehouse inventory." });
+  }
+}
+
+async function getWarehouseAnalytics(req, res) {
+  try {
+    const analytics = await adminService.getWarehouseAnalytics();
+    return res.status(200).json({ success: true, data: analytics });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to retrieve warehouse analytics." });
+  }
+}
+
 module.exports = {
   getEmployeeApprovals,
   approveEmployee,
@@ -215,5 +253,9 @@ module.exports = {
   updateWarehouse,
   getDiscountPolicies,
   createDiscountPolicy,
-  updateDiscountPolicy
+  updateDiscountPolicy,
+  getWarehouseInventory,
+  upsertWarehouseInventory,
+  removeWarehouseInventory,
+  getWarehouseAnalytics
 };

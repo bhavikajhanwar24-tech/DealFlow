@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, FilePlus2, ClipboardList, Activity } from "lucide-react";
+import { FilePlus2, ClipboardList, Activity } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
@@ -129,44 +129,6 @@ export default function SalesDashboard({ onNavigate }) {
           <ClipboardList size={17} /> View Quotations
         </button>
       </div>
-
-      <section
-        style={{
-          background: "#fff",
-          border: "1px solid var(--border-light)",
-          borderRadius: "16px",
-          padding: "1.5rem",
-          boxShadow: "var(--shadow-sm)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "1rem",
-          }}
-        >
-          <div>
-            <h2
-              style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f172a" }}
-            >
-              Recent Activity
-            </h2>
-            <p
-              style={{
-                color: "#64748b",
-                fontSize: "0.875rem",
-                marginTop: "0.35rem",
-              }}
-            >
-              Your quotation activity will appear here as workspace modules are
-              added.
-            </p>
-          </div>
-          <ArrowRight size={20} color="#94a3b8" />
-        </div>
-      </section>
     </main>
   );
 }
