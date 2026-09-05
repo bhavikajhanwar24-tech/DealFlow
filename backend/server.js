@@ -72,27 +72,24 @@ app.get("/api/health", async (req, res) => {
 });
 
 // ===============================
-// TEST DATABASE QUERY
+// ERROR & 404 HANDLERS
 // ===============================
 
-app.get("/api/db-test", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT version()");
+app.use("/api", (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `API route ${req.method} ${req.originalUrl} not found.`,
+  });
+});
 
-    res.json({
-      success: true,
-      message: "Database is working",
-      version: result.rows[0].version,
-    });
-  } catch (error) {
-    console.error("DATABASE ERROR:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Database query failed",
-      error: error.message,
-    });
-  }
+app.use((err, req, res, next) => {
+  console.error("DealFlow360 API Error:", err);
+  const status = err.statusCode || err.status || 500;
+  res.status(status).json({
+    success: false,
+    message: err.message || "An unexpected server error occurred.",
+    stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
+  });
 });
 
 // ===============================

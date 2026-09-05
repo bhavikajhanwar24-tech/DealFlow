@@ -269,11 +269,12 @@ function AppContent() {
       return <CustomerPortal />;
     }
 
-    // 6. Messages Routes (Shared Chat view for Sales & Customer)
+    // 6. Messages Routes (Shared Chat view for Admin, Sales & Customer)
     if (
       currentRoute === "/messages" ||
       currentRoute === "/sales/messages" ||
-      currentRoute === "/customer/messages"
+      currentRoute === "/customer/messages" ||
+      currentRoute === "/admin/messages"
     ) {
       return <QuotationMessages onNavigate={navigate} />;
     }
