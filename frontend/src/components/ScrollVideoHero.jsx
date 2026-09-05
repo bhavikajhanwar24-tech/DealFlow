@@ -1,3 +1,9 @@
+<<<<<<< HEAD
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import './ScrollVideoHero.css';
+
+export default function ScrollVideoHero({ onNavigateToLogin }) {
+=======
 import { useRef, useEffect, useCallback } from 'react';
 import { ArrowRight } from 'lucide-react';
 import './ScrollVideoHero.css';
@@ -35,43 +41,33 @@ function preloadAllFrames(onFrameLoaded) {
 }
 
 export default function ScrollVideoHero({ onNavigate }) {
+>>>>>>> 2ca274a4a1f288334fa6ccd6f2926b3ef4865720
   const sectionRef = useRef(null);
-  const canvasRef = useRef(null);
-
-  const targetFrameRef = useRef(0);
-  const smoothFrameRef = useRef(0);
-  const isAnimatingRef = useRef(false);
+  const videoRef = useRef(null);
   const rafIdRef = useRef(null);
+<<<<<<< HEAD
+  const durationRef = useRef(0);
+  const isLoadedRef = useRef(false);
+=======
   const renderLoopRef = useRef(() => {});
+>>>>>>> 2ca274a4a1f288334fa6ccd6f2926b3ef4865720
 
-  // Draw a frame onto the Canvas with aspect-ratio cover scaling
-  const drawFrame = useCallback((targetIndex) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
 
-    const clampedIndex = Math.min(TOTAL_FRAMES - 1, Math.max(0, Math.floor(targetIndex)));
-    
-    // Attempt to get requested frame image
-    let img = imageCache[clampedIndex];
+  // RAF scroll position calculator
+  const updateVideoProgress = useCallback(() => {
+    if (!sectionRef.current || !videoRef.current || !durationRef.current) return;
 
-    // Fallback: If requested frame isn't loaded yet, find nearest loaded frame
-    if (!img || !img.complete || img.naturalWidth === 0) {
-      for (let offset = 1; offset < TOTAL_FRAMES; offset++) {
-        const prev = imageCache[clampedIndex - offset];
-        if (prev && prev.complete && prev.naturalWidth > 0) {
-          img = prev;
-          break;
-        }
-        const next = imageCache[clampedIndex + offset];
-        if (next && next.complete && next.naturalWidth > 0) {
-          img = next;
-          break;
-        }
-      }
-    }
+    const docHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+    const winHeight = window.innerHeight || 1;
+    const maxScroll = Math.max(docHeight - winHeight, 1);
+    const currentScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
 
+<<<<<<< HEAD
+    let progress = currentScroll / maxScroll;
+=======
     if (!img || !img.complete || img.naturalWidth === 0) return;
 
     const canvasWidth = canvas.width;
@@ -125,32 +121,34 @@ export default function ScrollVideoHero({ onNavigate }) {
 
     const currentScroll = -rect.top;
     let progress = currentScroll / scrollableDistance;
+>>>>>>> 2ca274a4a1f288334fa6ccd6f2926b3ef4865720
     progress = Math.max(0, Math.min(1, progress));
 
-    targetFrameRef.current = progress * (TOTAL_FRAMES - 1);
+    setScrollProgress(progress);
 
-    if (!isAnimatingRef.current) {
-      isAnimatingRef.current = true;
-      rafIdRef.current = requestAnimationFrame(renderLoop);
+    const targetTime = progress * durationRef.current;
+
+    // Safely update video currentTime
+    if (isFinite(targetTime) && videoRef.current.readyState >= 1) {
+      if (Math.abs(videoRef.current.currentTime - targetTime) > 0.001) {
+        videoRef.current.currentTime = targetTime;
+      }
     }
-  }, [renderLoop]);
+  }, []);
 
-  // Resize listener to adjust Canvas resolution
-  const handleResize = useCallback(() => {
-    if (canvasRef.current) {
-      canvasRef.current.width = window.innerWidth;
-      canvasRef.current.height = window.innerHeight;
-      drawFrame(smoothFrameRef.current);
-    }
-  }, [drawFrame]);
-
-  // Preload frames and bind onload events
+  // Handle scroll events with requestAnimationFrame
   useEffect(() => {
-    if (canvasRef.current) {
-      canvasRef.current.width = window.innerWidth;
-      canvasRef.current.height = window.innerHeight;
-    }
+    const handleScroll = () => {
+      if (!rafIdRef.current) {
+        rafIdRef.current = requestAnimationFrame(() => {
+          updateVideoProgress();
+          rafIdRef.current = null;
+        });
+      }
+    };
 
+<<<<<<< HEAD
+=======
     const handleFrameLoaded = () => {
       drawFrame(smoothFrameRef.current);
     };
@@ -166,24 +164,103 @@ export default function ScrollVideoHero({ onNavigate }) {
 
   // Attach scroll & resize event listeners
   useEffect(() => {
+>>>>>>> 2ca274a4a1f288334fa6ccd6f2926b3ef4865720
     window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleResize, { passive: true });
+    window.addEventListener('resize', handleScroll, { passive: true });
 
     handleScroll();
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', handleScroll);
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
       }
     };
-  }, [handleScroll, handleResize]);
+  }, [updateVideoProgress]);
+
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      durationRef.current = videoRef.current.duration;
+      isLoadedRef.current = true;
+      setIsLoaded(true);
+      setHasError(false);
+      updateVideoProgress();
+    }
+  };
+
+  const handleVideoError = () => {
+    setHasError(true);
+    setIsLoaded(false);
+  };
+
+  // Section click handler to redirect to login
+  const handleSectionClick = () => {
+    if (scrollProgress >= 0.75 && onNavigateToLogin) {
+      onNavigateToLogin();
+    }
+  };
 
   return (
-    <section ref={sectionRef} className="scroll-canvas-section" aria-label="Cinematic Frame Scroll Sequence">
+    <section 
+      ref={sectionRef} 
+      className="scroll-canvas-section" 
+      aria-label="Interactive DealFlow360 Scroll Video Hero"
+      onClick={handleSectionClick}
+    >
       <div className="scroll-canvas-sticky">
+<<<<<<< HEAD
+        
+        {/* Loading Spinner */}
+        {!isLoaded && !hasError && (
+          <div className="fullscreen-loading">
+            <div className="spinner-large" />
+            <span>Loading interactive video experience...</span>
+          </div>
+        )}
+
+        {/* Error Fallback */}
+        {hasError && (
+          <div className="fullscreen-error">
+            <p>Interactive video preview currently unavailable.</p>
+          </div>
+        )}
+
+        {/* Full Viewport MP4 Video */}
+        <video
+          ref={videoRef}
+          className={`fullscreen-scroll-video ${isLoaded ? 'loaded' : ''}`}
+          muted
+          playsInline
+          preload="auto"
+          onLoadedMetadata={handleLoadedMetadata}
+          onError={handleVideoError}
+          aria-label="DealFlow360 interactive video demonstration"
+        >
+          <source src="/videos/dealflow-hero.mp4" type="video/mp4" />
+          Your browser does not support HTML5 video playback.
+        </video>
+
+        {/* End of Scroll Redirect Prompt Overlay */}
+        {scrollProgress >= 0.75 && (
+          <div 
+            className="scroll-end-overlay"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onNavigateToLogin) onNavigateToLogin();
+            }}
+          >
+            <button className="btn-enter-login" aria-label="Click to Log In">
+              <span>Click Anywhere to Log In</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        )}
+
+=======
         <canvas ref={canvasRef} className="fullscreen-canvas" />
         <div className="hero-cta-wrap">
           <button
@@ -195,6 +272,7 @@ export default function ScrollVideoHero({ onNavigate }) {
             <ArrowRight size={18} aria-hidden="true" />
           </button>
         </div>
+>>>>>>> 2ca274a4a1f288334fa6ccd6f2926b3ef4865720
       </div>
     </section>
   );

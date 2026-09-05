@@ -1,6 +1,27 @@
 import React from "react";
-import { DollarSign, FileCheck, AlertCircle, TrendingUp, CreditCard } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+
+const DollarSignIcon = ({ size = 22 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="1" x2="12" y2="23" />
+    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+  </svg>
+);
+
+const TrendingUpIcon = ({ size = 22 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+    <polyline points="17 6 23 6 23 12" />
+  </svg>
+);
+
+const FileCheckIcon = ({ size = 22 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+    <polyline points="14 2 14 8 20 8" />
+    <path d="m9 15 2 2 4-4" />
+  </svg>
+);
 
 export default function FinanceDashboard() {
   const { user } = useAuth();
@@ -23,7 +44,7 @@ export default function FinanceDashboard() {
             <div className="metric-value">₹1,42,50,000</div>
           </div>
           <div className="metric-icon-wrap" style={{ background: "#d1fae5", color: "#059669" }}>
-            <DollarSign size={22} />
+            <DollarSignIcon size={22} />
           </div>
         </div>
 
@@ -33,7 +54,7 @@ export default function FinanceDashboard() {
             <div className="metric-value">₹38,20,000</div>
           </div>
           <div className="metric-icon-wrap" style={{ background: "#eff6ff", color: "#2563eb" }}>
-            <TrendingUp size={22} />
+            <TrendingUpIcon size={22} />
           </div>
         </div>
 
@@ -43,7 +64,7 @@ export default function FinanceDashboard() {
             <div className="metric-value">8 Invoices</div>
           </div>
           <div className="metric-icon-wrap" style={{ background: "#fef3c7", color: "#d97706" }}>
-            <FileCheck size={22} />
+            <FileCheckIcon size={22} />
           </div>
         </div>
       </div>
