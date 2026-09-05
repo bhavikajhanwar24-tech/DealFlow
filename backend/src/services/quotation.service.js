@@ -716,14 +716,18 @@ async function finalizeQuotation(quotationId, user) {
   const salespersonName = updatedQuotation.salesRep?.fullName || user.full_name || "Sales Representative";
   const salespersonEmail = updatedQuotation.salesRep?.email || user.email;
   const customerName = updatedQuotation.customer?.companyName || updatedQuotation.customer?.fullName || "Customer";
+  const customerEmail = updatedQuotation.customer?.email;
+
+  const targetEmail = customerEmail || salespersonEmail;
 
   let emailResult = { success: false, error: "Email execution bypassed" };
   try {
     emailResult = await emailService.sendQuotationFinalizedEmail({
+      customerName,
+      customerEmail: targetEmail,
       salespersonName,
       salespersonEmail,
       quotationNumber: updatedQuotation.quotationNumber,
-      customerName,
       totalAmount: updatedQuotation.finalAmount,
       marginPercentage: updatedQuotation.marginPercentage,
       grossMargin: updatedQuotation.grossMargin,
@@ -739,7 +743,7 @@ async function finalizeQuotation(quotationId, user) {
     data: updatedQuotation,
     notification: {
       emailSent: Boolean(emailResult.success),
-      email: salespersonEmail,
+      email: targetEmail,
       error: emailResult.success ? null : emailResult.error
     }
   };

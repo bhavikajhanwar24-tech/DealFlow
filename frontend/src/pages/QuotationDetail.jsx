@@ -47,7 +47,7 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
         title: "Quotation Finalized",
         quotationNumber: data.data.quotationNumber,
         emailSent: Boolean(data.notification?.emailSent),
-        email: data.notification?.email || data.data.salesRep?.email,
+        email: data.notification?.email || data.data.customer?.email || data.data.salesRep?.email,
         error: data.notification?.error,
       });
     } catch (finalizeErr) {
