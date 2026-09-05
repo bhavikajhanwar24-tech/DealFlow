@@ -3,14 +3,13 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 
-// Database initialization & pool connection
-const pool = require("./src/config/db");
-const db = require("./src/config/db");
-
 // Route imports
 const authRoutes = require("./src/routes/auth.routes");
 const adminRoutes = require("./src/routes/admin.routes");
 const dashboardRoutes = require("./src/routes/dashboard.routes");
+
+// PostgreSQL connection
+const pool = require("./src/config/db");
 
 const app = express();
 
@@ -22,16 +21,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ===============================
-// API ROUTES
-// ===============================
-
+// API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/dashboard", dashboardRoutes);
+app.use("/api", dashboardRoutes);
 
 // ===============================
-// HEALTH CHECKS & DIAGNOSTICS
+// HEALTH CHECK
 // ===============================
 
 app.get("/", (req, res) => {
@@ -61,6 +57,10 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
+// ===============================
+// TEST DATABASE QUERY
+// ===============================
+
 app.get("/api/db-test", async (req, res) => {
   try {
     const result = await pool.query("SELECT version()");
@@ -82,26 +82,23 @@ app.get("/api/db-test", async (req, res) => {
 });
 
 // ===============================
-// SERVER INITIALIZATION
+// SERVER
 // ===============================
 
 const PORT = process.env.PORT || 5000;
 
-if (db.initDatabase && typeof db.initDatabase === "function") {
-  db.initDatabase()
-    .then(() => {
-      app.listen(PORT, () => {
-        console.log(`DealFlow360 API running on port ${PORT}`);
-      });
-    })
-    .catch((err) => {
-      console.error("Failed to initialize database schema:", err);
-      app.listen(PORT, () => {
-        console.log(`DealFlow360 API running with warnings on port ${PORT}`);
-      });
-    });
-} else {
+async function startServer() {
+  try {
+    await pool.initDatabase();
+    console.log("Database schema initialized successfully.");
+  } catch (error) {
+    console.error("Database initialization failed:", error.message);
+    console.error("The API will start in diagnostic mode.");
+  }
+
   app.listen(PORT, () => {
     console.log(`DealFlow360 API running on port ${PORT}`);
   });
 }
+
+startServer();
