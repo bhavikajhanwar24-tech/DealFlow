@@ -54,7 +54,16 @@ const BriefcaseIcon = ({ size = 16 }) => (
 );
 
 const PackageIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="m16.5 9.4-9-5.19" />
     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
     <path d="M3.27 6.96 12 12.01l8.73-5.05" />
@@ -63,7 +72,16 @@ const PackageIcon = ({ size = 16 }) => (
 );
 
 const PercentIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <line x1="19" y1="5" x2="5" y2="19" />
     <circle cx="6.5" cy="6.5" r="2.5" />
     <circle cx="17.5" cy="17.5" r="2.5" />
@@ -124,7 +142,16 @@ const FileTextIcon = ({ size = 16 }) => (
 );
 
 const MessageSquareIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
   </svg>
 );
@@ -248,6 +275,12 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               </button>
             )}
             <button
+              className={`nav-link-btn ${currentRoute === "/sales/fulfillment" ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/sales/fulfillment")}
+            >
+              <TruckIcon size={16} /> Fulfillment
+            </button>
+            <button
               className={`nav-link-btn ${currentRoute.includes("messages") ? "active" : ""}`}
               onClick={() => setCurrentRoute("/sales/messages")}
             >
@@ -312,7 +345,9 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               </div>
               <div className="dropdown-user-details">
                 <div className="dropdown-name">{user.full_name}</div>
-                {user.email && <div className="dropdown-email">{user.email}</div>}
+                {user.email && (
+                  <div className="dropdown-email">{user.email}</div>
+                )}
               </div>
             </div>
 
@@ -338,7 +373,9 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               {(user.employee_id || user.id) && (
                 <div className="dropdown-info-item">
                   <span className="info-label">User ID</span>
-                  <span className="info-value">{user.employee_id || user.id}</span>
+                  <span className="info-value">
+                    {user.employee_id || user.id}
+                  </span>
                 </div>
               )}
 
@@ -367,4 +404,3 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
     </header>
   );
 }
-

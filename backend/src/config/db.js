@@ -104,9 +104,31 @@ async function initDatabase() {
         subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
         discount_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
         final_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        total_cost NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (total_cost >= 0),
+        gross_margin NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        margin_percentage NUMERIC(7, 2) NOT NULL DEFAULT 0 CHECK (margin_percentage >= -100 AND margin_percentage <= 100),
+        risk_score NUMERIC(6, 3),
+        risk_level VARCHAR(20),
+        approval_route VARCHAR(40),
+        risk_factors JSONB,
+        risk_analysis JSONB,
+        risk_analyzed_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    await client.query(`
+      ALTER TABLE public.quotations
+      ADD COLUMN IF NOT EXISTS total_cost NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS gross_margin NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS margin_percentage NUMERIC(7, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS risk_score NUMERIC(6, 3),
+      ADD COLUMN IF NOT EXISTS risk_level VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS approval_route VARCHAR(40),
+      ADD COLUMN IF NOT EXISTS risk_factors JSONB,
+      ADD COLUMN IF NOT EXISTS risk_analysis JSONB,
+      ADD COLUMN IF NOT EXISTS risk_analyzed_at TIMESTAMPTZ
     `);
 
     await client.query(`
@@ -125,6 +147,26 @@ async function initDatabase() {
     await client.query(`
       ALTER TABLE public.quotations
       ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
+    `);
+
+    await client.query(`
+      UPDATE public.quotations q
+      SET total_cost = totals.total_cost,
+          gross_margin = q.final_amount - totals.total_cost,
+          margin_percentage = CASE
+            WHEN q.final_amount = 0 THEN 0
+            ELSE ROUND(((q.final_amount - totals.total_cost) / q.final_amount) * 100, 2)
+          END
+      FROM (
+        SELECT qi.quotation_id, COALESCE(SUM(p.cost * qi.quantity), 0) AS total_cost
+        FROM public.quotation_items qi
+        JOIN public.products p ON p.id = qi.product_id
+        GROUP BY qi.quotation_id
+      ) totals
+      WHERE q.id = totals.quotation_id
+        AND q.total_cost = 0
+        AND q.gross_margin = 0
+        AND q.margin_percentage = 0
     `);
 
     await client.query(`
@@ -209,6 +251,54 @@ async function initDatabase() {
     `);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS public.orders (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_number VARCHAR(30) UNIQUE NOT NULL,
+        quotation_id UUID NOT NULL UNIQUE REFERENCES public.quotations(id),
+        customer_id UUID NOT NULL REFERENCES public.users(id),
+        status VARCHAR(30) NOT NULL DEFAULT 'CONFIRMED',
+        fulfillment_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.order_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+        product_id UUID NOT NULL REFERENCES public.products(id),
+        quantity INTEGER NOT NULL CHECK (quantity > 0)
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.fulfillment_allocations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+        order_item_id UUID NOT NULL REFERENCES public.order_items(id) ON DELETE CASCADE,
+        warehouse_id UUID NOT NULL REFERENCES public.warehouses(id),
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        allocation_type VARCHAR(20) NOT NULL DEFAULT 'RECOMMENDED',
+        shipping_cost NUMERIC(12, 2) NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'RESERVED',
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.backorders (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+        order_item_id UUID NOT NULL REFERENCES public.order_items(id) ON DELETE CASCADE,
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS public.quotation_messages (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         quotation_id UUID NOT NULL REFERENCES public.quotations(id) ON DELETE CASCADE,
@@ -241,6 +331,9 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_discount_policies_lookup ON public.discount_policies(customer_tier, product_category, status);
       CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_warehouse ON public.warehouse_inventory(warehouse_id);
       CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_product ON public.warehouse_inventory(product_id);
+      CREATE INDEX IF NOT EXISTS idx_orders_fulfillment_status ON public.orders(fulfillment_status);
+      CREATE INDEX IF NOT EXISTS idx_fulfillment_allocations_order ON public.fulfillment_allocations(order_id);
+      CREATE INDEX IF NOT EXISTS idx_backorders_order ON public.backorders(order_id);
     `);
 
     await client.query(`

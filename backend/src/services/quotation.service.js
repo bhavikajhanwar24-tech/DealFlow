@@ -1,7 +1,16 @@
 const db = require("../config/db");
+const fulfillmentService = require("./fulfillment.service");
 
 const SALES_ROLES = ["SALES_REP", "SALES_MANAGER"];
 const QUOTATION_STATUSES = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION", "CONFIRMED"];
+const RISK_ENGINE_URL = process.env.RISK_ENGINE_URL || "http://127.0.0.1:8001";
+const CATEGORY_CEILINGS = {
+  HARDWARE: 0.10,
+  SERVICE: 0.08,
+  SERVICES: 0.08,
+  SUBSCRIPTION: 0.12,
+  SOFTWARE: 0.12,
+};
 
 function quotationError(message, statusCode = 400) {
   const error = new Error(message);
@@ -35,14 +44,15 @@ async function getCustomers() {
 
 async function getProducts() {
   const result = await db.query(
-    `SELECT id, name, sku, category, description, unit_price, currency
+    `SELECT id, name, sku, category, description, unit_price, cost, currency
      FROM public.products
      WHERE is_active = TRUE
      ORDER BY category, name`
   );
   return result.rows.map((product) => ({
     ...product,
-    unitPrice: Number(product.unit_price)
+    unitPrice: Number(product.unit_price),
+    costPrice: Number(product.cost)
   }));
 }
 
@@ -272,9 +282,20 @@ function mapQuotation(row) {
     subtotal: Number(row.subtotal),
     discountAmount: Number(row.discount_amount),
     finalAmount: Number(row.final_amount),
+    totalCost: Number(row.total_cost),
+    grossMargin: Number(row.gross_margin),
+    marginPercentage: Number(row.margin_percentage),
     confirmedAt: row.confirmed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    risk: row.risk_score === null || row.risk_score === undefined ? null : {
+      score: Number(row.risk_score),
+      level: row.risk_level,
+      approvalRoute: row.approval_route,
+      factors: row.risk_factors || [],
+      analysis: row.risk_analysis || null,
+      analyzedAt: row.risk_analyzed_at,
+    },
     customer: row.customer_id ? formatCustomer({
       id: row.customer_id,
       full_name: row.customer_name,
@@ -297,7 +318,10 @@ function mapQuotation(row) {
 
 const quotationSelect = `
   SELECT q.id, q.quotation_number, q.status, q.subtotal, q.discount_amount,
-         q.final_amount, q.confirmed_at, q.created_at, q.updated_at,
+         q.final_amount, q.total_cost, q.gross_margin, q.margin_percentage,
+         q.confirmed_at, q.created_at, q.updated_at,
+         q.risk_score, q.risk_level, q.approval_route, q.risk_factors,
+         q.risk_analysis, q.risk_analyzed_at,
          customer.id AS customer_id, customer.full_name AS customer_name,
          customer.email AS customer_email, customer.company_name,
          sales_rep.id AS sales_rep_id, sales_rep.full_name AS sales_rep_name,
@@ -341,7 +365,7 @@ async function getQuotation(id, user) {
   if (quotationResult.rows.length === 0) throw quotationError("Quotation not found.", 404);
 
   const itemResult = await db.query(
-    `SELECT qi.id, qi.product_id, p.name, p.sku, p.category, qi.quantity,
+    `SELECT qi.id, qi.product_id, p.name, p.sku, p.category, p.cost, qi.quantity,
             qi.unit_price, qi.discount_percent, qi.discount_amount, qi.line_total
      FROM public.quotation_items qi
      JOIN public.products p ON p.id = qi.product_id
@@ -358,8 +382,11 @@ async function getQuotation(id, user) {
       name: item.name,
       sku: item.sku,
       category: item.category,
+      cost: Number(item.cost || 0),
       quantity: item.quantity,
       unitPrice: Number(item.unit_price),
+      costPrice: Number(item.cost),
+      totalCost: money(Number(item.cost) * Number(item.quantity)),
       discountPercent: Number(item.discount_percent),
       discountAmount: Number(item.discount_amount),
       lineTotal: Number(item.line_total)
@@ -385,11 +412,13 @@ async function createDraft(user, input) {
     }
     seenProducts.add(item.productId);
     const quantity = Number(item.quantity);
+    const unitPrice = item.unitPrice === undefined ? null : Number(item.unitPrice);
     const discountPercent = Number(item.discountPercent || 0);
     if (!Number.isInteger(quantity) || quantity <= 0) throw quotationError("Quantity must be a positive whole number.");
     if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
       throw quotationError("Discount must be between 0 and 100 percent.");
     }
+    if (unitPrice !== null && (!Number.isFinite(unitPrice) || unitPrice < 0)) throw quotationError("Selling price cannot be negative.");
     productIds.push(item.productId);
   }
 
@@ -404,7 +433,7 @@ async function createDraft(user, input) {
     if (customerResult.rows.length === 0) throw quotationError("Selected customer is not available.", 404);
 
     const productsResult = await client.query(
-      `SELECT id, name, sku, category, unit_price
+      `SELECT id, name, sku, category, unit_price, cost
        FROM public.products WHERE id = ANY($1::uuid[]) AND is_active = TRUE`,
       [productIds]
     );
@@ -415,19 +444,26 @@ async function createDraft(user, input) {
     let discountAmount = 0;
     const calculatedItems = items.map((item) => {
       const product = productsById.get(item.productId);
+      const costPrice = Number(product.cost);
+      if (!Number.isFinite(costPrice) || costPrice < 0) {
+        throw quotationError(`Product ${product.name} has an invalid cost price.`);
+      }
       const quantity = Number(item.quantity);
       const discountPercent = Number(item.discountPercent || 0);
-      const unitPrice = Number(product.unit_price);
+      const unitPrice = item.unitPrice === undefined ? Number(product.unit_price) : Number(item.unitPrice);
       const lineSubtotal = money(unitPrice * quantity);
       const lineDiscount = money(lineSubtotal * discountPercent / 100);
       const lineTotal = money(lineSubtotal - lineDiscount);
       subtotal += lineSubtotal;
       discountAmount += lineDiscount;
-      return { product, quantity, unitPrice, discountPercent, lineDiscount, lineTotal };
+      return { product, quantity, unitPrice, costPrice, discountPercent, lineDiscount, lineTotal };
     });
     subtotal = money(subtotal);
     discountAmount = money(discountAmount);
     const finalAmount = money(subtotal - discountAmount);
+    const totalCost = money(calculatedItems.reduce((sum, item) => sum + item.costPrice * item.quantity, 0));
+    const grossMargin = money(finalAmount - totalCost);
+    const marginPercentage = finalAmount === 0 ? 0 : money((grossMargin / finalAmount) * 100);
 
     const numberResult = await client.query(
       `SELECT COUNT(*)::int + 1 AS next_number
@@ -437,10 +473,10 @@ async function createDraft(user, input) {
 
     const quotationResult = await client.query(
       `INSERT INTO public.quotations
-       (quotation_number, customer_id, sales_rep_id, status, subtotal, discount_amount, final_amount)
-       VALUES ($1, $2, $3, 'DRAFT', $4, $5, $6)
+      (quotation_number, customer_id, sales_rep_id, status, subtotal, discount_amount, final_amount, total_cost, gross_margin, margin_percentage)
+      VALUES ($1, $2, $3, 'DRAFT', $4, $5, $6, $7, $8, $9)
        RETURNING id`,
-      [quotationNumber, customerId, user.id, subtotal, discountAmount, finalAmount]
+      [quotationNumber, customerId, user.id, subtotal, discountAmount, finalAmount, totalCost, grossMargin, marginPercentage]
     );
     const quotationId = quotationResult.rows[0].id;
 
@@ -462,6 +498,77 @@ async function createDraft(user, input) {
   } finally {
     client.release();
   }
+}
+
+async function submitQuotation(user, quotationId) {
+  const quotation = await getQuotation(quotationId, user);
+  if (quotation.status !== "DRAFT") {
+    throw quotationError("Only draft quotations can be submitted for risk analysis.");
+  }
+
+  const grossValue = quotation.subtotal;
+  const netValue = quotation.finalAmount;
+  const totalCost = quotation.items.reduce((sum, item) => sum + item.cost * item.quantity, 0);
+  const marginDeal = netValue > 0 ? Math.max(0, Math.min(1, (netValue - totalCost) / netValue)) : 0;
+  const dealAverageDiscount = grossValue > 0 ? quotation.discountAmount / grossValue : 0;
+  const request = {
+    dealId: quotation.id,
+    customerTier: "STANDARD",
+    repAverageDiscount: 0,
+    dealAverageDiscount,
+    marginDeal,
+    lines: quotation.items.map((item) => ({
+      productId: item.sku || item.productId,
+      category: item.category,
+      discount: item.discountPercent / 100,
+      grossValue: item.unitPrice * item.quantity,
+      categoryCeiling: CATEGORY_CEILINGS[item.category] || 0.10,
+      tierCeiling: 0.10,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+    })),
+  };
+
+  let response;
+  try {
+    response = await fetch(`${RISK_ENGINE_URL}/api/ai/risk/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+  } catch (error) {
+    throw quotationError(
+      "Risk engine unavailable. Start it with `npm run risk:dev` from the backend folder, then submit again.",
+      503,
+    );
+  }
+
+  const analysis = await response.json();
+  if (!response.ok) {
+    throw quotationError(analysis.detail || "Risk engine rejected the quotation data.", 422);
+  }
+
+  await db.query(`
+    UPDATE public.quotations
+    SET status = 'PENDING_APPROVAL',
+        risk_score = $1,
+        risk_level = $2,
+        approval_route = $3,
+        risk_factors = $4,
+        risk_analysis = $5,
+        risk_analyzed_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $6
+  `, [
+    Number(analysis.riskScore),
+    analysis.riskLevel,
+    analysis.governanceRoute,
+    JSON.stringify(analysis.factors || []),
+    JSON.stringify({ request, response: analysis, marginDeal, totalCost }),
+    quotationId,
+  ]);
+
+  return getQuotation(quotationId, user);
 }
 
 // Drafts are visible for review until the approval workflow is implemented.
@@ -557,7 +664,8 @@ async function confirmCustomerQuotation(id, customer) {
      RETURNING id, quotation_number, status, confirmed_at`,
     [id, customer.id],
   );
-  return result.rows[0];
+  const order = await fulfillmentService.createOrderForQuotation(id);
+  return { ...result.rows[0], orderId: order.id, orderNumber: order.order_number };
 }
 
 async function rejectCustomerQuotation(id, customer) {
@@ -589,6 +697,7 @@ module.exports = {
   listQuotations,
   getQuotation,
   createDraft,
+  submitQuotation,
   listCustomerQuotations,
   getCustomerQuotation,
   createNegotiationRequest,

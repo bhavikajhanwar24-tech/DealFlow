@@ -18,5 +18,6 @@ router.post("/customer-requests/:requestId/convert", internalSales, quotationCon
 router.get("/", internalSales, quotationController.listQuotations);
 router.get("/:id", internalSales, quotationController.getQuotation);
 router.post("/", salesCreators, quotationController.createQuotation);
+router.post("/:id/submit", salesCreators, quotationController.submitQuotation);
 
 module.exports = router;

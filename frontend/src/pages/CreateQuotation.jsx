@@ -61,14 +61,18 @@ export default function CreateQuotation({ onNavigate }) {
         (result, item) => {
           const lineSubtotal = item.unitPrice * item.quantity;
           const lineDiscount = (lineSubtotal * item.discountPercent) / 100;
+          result.totalCost += item.costPrice * item.quantity;
           result.subtotal += lineSubtotal;
           result.discount += lineDiscount;
           return result;
         },
-        { subtotal: 0, discount: 0 },
+        { subtotal: 0, discount: 0, totalCost: 0 },
       ),
     [items],
   );
+  const finalPrice = totals.subtotal - totals.discount;
+  const grossMargin = finalPrice - totals.totalCost;
+  const marginPercentage = finalPrice === 0 ? 0 : (grossMargin / finalPrice) * 100;
 
   function addItem() {
     const product = products.find((entry) => entry.id === productId);
@@ -92,6 +96,7 @@ export default function CreateQuotation({ onNavigate }) {
         name: product.name,
         category: product.category,
         unitPrice: product.unitPrice,
+        costPrice: product.costPrice,
         quantity: safeQuantity,
         discountPercent: safeDiscount,
       },
@@ -131,14 +136,21 @@ export default function CreateQuotation({ onNavigate }) {
           items: items.map((item) => ({
             productId: item.productId,
             quantity: item.quantity,
+            unitPrice: item.unitPrice,
             discountPercent: item.discountPercent,
           })),
         }),
       });
       const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.message || "Unable to save quotation.");
-      onNavigate("/sales/quotations");
+      if (!response.ok) throw new Error(data.message || "Unable to save quotation.");
+
+      const submitResponse = await fetch(`${API_BASE}/quotations/${data.data.id}/submit`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const submitData = await submitResponse.json();
+      if (!submitResponse.ok) throw new Error(submitData.message || "Risk analysis failed.");
+      onNavigate(`/sales/quotations/${data.data.id}`);
     } catch (saveError) {
       setError(saveError.message);
     } finally {
@@ -272,6 +284,7 @@ export default function CreateQuotation({ onNavigate }) {
           }}
         >
           <div
+            className="pricing-margin-card"
             style={{
               display: "flex",
               justifyContent: "space-between",
@@ -384,7 +397,7 @@ export default function CreateQuotation({ onNavigate }) {
                       <tr key={item.productId}>
                         <td style={{ fontWeight: 700 }}>{item.name}</td>
                         <td>{item.category}</td>
-                        <td>{currency(item.unitPrice)}</td>
+                          <td><input className="form-input no-icon" style={{ width: "120px" }} type="number" min="0" step="0.01" value={item.unitPrice} onChange={(event) => updateItem(item.productId, "unitPrice", event.target.value)} /></td>
                         <td>
                           <input
                             className="form-input no-icon"
@@ -489,6 +502,9 @@ export default function CreateQuotation({ onNavigate }) {
               <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Final Price:</span>
               <strong style={{ color: "#2563eb", fontSize: "1.15rem", fontWeight: 800 }}>{currency(totals.subtotal - totals.discount)}</strong>
             </div>
+            <div className="margin-summary-row"><span>Total Product Cost</span><strong>{currency(totals.totalCost)}</strong></div>
+            <div className="margin-summary-row"><span>Gross Margin</span><strong>{currency(grossMargin)}</strong></div>
+            <div className="margin-summary-row"><span>Margin %</span><strong>{marginPercentage.toFixed(2)}%</strong></div>
           </div>
           <div style={{ display: "flex", gap: "0.75rem" }}>
             <button
@@ -508,7 +524,7 @@ export default function CreateQuotation({ onNavigate }) {
                 "Saving..."
               ) : (
                 <>
-                  <Save size={16} /> Save Draft
+                  <Save size={16} /> Submit for Risk Analysis
                 </>
               )}
             </button>

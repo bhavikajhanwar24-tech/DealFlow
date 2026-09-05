@@ -12,6 +12,7 @@ const dashboardRoutes = require("./src/routes/dashboard.routes");
 const quotationRoutes = require("./src/routes/quotation.routes");
 const catalogRoutes = require("./src/routes/catalog.routes");
 const customerQuotationRoutes = require("./src/routes/customerQuotation.routes");
+const fulfillmentRoutes = require("./src/routes/fulfillment.routes");
 const messageRoutes = require("./src/routes/message.routes");
 
 // PostgreSQL connection
@@ -32,6 +33,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/quotations", quotationRoutes);
 app.use("/api/customer/quotations", customerQuotationRoutes);
+app.use("/api/fulfillment", fulfillmentRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api", catalogRoutes);
 app.use("/api", dashboardRoutes);
