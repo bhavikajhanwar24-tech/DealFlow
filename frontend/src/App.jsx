@@ -240,7 +240,7 @@ function AppContent() {
       if (!allowed.includes(user.role)) {
         return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
       }
-      return <FinanceDashboard />;
+      return <FinanceDashboard onNavigate={navigate} />;
     }
 
     // 4. Operations Routes
@@ -249,7 +249,7 @@ function AppContent() {
       if (!allowed.includes(user.role)) {
         return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
       }
-      return <OperationsDashboard />;
+      return <OperationsDashboard onNavigate={navigate} />;
     }
 
     // 5. Customer Routes
@@ -290,7 +290,9 @@ function AppContent() {
     currentRoute === "/approvals" ||
     currentRoute.startsWith("/sales/quotations") ||
     currentRoute.startsWith("/customer") ||
-    currentRoute.includes("messages");
+    currentRoute.includes("messages") ||
+    currentRoute.startsWith("/finance") ||
+    currentRoute.startsWith("/operations");
 
   const isSalesRoute =
     currentRoute.startsWith("/sales") ||
