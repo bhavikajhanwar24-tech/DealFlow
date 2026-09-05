@@ -80,7 +80,7 @@ async function createCustomerQuoteRequest(customer, input) {
     if (productsRes.rows.length !== productIds.length) {
       throw quotationError("One or more selected products are unavailable.", 404);
     }
-    
+
     let totalQuantity = 0;
     for (const item of items) {
       const q = Number(item.quantity);
@@ -92,13 +92,13 @@ async function createCustomerQuoteRequest(customer, input) {
 
     const comment = input.customerComment?.trim() || "";
     const lowerComment = comment.toLowerCase();
-    
+
     // Auto-approval rule: Standard quantity (<= 10 items) and no custom discount requests
-    const needsManualReview = 
-      totalQuantity > 10 || 
-      lowerComment.includes("discount") || 
-      lowerComment.includes("negotiat") || 
-      lowerComment.includes("special") || 
+    const needsManualReview =
+      totalQuantity > 10 ||
+      lowerComment.includes("discount") ||
+      lowerComment.includes("negotiat") ||
+      lowerComment.includes("special") ||
       lowerComment.includes("concession") ||
       lowerComment.includes("bulk price");
 
@@ -338,7 +338,7 @@ async function getDashboardSummary(user) {
 
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const fullMonthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  
+
   const currentMonthIdx = new Date().getMonth();
   const recent6Months = [];
   for (let i = 5; i >= 0; i--) {
@@ -361,8 +361,8 @@ async function getDashboardSummary(user) {
           revenueLakhs: Number((revAmount / 100000).toFixed(2)),
           marginPct: Number(marginPct.toFixed(1)),
           grossMarginRaw: grossMargin,
-          grossMarginVal: revAmount >= 100000 
-            ? `₹${(grossMargin / 100000).toFixed(2)}L` 
+          grossMarginVal: revAmount >= 100000
+            ? `₹${(grossMargin / 100000).toFixed(2)}L`
             : `₹${Number(grossMargin.toFixed(0)).toLocaleString("en-IN")}`
         });
       }
@@ -392,14 +392,14 @@ async function getDashboardSummary(user) {
   const formattedTotalRevenue = totalRevenueNum >= 10000000
     ? `₹${(totalRevenueNum / 10000000).toFixed(2)}Cr`
     : totalRevenueNum >= 100000
-    ? `₹${(totalRevenueNum / 100000).toFixed(2)}L`
-    : `₹${Number(totalRevenueNum.toFixed(0)).toLocaleString("en-IN")}`;
+      ? `₹${(totalRevenueNum / 100000).toFixed(2)}L`
+      : `₹${Number(totalRevenueNum.toFixed(0)).toLocaleString("en-IN")}`;
 
   const formattedGrossMargin = totalGrossMarginNum >= 10000000
     ? `₹${(totalGrossMarginNum / 10000000).toFixed(2)}Cr`
     : totalGrossMarginNum >= 100000
-    ? `₹${(totalGrossMarginNum / 100000).toFixed(2)}L`
-    : `₹${Number(totalGrossMarginNum.toFixed(0)).toLocaleString("en-IN")}`;
+      ? `₹${(totalGrossMarginNum / 100000).toFixed(2)}L`
+      : `₹${Number(totalGrossMarginNum.toFixed(0)).toLocaleString("en-IN")}`;
 
   const formattedAvgMargin = `${avgMarginNum.toFixed(1)}%`;
 

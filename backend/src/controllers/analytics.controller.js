@@ -130,13 +130,53 @@ exports.getReports = async (req, res) => {
       WHERE ${timeFilter} AND ${repFilter}
     `);
 
+    // E. Real Monthly Trends
+    const monthlyTrendRes = await pool.query(`
+      SELECT 
+        TO_CHAR(DATE_TRUNC('month', q.created_at), 'Mon') as month,
+        DATE_TRUNC('month', q.created_at) as month_date,
+        COUNT(q.id) as total_quotes,
+        COALESCE(SUM(q.final_amount), 0)::numeric as revenue,
+        COALESCE(SUM(q.final_amount * (COALESCE(q.margin_percentage, 25) / 100)), 0)::numeric as margin,
+        COALESCE(SUM(q.discount_amount), 0)::numeric as discount
+      FROM public.quotations q
+      WHERE ${timeFilter} AND ${repFilter}
+      GROUP BY DATE_TRUNC('month', q.created_at)
+      ORDER BY month_date ASC
+    `);
+
+    // F. Real Pipeline Funnel by Status
+    const pipelineRes = await pool.query(`
+      SELECT 
+        status,
+        COUNT(id)::int as count,
+        COALESCE(SUM(final_amount), 0)::numeric as total_value
+      FROM public.quotations q
+      WHERE ${timeFilter} AND ${repFilter}
+      GROUP BY status
+    `);
+
+    // G. Real Category Distribution
+    const categoryRes = await pool.query(`
+      SELECT 
+        COALESCE(p.category, 'General') as name,
+        COUNT(DISTINCT p.id)::int as count,
+        COALESCE(SUM(p.unit_price * p.stock_quantity), 0)::numeric as value
+      FROM public.products p
+      GROUP BY p.category
+      ORDER BY value DESC
+    `);
+
     res.json({
       success: true,
       data: {
         kpis: kpiRes.rows[0],
         salesRepPerformance: repPerfRes.rows,
         topProducts: productRes.rows,
-        approvals: approvalRes.rows[0]
+        approvals: approvalRes.rows[0],
+        monthlyTrends: monthlyTrendRes.rows,
+        pipelineFunnel: pipelineRes.rows,
+        categoryBreakdown: categoryRes.rows
       }
     });
   } catch (error) {
