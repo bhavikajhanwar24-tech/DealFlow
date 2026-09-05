@@ -3,14 +3,8 @@ import {
   Sparkles,
   Plus,
   X,
-  TrendingUp,
-  ArrowUpRight,
-  ShieldCheck,
-  Tag,
   CheckCircle2,
   AlertCircle,
-  Clock,
-  Layers,
 } from "lucide-react";
 
 const API_BASE = "http://localhost:5000/api";
@@ -20,6 +14,12 @@ const currency = (value) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+
+const stripEmojis = (text) =>
+  String(text || "")
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 
 export default function UpsellCrossSellPanel({
   items,
@@ -215,14 +215,12 @@ export default function UpsellCrossSellPanel({
   return (
     <aside
       aria-label="AI Product Recommendations"
+      className="split-panel-sidebar"
       style={{
         background: "#ffffff",
         border: "1px solid var(--border-light, #e2e8f0)",
         borderRadius: "16px",
-        overflow: "hidden",
         boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.05))",
-        display: "flex",
-        flexDirection: "column",
       }}
     >
       {/* Panel Header */}
@@ -313,6 +311,7 @@ export default function UpsellCrossSellPanel({
 
       {/* Panel Body */}
       <div
+        className="split-panel-sidebar-scroll"
         style={{
           padding: "1rem",
           display: "flex",
@@ -523,7 +522,6 @@ export default function UpsellCrossSellPanel({
                         borderRadius: "6px",
                         display: "inline-flex",
                         alignItems: "center",
-                        gap: "0.25rem",
                         background: isUpsell ? "#f5f3ff" : "#ecfdf5",
                         color: isUpsell ? "#6d28d9" : "#047857",
                         border: isUpsell
@@ -531,11 +529,6 @@ export default function UpsellCrossSellPanel({
                           : "1px solid #a7f3d0",
                       }}
                     >
-                      {isUpsell ? (
-                        <ArrowUpRight size={11} />
-                      ) : (
-                        <TrendingUp size={11} />
-                      )}
                       {isUpsell ? "Upsell Upgrade" : "Cross-Sell Addon"}
                     </span>
 
@@ -551,7 +544,7 @@ export default function UpsellCrossSellPanel({
                         border: "1px solid #bfdbfe",
                       }}
                     >
-                      ⭐ {scorePercent}% Score
+                      {scorePercent}% Score
                     </span>
 
                     <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
@@ -560,109 +553,63 @@ export default function UpsellCrossSellPanel({
                   </div>
                 </div>
 
-                {/* Why Recommended / Reason Box */}
+                {/* Why Recommended */}
                 {(rec.reason || rec.llmExplanation) && (
-                  <div
+                  <p
                     style={{
-                      background: "#f8fafc",
-                      borderLeft: "3px solid #3b82f6",
-                      borderRadius: "0 8px 8px 0",
-                      padding: "0.45rem 0.65rem",
+                      margin: 0,
                       fontSize: "0.76rem",
-                      color: "#334155",
-                      lineHeight: 1.4,
+                      color: "#64748b",
+                      lineHeight: 1.45,
                     }}
                   >
-                    <strong
-                      style={{
-                        color: "#1e293b",
-                        fontWeight: 700,
-                        display: "block",
-                        marginBottom: "0.1rem",
-                      }}
-                    >
-                      Why recommended:
+                    <strong style={{ color: "#334155", fontWeight: 600 }}>
+                      Why recommended:{" "}
                     </strong>
-                    {rec.reason || rec.llmExplanation}
-                  </div>
+                    {stripEmojis(rec.reason || rec.llmExplanation)}
+                  </p>
                 )}
 
-                {/* Financials & Promotion Tags Grid */}
+                {/* Price & margin — flat horizontal row */}
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr auto",
+                    display: "flex",
+                    flexWrap: "wrap",
                     alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.5rem 0.65rem",
-                    background: "#f8fafc",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "8px",
-                    fontSize: "0.78rem",
+                    gap: "0.35rem 0.85rem",
+                    fontSize: "0.72rem",
+                    color: "#64748b",
                   }}
                 >
-                  <div>
-                    <span
-                      style={{
-                        color: "#64748b",
-                        fontSize: "0.72rem",
-                        display: "block",
-                      }}
-                    >
-                      Price
-                    </span>
-                    <strong style={{ color: "#0f172a", fontSize: "0.88rem" }}>
-                      {currency(rec.unitPrice)}
-                    </strong>
-                  </div>
-
-                  <div style={{ textAlign: "right" }}>
-                    <span
-                      style={{
-                        color: "#64748b",
-                        fontSize: "0.72rem",
-                        display: "block",
-                      }}
-                    >
-                      Margin Delta
-                    </span>
+                  <span>
+                    <strong style={{ color: "#475569", fontWeight: 600 }}>
+                      Price:
+                    </strong>{" "}
+                    {currency(rec.unitPrice)}
+                  </span>
+                  <span style={{ color: "#cbd5e1" }}>|</span>
+                  <span>
+                    <strong style={{ color: "#475569", fontWeight: 600 }}>
+                      Margin:
+                    </strong>{" "}
                     <span
                       style={{
                         fontWeight: 700,
-                        fontSize: "0.82rem",
                         color: isPositiveMargin ? "#16a34a" : "#dc2626",
                       }}
                     >
                       {isPositiveMargin ? "+" : ""}
-                      {currency(rec.marginDelta)}{" "}
-                      <small style={{ fontSize: "0.72rem", fontWeight: 600 }}>
-                        ({rec.marginDeltaPercent > 0 ? "+" : ""}
-                        {rec.marginDeltaPercent}%)
-                      </small>
+                      {currency(rec.marginDelta)} ({rec.marginDeltaPercent > 0 ? "+" : ""}
+                      {rec.marginDeltaPercent}%)
                     </span>
-                  </div>
+                  </span>
+                  {rec.promotionTag && (
+                    <>
+                      <span style={{ color: "#cbd5e1" }}>|</span>
+                      <span>{stripEmojis(rec.promotionTag)}</span>
+                    </>
+                  )}
                 </div>
-
-                {/* Promotion Tag (if applicable) */}
-                {rec.promotionTag && (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.35rem",
-                      fontSize: "0.75rem",
-                      fontWeight: 700,
-                      color: "#b45309",
-                      background: "#fef3c7",
-                      border: "1px solid #fde68a",
-                      padding: "0.3rem 0.55rem",
-                      borderRadius: "6px",
-                    }}
-                  >
-                    <Tag size={12} />
-                    <span>{rec.promotionTag}</span>
-                  </div>
-                )}
 
                 {/* Action Button: Add to Quote */}
                 <button

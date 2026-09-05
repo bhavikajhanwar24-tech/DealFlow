@@ -382,15 +382,8 @@ export default function CreateQuotation({ onNavigate }) {
           </div>
         </section>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 350px",
-            gap: "1.25rem",
-            marginBottom: "1.25rem",
-          }}
-        >
-          <section className="data-table-card">
+        <div className="split-panel-layout" style={{ marginBottom: "1.25rem" }}>
+          <section className="data-table-card split-panel-main">
             <div style={{ overflowX: "auto" }}>
               <table className="data-table">
                 <thead>
