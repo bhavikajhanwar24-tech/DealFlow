@@ -24,7 +24,10 @@ import {
   Sparkles,
   ArrowRight,
   ChevronDown,
+  Download,
+  Printer,
 } from "lucide-react";
+import { exportToCSV, printOrExportPDF } from "../utils/exportUtils";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -206,6 +209,71 @@ export default function FinanceDashboard() {
   const currentActualExpenses = 68500;
   const budgetPercentUsed = ((currentActualExpenses / totalMonthlyBudget) * 100).toFixed(1);
 
+  // Export Transactions Ledger to CSV
+  const handleExportCSV = () => {
+    const exportData = filteredTransactions.map((tx) => ({
+      date: tx.date,
+      description: tx.desc,
+      category: tx.category,
+      account: tx.account,
+      type: tx.type,
+      amount: Math.abs(tx.amount).toFixed(2),
+    }));
+
+    const headers = [
+      { key: "date", label: "Date" },
+      { key: "description", label: "Description" },
+      { key: "category", label: "Category" },
+      { key: "account", label: "Account / Gateway" },
+      { key: "type", label: "Type" },
+      { key: "amount", label: "Amount (INR)" },
+    ];
+
+    exportToCSV(`Finance_Ledger_${selectedMonth}`, exportData, headers);
+  };
+
+  // Export Financial Summary to PDF
+  const handleExportPDF = () => {
+    const exportData = filteredTransactions.map((tx) => ({
+      date: tx.date,
+      description: tx.desc,
+      category: tx.category,
+      account: tx.account,
+      type: tx.type,
+      amount: currency(tx.amount),
+    }));
+
+    const headers = [
+      { key: "date", label: "Date" },
+      { key: "description", label: "Description" },
+      { key: "category", label: "Category" },
+      { key: "account", label: "Account" },
+      { key: "type", label: "Type" },
+      { key: "amount", label: "Amount" },
+    ];
+
+    const summaryCards = [
+      { label: "Net Revenue", value: "₹1,35,000", color: "#10b981" },
+      { label: "Operating Expenses", value: "₹68,500", color: "#f43f5e" },
+      { label: "Operating Margin", value: "49.3%", color: "#2563eb" },
+      { label: "Portfolio Assets", value: "₹32.40L", color: "#7c3aed" },
+    ];
+
+    const metadata = [
+      { label: "Financial Period", value: selectedMonth },
+      { label: "Reporting Officer", value: user?.full_name || "Finance Controller" },
+    ];
+
+    printOrExportPDF({
+      title: "Corporate Financial & Hybrid Billing Statement",
+      subtitle: `Official financial report for ${selectedMonth} with cashflow, recurring billing reconciliation, and ledger breakdown.`,
+      metadata,
+      headers,
+      rows: exportData,
+      summaryCards,
+    });
+  };
+
   return (
     <main className="main-content sales-dashboard-container" style={{ paddingBottom: "3rem" }}>
       {/* ----------------------------------------------------
@@ -220,13 +288,38 @@ export default function FinanceDashboard() {
           <p className="page-subtitle">Real-time net worth tracking, interactive cash flow, portfolio allocation, and automated budget analytics.</p>
         </div>
 
-        {/* Header Controls & Filter Bar */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+        {/* Header Controls & Export Bar */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+          {/* Export Buttons */}
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={handleExportCSV}
+            style={{ padding: "0.45rem 0.85rem", fontSize: "0.825rem", display: "inline-flex", gap: "0.35rem" }}
+          >
+            <Download size={15} color="#166534" /> Export CSV
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={handleExportPDF}
+            style={{
+              padding: "0.45rem 0.95rem",
+              fontSize: "0.825rem",
+              background: "linear-gradient(135deg, #1d4ed8, #2563eb)",
+              border: "none",
+              display: "inline-flex",
+              gap: "0.35rem",
+            }}
+          >
+            <Printer size={15} /> Statement (PDF)
+          </button>
+
           {/* Month Selector */}
           <div style={{ position: "relative" }}>
             <select
               className="form-input no-icon"
-              style={{ paddingRight: "2rem", height: "40px", fontSize: "0.85rem", fontWeight: 700, background: "rgba(255, 255, 255, 0.9)", borderColor: "#cbd5e1" }}
+              style={{ paddingRight: "2rem", height: "38px", fontSize: "0.85rem", fontWeight: 700, background: "rgba(255, 255, 255, 0.9)", borderColor: "#cbd5e1" }}
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
             >
@@ -239,16 +332,10 @@ export default function FinanceDashboard() {
           </div>
 
           {/* User Profile Pill */}
-          <div className="badge badge-neutral" style={{ padding: "0.5rem 0.85rem", fontSize: "0.825rem", display: "flex", alignItems: "center", gap: "0.4rem", background: "rgba(255, 255, 255, 0.9)", border: "1px solid #cbd5e1" }}>
+          <div className="badge badge-neutral" style={{ padding: "0.45rem 0.8rem", fontSize: "0.825rem", display: "flex", alignItems: "center", gap: "0.4rem", background: "rgba(255, 255, 255, 0.9)", border: "1px solid #cbd5e1" }}>
             <User size={15} color="#2563eb" />
             <span><strong>{user?.full_name || "Finance Manager"}</strong></span>
           </div>
-
-          {/* Notification Button */}
-          <button className="icon-button" style={{ position: "relative", width: "40px", height: "40px", background: "rgba(255, 255, 255, 0.9)" }} title="Financial Alerts">
-            <Bell size={18} color="#475569" />
-            <span style={{ position: "absolute", top: "6px", right: "6px", width: "8px", height: "8px", borderRadius: "50%", background: "#ef4444" }} />
-          </button>
         </div>
       </div>
 

@@ -20,6 +20,10 @@ import OperationsDashboard from "./pages/OperationsDashboard";
 import CustomerPortal from "./pages/CustomerPortal";
 import QuotationMessages from "./pages/QuotationMessages";
 import AccessDenied from "./pages/AccessDenied";
+import AdminInvoices from "./pages/AdminInvoices";
+import AdminReports from "./pages/AdminReports";
+import AdminDealHealth from "./pages/AdminDealHealth";
+import AdminActivityFeed from "./pages/AdminActivityFeed";
 import "./App.css";
 
 function AppContent() {
@@ -201,6 +205,30 @@ function AppContent() {
       return <AdminGovernance mode={mode} />;
     }
 
+    if (currentRoute === "/admin/invoices") {
+      const allowed = ["ADMIN", "FINANCE"];
+      if (!allowed.includes(user.role)) return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      return <AdminInvoices />;
+    }
+    
+    if (currentRoute === "/admin/reports") {
+      const allowed = ["ADMIN", "FINANCE", "OPERATIONS", "SALES_MANAGER"];
+      if (!allowed.includes(user.role)) return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      return <AdminReports />;
+    }
+
+    if (currentRoute === "/admin/deal-health") {
+      const allowed = ["ADMIN", "FINANCE", "OPERATIONS", "SALES_MANAGER"];
+      if (!allowed.includes(user.role)) return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      return <AdminDealHealth />;
+    }
+
+    if (currentRoute === "/admin/activity-feed") {
+      const allowed = ["ADMIN", "FINANCE", "OPERATIONS", "SALES_MANAGER"];
+      if (!allowed.includes(user.role)) return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      return <AdminActivityFeed />;
+    }
+
     // 2. Sales Routes
     if (currentRoute.startsWith("/sales/quotations/")) {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
@@ -269,11 +297,12 @@ function AppContent() {
       return <CustomerPortal />;
     }
 
-    // 6. Messages Routes (Shared Chat view for Sales & Customer)
+    // 6. Messages Routes (Shared Chat view for Admin, Sales & Customer)
     if (
       currentRoute === "/messages" ||
       currentRoute === "/sales/messages" ||
-      currentRoute === "/customer/messages"
+      currentRoute === "/customer/messages" ||
+      currentRoute === "/admin/messages"
     ) {
       return <QuotationMessages onNavigate={navigate} />;
     }
@@ -293,6 +322,10 @@ function AppContent() {
     currentRoute === "/admin/billing-configuration" ||
     currentRoute === "/admin/subscription-plans" ||
     currentRoute === "/admin/customer-tiers" ||
+    currentRoute === "/admin/invoices" ||
+    currentRoute === "/admin/reports" ||
+    currentRoute === "/admin/deal-health" ||
+    currentRoute === "/admin/activity-feed" ||
     currentRoute === "/sales/fulfillment" ||
     currentRoute === "/operations/dashboard" ||
     currentRoute === "/sales/dashboard" ||
