@@ -2,33 +2,38 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const db = require("./src/config/db");
 
 const authRoutes = require("./src/routes/auth.routes");
 const adminRoutes = require("./src/routes/admin.routes");
 const dashboardRoutes = require("./src/routes/dashboard.routes");
 
+// PostgreSQL connection
+const pool = require("./src/config/db");
+
 const app = express();
 
-// Middleware
+// ===============================
+// MIDDLEWARE
+// ===============================
+
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-});
+// API routes
+app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api", dashboardRoutes);
 
-pool.query("SELECT NOW()", (err, result) => {
-  if (err) {
-    console.error("DATABASE ERROR:", err);
-  } else {
-    console.log("PostgreSQL connected successfully!");
-    console.log("Database time:", result.rows[0].now);
-  }
+// ===============================
+// HEALTH CHECK
+// ===============================
+
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "DealFlow360 API is running",
+  });
 });
 
 app.get("/api/health", async (req, res) => {
@@ -37,7 +42,7 @@ app.get("/api/health", async (req, res) => {
 
     res.json({
       success: true,
-      message: "PostgreSQL connected!",
+      message: "PostgreSQL connected successfully!",
       databaseTime: result.rows[0].now,
     });
   } catch (error) {
@@ -51,22 +56,48 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
+// ===============================
+// TEST DATABASE QUERY
+// ===============================
+
+app.get("/api/db-test", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT version()");
+
+    res.json({
+      success: true,
+      message: "Database is working",
+      version: result.rows[0].version,
+    });
+  } catch (error) {
+    console.error("DATABASE ERROR:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Database query failed",
+      error: error.message,
+    });
+  }
+});
+
+// ===============================
+// SERVER
+// ===============================
+
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`DealFlow360 API running on port ${PORT}`);
-});
-// Initialize Database schema and start server
-db.initDatabase()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`DealFlow360 API running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("Failed to initialize database tables:", err);
-    // Still start server to allow diagnostics
-    app.listen(PORT, () => {
-      console.log(`DealFlow360 API running with warnings on port ${PORT}`);
-    });
+async function startServer() {
+  try {
+    await pool.initDatabase();
+    console.log("Database schema initialized successfully.");
+  } catch (error) {
+    console.error("Database initialization failed:", error.message);
+    console.error("The API will start in diagnostic mode.");
+  }
+
+  app.listen(PORT, () => {
+    console.log(`DealFlow360 API running on port ${PORT}`);
   });
+}
+
+startServer();
