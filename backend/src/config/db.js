@@ -225,6 +225,54 @@ async function initDatabase() {
     `);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS public.orders (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_number VARCHAR(30) UNIQUE NOT NULL,
+        quotation_id UUID NOT NULL UNIQUE REFERENCES public.quotations(id),
+        customer_id UUID NOT NULL REFERENCES public.users(id),
+        status VARCHAR(30) NOT NULL DEFAULT 'CONFIRMED',
+        fulfillment_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.order_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+        product_id UUID NOT NULL REFERENCES public.products(id),
+        quantity INTEGER NOT NULL CHECK (quantity > 0)
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.fulfillment_allocations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+        order_item_id UUID NOT NULL REFERENCES public.order_items(id) ON DELETE CASCADE,
+        warehouse_id UUID NOT NULL REFERENCES public.warehouses(id),
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        allocation_type VARCHAR(20) NOT NULL DEFAULT 'RECOMMENDED',
+        shipping_cost NUMERIC(12, 2) NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'RESERVED',
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.backorders (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+        order_item_id UUID NOT NULL REFERENCES public.order_items(id) ON DELETE CASCADE,
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS public.quotation_messages (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         quotation_id UUID NOT NULL REFERENCES public.quotations(id) ON DELETE CASCADE,
@@ -257,6 +305,9 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_discount_policies_lookup ON public.discount_policies(customer_tier, product_category, status);
       CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_warehouse ON public.warehouse_inventory(warehouse_id);
       CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_product ON public.warehouse_inventory(product_id);
+      CREATE INDEX IF NOT EXISTS idx_orders_fulfillment_status ON public.orders(fulfillment_status);
+      CREATE INDEX IF NOT EXISTS idx_fulfillment_allocations_order ON public.fulfillment_allocations(order_id);
+      CREATE INDEX IF NOT EXISTS idx_backorders_order ON public.backorders(order_id);
     `);
 
     await client.query(`

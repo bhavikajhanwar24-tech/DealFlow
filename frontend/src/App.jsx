@@ -13,6 +13,7 @@ import SalesDashboard from "./pages/SalesDashboard";
 import Quotations from "./pages/Quotations";
 import CreateQuotation from "./pages/CreateQuotation";
 import QuotationDetail from "./pages/QuotationDetail";
+import Fulfillment from "./pages/Fulfillment";
 import FinanceDashboard from "./pages/FinanceDashboard";
 import OperationsDashboard from "./pages/OperationsDashboard";
 import CustomerPortal from "./pages/CustomerPortal";
@@ -202,6 +203,14 @@ function AppContent() {
       return <Quotations onNavigate={navigate} />;
     }
 
+    if (currentRoute === "/sales/fulfillment") {
+      const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN", "OPERATIONS"];
+      if (!allowed.includes(user.role)) {
+        return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
+      }
+      return <Fulfillment onNavigate={navigate} />;
+    }
+
     if (currentRoute === "/sales/dashboard" || currentRoute === "/approvals") {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
       if (!allowed.includes(user.role)) {
@@ -260,6 +269,7 @@ function AppContent() {
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||
     currentRoute.startsWith("/sales/quotations") ||
+    currentRoute === "/sales/fulfillment" ||
     currentRoute.startsWith("/customer") ||
     currentRoute.includes("messages");
 
