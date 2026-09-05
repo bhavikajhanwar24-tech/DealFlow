@@ -162,23 +162,62 @@ export default function ProductManagement() {
               <p>{editingProduct ? "Update the catalog record, including price and cost." : "Add a product to the quotation catalog."}</p>
             </div>
           </div>
-          <div className="form-group"><label className="form-label" htmlFor="product-name">Product name</label><input id="product-name" name="name" className="form-input no-icon" value={form.name} onChange={updateField} required /></div>
-          <div className="form-group"><label className="form-label" htmlFor="product-sku">Product ID</label><input id="product-sku" name="sku" className="form-input no-icon" placeholder="P001" value={form.sku} onChange={updateField} required disabled={Boolean(editingProduct)} /></div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label" htmlFor="product-category">Category</label><select id="product-category" name="category" className="form-select no-icon" value={form.category} onChange={updateField}>{CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select></div>
-            <div className="form-group"><label className="form-label" htmlFor="product-status">Status</label><select id="product-status" name="status" className="form-select no-icon" value={form.status} onChange={updateField}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></div>
+            <div className="form-group" style={{ flex: 1.2 }}>
+              <label className="form-label" htmlFor="product-name">Product name</label>
+              <input id="product-name" name="name" className="form-input no-icon" placeholder="e.g. Dell Latitude 5420" value={form.name} onChange={updateField} required />
+            </div>
+            <div className="form-group" style={{ flex: 0.8 }}>
+              <label className="form-label" htmlFor="product-sku">Product ID</label>
+              <input id="product-sku" name="sku" className="form-input no-icon" placeholder="P001" value={form.sku} onChange={updateField} required disabled={Boolean(editingProduct)} />
+            </div>
           </div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label" htmlFor="product-price">Selling price (₹)</label><input id="product-price" type="number" min="0" step="0.01" name="unitPrice" className="form-input no-icon" value={form.unitPrice} onChange={updateField} required /></div>
-            <div className="form-group"><label className="form-label" htmlFor="product-cost">Cost (₹)</label><input id="product-cost" type="number" min="0" step="0.01" name="cost" className="form-input no-icon" value={form.cost} onChange={updateField} required /></div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="product-category">Category</label>
+              <select id="product-category" name="category" className="form-select no-icon" value={form.category} onChange={updateField}>
+                {CATEGORIES.map((category) => <option key={category}>{category}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="product-status">Status</label>
+              <select id="product-status" name="status" className="form-select no-icon" value={form.status} onChange={updateField}>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label" htmlFor="product-price">Selling price (₹)</label>
+              <input id="product-price" type="number" min="0" step="0.01" name="unitPrice" className="form-input no-icon" placeholder="0.00" value={form.unitPrice} onChange={updateField} required />
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="product-cost">Cost (₹)</label>
+              <input id="product-cost" type="number" min="0" step="0.01" name="cost" className="form-input no-icon" placeholder="0.00" value={form.cost} onChange={updateField} required />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label" htmlFor="product-quantity">Quantity</label>
+              <input id="product-quantity" type="number" min="0" step="1" name="quantity" className="form-input no-icon" placeholder="0" value={form.quantity} onChange={updateField} required />
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="product-inventory">Inventory reference</label>
+              <input id="product-inventory" name="inventoryReference" className="form-input no-icon" placeholder="INV-LAP-001" value={form.inventoryReference} onChange={updateField} />
+            </div>
           </div>
           <div className="form-group">
-            <label className="form-label" htmlFor="product-quantity">Quantity</label>
-            <input id="product-quantity" type="number" min="0" step="1" name="quantity" className="form-input no-icon" value={form.quantity} onChange={updateField} required />
+            <label className="form-label" htmlFor="product-description">Description</label>
+            <textarea id="product-description" name="description" className="form-input no-icon" rows="2" placeholder="Product specification, warranty & details..." value={form.description} onChange={updateField} />
           </div>
-          <div className="form-group"><label className="form-label" htmlFor="product-inventory">Inventory reference</label><input id="product-inventory" name="inventoryReference" className="form-input no-icon" placeholder="INV-LAP-001" value={form.inventoryReference} onChange={updateField} /></div>
-          <div className="form-group"><label className="form-label" htmlFor="product-description">Description</label><textarea id="product-description" name="description" className="form-input no-icon" rows="3" value={form.description} onChange={updateField} /></div>
-          <div className="form-actions">{editingProduct && <button type="button" className="btn-secondary" onClick={resetForm}><X size={15} /> Cancel</button>}<button type="submit" className="btn-primary" disabled={saving}>{editingProduct ? <Edit3 size={16} /> : <Plus size={16} />}{saving ? "Saving..." : editingProduct ? "Save changes" : "Add product"}</button></div>
+          <div className="form-actions">
+            {editingProduct && <button type="button" className="btn-secondary" onClick={resetForm}><X size={15} /> Cancel</button>}
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {editingProduct ? <Edit3 size={16} /> : <Plus size={16} />}
+              {saving ? "Saving..." : editingProduct ? "Save changes" : "Add product"}
+            </button>
+          </div>
         </form>
 
         <section className="admin-panel product-list-panel">

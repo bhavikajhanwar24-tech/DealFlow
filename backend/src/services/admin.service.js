@@ -570,13 +570,34 @@ async function getWarehouseAnalytics() {
 async function getAuditLogs(filters = {}) {
   const params = [];
   const conditions = [];
-  if (filters.userId) { params.push(filters.userId); conditions.push(`a.user_id = $${params.length}`); }
-  if (filters.action) { params.push(filters.action); conditions.push(`a.action = $${params.length}`); }
-  if (filters.activityType) { params.push(`${filters.activityType}%`); conditions.push(`a.action ILIKE $${params.length}`); }
-  if (filters.dealId) { params.push(`%${filters.dealId}%`); conditions.push(`a.details::text ILIKE $${params.length}`); }
-  if (filters.from) { params.push(filters.from); conditions.push(`a.created_at >= $${params.length}::date`); }
-  if (filters.to) { params.push(filters.to); conditions.push(`a.created_at < ($${params.length}::date + INTERVAL '1 day')`); }
-  if (filters.search) { params.push(`%${filters.search}%`); conditions.push(`(a.action ILIKE $${params.length} OR a.details::text ILIKE $${params.length} OR u.full_name ILIKE $${params.length})`); }
+  if (filters.userId && String(filters.userId).trim()) {
+    params.push(String(filters.userId).trim());
+    conditions.push(`a.user_id = $${params.length}`);
+  }
+  if (filters.action && String(filters.action).trim()) {
+    params.push(`%${String(filters.action).trim()}%`);
+    conditions.push(`a.action ILIKE $${params.length}`);
+  }
+  if (filters.activityType && String(filters.activityType).trim()) {
+    params.push(`${String(filters.activityType).trim()}%`);
+    conditions.push(`a.action ILIKE $${params.length}`);
+  }
+  if (filters.dealId && String(filters.dealId).trim()) {
+    params.push(`%${String(filters.dealId).trim()}%`);
+    conditions.push(`a.details::text ILIKE $${params.length}`);
+  }
+  if (filters.from && String(filters.from).trim()) {
+    params.push(String(filters.from).trim());
+    conditions.push(`a.created_at >= $${params.length}::date`);
+  }
+  if (filters.to && String(filters.to).trim()) {
+    params.push(String(filters.to).trim());
+    conditions.push(`a.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+  }
+  if (filters.search && String(filters.search).trim()) {
+    params.push(`%${String(filters.search).trim()}%`);
+    conditions.push(`(a.action ILIKE $${params.length} OR a.details::text ILIKE $${params.length} OR u.full_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`);
+  }
   const result = await db.query(`
     SELECT a.id, a.action, a.details, a.created_at, a.ip_address,
            u.id AS user_id, u.full_name AS user_name, u.email AS user_email

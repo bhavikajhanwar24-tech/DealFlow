@@ -185,8 +185,8 @@ export default function AdminStaff() {
           </div>
         </form>
 
-        <section className="admin-panel staff-list-panel  overflow-y-auto ">
-          <div className="panel-heading panel-heading-spread ">
+        <section className="admin-panel staff-list-panel">
+          <div className="panel-heading panel-heading-spread">
             <div>
               <p className="eyebrow">Controlled access</p>
               <h2>Issued staff accounts</h2>
