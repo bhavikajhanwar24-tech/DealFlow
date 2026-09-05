@@ -13,7 +13,11 @@ class MessageController {
   async getMessages(req, res, next) {
     try {
       const { quotationId } = req.params;
-      const data = await messageService.getMessagesByQuotationId(quotationId, req.user);
+      const data = await messageService.getMessagesByQuotationId(
+        quotationId,
+        req.user,
+        req.query.recipientRole,
+      );
       res.json({ success: true, data });
     } catch (err) {
       next(err);
@@ -23,13 +27,14 @@ class MessageController {
   async sendMessage(req, res, next) {
     try {
       const { quotationId } = req.params;
-      const { message } = req.body;
+      const { message, recipientRole } = req.body;
       const data = await messageService.sendMessage({
         quotationId,
         senderId: req.user.id,
         senderRole: req.user.role,
         senderName: req.user.full_name || req.user.email,
         message,
+        recipientRole,
       });
       res.json({ success: true, data });
     } catch (err) {
