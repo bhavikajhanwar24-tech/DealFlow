@@ -210,6 +210,97 @@ function validateStaffUpdate(req, res, next) {
   next();
 }
 
+const PRODUCT_CATEGORIES = [
+  "HARDWARE",
+  "SERVICE",
+  "SUBSCRIPTION",
+  "ELECTRONICS",
+  "FURNITURE",
+  "SOFTWARE",
+  "SERVICES",
+  "OTHER"
+];
+
+function validateProduct(req, res, next) {
+  const { name, sku, category, unitPrice, cost, inventoryReference, status } = req.body;
+  const errors = [];
+  const price = Number(unitPrice);
+  const productCost = Number(cost);
+
+  if (!name || typeof name !== "string" || !name.trim()) errors.push("Product name is required.");
+  if (!sku || typeof sku !== "string" || !sku.trim()) errors.push("Product ID is required.");
+  if (!category || !PRODUCT_CATEGORIES.includes(String(category).toUpperCase())) errors.push("A valid product category is required.");
+  if (!Number.isFinite(price) || price < 0) errors.push("Selling price cannot be negative.");
+  if (!Number.isFinite(productCost) || productCost < 0) errors.push("Product cost cannot be negative.");
+  if (status && !["ACTIVE", "INACTIVE"].includes(String(status).toUpperCase())) errors.push("Status must be ACTIVE or INACTIVE.");
+  if (inventoryReference !== undefined && inventoryReference !== null && typeof inventoryReference !== "string") errors.push("Inventory reference must be text.");
+
+  if (errors.length > 0) return res.status(400).json({ success: false, message: errors[0], errors });
+  next();
+}
+
+function validateWarehouse(req, res, next) {
+  const { name, address, latitude, longitude } = req.body;
+  const parsedLatitude = Number(latitude);
+  const parsedLongitude = Number(longitude);
+  const errors = [];
+
+  if (!name || typeof name !== "string" || name.trim().length < 2) {
+    errors.push("Warehouse name is required.");
+  }
+  if (!address || typeof address !== "string" || address.trim().length < 3) {
+    errors.push("Warehouse address is required.");
+  }
+  if (!Number.isFinite(parsedLatitude) || parsedLatitude < -90 || parsedLatitude > 90) {
+    errors.push("Latitude must be between -90 and 90.");
+  }
+  if (!Number.isFinite(parsedLongitude) || parsedLongitude < -180 || parsedLongitude > 180) {
+    errors.push("Longitude must be between -180 and 180.");
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ success: false, message: errors[0], errors });
+  }
+
+  next();
+}
+
+const CUSTOMER_TIERS = ["BRONZE", "SILVER", "GOLD"];
+const POLICY_CATEGORIES = ["HARDWARE", "SERVICE", "SUBSCRIPTION", "ELECTRONICS", "FURNITURE", "SOFTWARE", "SERVICES", "OTHER"];
+
+function validateDiscountPolicy(req, res, next) {
+  const { customerTier, productCategory, maxDiscount, status } = req.body;
+  const discount = Number(maxDiscount);
+  const errors = [];
+
+  if (!CUSTOMER_TIERS.includes(String(customerTier || "").toUpperCase())) errors.push("Customer tier must be Bronze, Silver, or Gold.");
+  if (!productCategory || typeof productCategory !== "string" || !productCategory.trim() || productCategory.trim().length > 30) errors.push("Product category is required and must be 30 characters or fewer.");
+  if (!Number.isFinite(discount) || discount < 0 || discount > 100) errors.push("Maximum discount must be a number between 0 and 100.");
+  if (status && !["ACTIVE", "INACTIVE"].includes(String(status).toUpperCase())) errors.push("Status must be ACTIVE or INACTIVE.");
+
+  if (errors.length > 0) return res.status(400).json({ success: false, message: errors[0], errors });
+  next();
+}
+
+function validateWarehouseInventory(req, res, next) {
+  const { productId, quantity } = req.body;
+  const parsedQuantity = Number(quantity);
+  const errors = [];
+
+  if (!productId || typeof productId !== "string") {
+    errors.push("A product is required.");
+  }
+  if (!Number.isInteger(parsedQuantity) || parsedQuantity < 0) {
+    errors.push("Quantity must be a whole number of zero or greater.");
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ success: false, message: errors[0], errors });
+  }
+
+  next();
+}
+
 module.exports = {
   validateEmployeeRegister,
   validateCustomerRegister,
@@ -217,6 +308,13 @@ module.exports = {
   validateRejection,
   validateStaff,
   validateStaffUpdate,
+  validateProduct,
+  PRODUCT_CATEGORIES,
+  validateWarehouse,
+  validateDiscountPolicy,
+  CUSTOMER_TIERS,
+  POLICY_CATEGORIES,
+  validateWarehouseInventory,
   ALLOWED_EMPLOYEE_ROLES,
   ALLOWED_DEPARTMENTS
 };

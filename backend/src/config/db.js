@@ -65,11 +65,30 @@ async function initDatabase() {
         category VARCHAR(30) NOT NULL CHECK (category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION')),
         description TEXT,
         unit_price NUMERIC(14, 2) NOT NULL CHECK (unit_price >= 0),
+        cost NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (cost >= 0),
+        inventory_reference VARCHAR(150),
         currency VARCHAR(3) NOT NULL DEFAULT 'INR',
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    await client.query(`
+      ALTER TABLE public.products
+      ADD COLUMN IF NOT EXISTS cost NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS inventory_reference VARCHAR(150)
+    `);
+
+    await client.query(`
+      ALTER TABLE public.products
+      DROP CONSTRAINT IF EXISTS products_category_check
+    `);
+
+    await client.query(`
+      ALTER TABLE public.products
+      ADD CONSTRAINT products_category_check
+      CHECK (category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION', 'ELECTRONICS', 'FURNITURE', 'SOFTWARE', 'SERVICES', 'OTHER'))
     `);
 
     await client.query(`
@@ -100,6 +119,70 @@ async function initDatabase() {
       );
     `);
 
+    await client.query(`
+      ALTER TABLE public.quotations
+      ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.negotiation_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        quotation_id UUID NOT NULL REFERENCES public.quotations(id) ON DELETE CASCADE,
+        customer_id UUID NOT NULL REFERENCES public.users(id),
+        requested_discount_percent NUMERIC(5, 2),
+        requested_delivery_date DATE,
+        customer_comment TEXT,
+        status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.warehouses (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        address TEXT NOT NULL,
+        latitude NUMERIC(10, 7) NOT NULL CHECK (latitude >= -90 AND latitude <= 90),
+        longitude NUMERIC(10, 7) NOT NULL CHECK (longitude >= -180 AND longitude <= 180),
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_by UUID REFERENCES public.users(id),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.discount_policies (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        customer_tier VARCHAR(20) NOT NULL CHECK (customer_tier IN ('BRONZE', 'SILVER', 'GOLD')),
+        product_category VARCHAR(30) NOT NULL CHECK (product_category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION', 'ELECTRONICS', 'FURNITURE', 'SOFTWARE', 'SERVICES', 'OTHER')),
+        max_discount NUMERIC(5, 2) NOT NULL CHECK (max_discount >= 0 AND max_discount <= 100),
+        status VARCHAR(10) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE')),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT discount_policies_tier_category_unique UNIQUE (customer_tier, product_category)
+      );
+    `);
+
+    await client.query(`
+      ALTER TABLE public.discount_policies
+      DROP CONSTRAINT IF EXISTS discount_policies_product_category_check
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.warehouse_inventory (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        warehouse_id UUID NOT NULL REFERENCES public.warehouses(id) ON DELETE CASCADE,
+        product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+        quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+        updated_by UUID REFERENCES public.users(id),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (warehouse_id, product_id)
+      );
+    `);
+
     // Create indexes for performance if not exist
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
@@ -111,6 +194,28 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_quotations_customer ON public.quotations(customer_id);
       CREATE INDEX IF NOT EXISTS idx_quotations_sales_rep ON public.quotations(sales_rep_id);
       CREATE INDEX IF NOT EXISTS idx_quotation_items_quotation ON public.quotation_items(quotation_id);
+      CREATE INDEX IF NOT EXISTS idx_negotiation_requests_quotation ON public.negotiation_requests(quotation_id);
+      CREATE INDEX IF NOT EXISTS idx_negotiation_requests_customer ON public.negotiation_requests(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_warehouses_active ON public.warehouses(is_active);
+      CREATE INDEX IF NOT EXISTS idx_discount_policies_lookup ON public.discount_policies(customer_tier, product_category, status);
+      CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_warehouse ON public.warehouse_inventory(warehouse_id);
+      CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_product ON public.warehouse_inventory(product_id);
+    `);
+
+    await client.query(`
+      INSERT INTO public.discount_policies (customer_tier, product_category, max_discount)
+      SELECT tier, category, CASE
+        WHEN tier = 'BRONZE' AND category = 'FURNITURE' THEN 8
+        WHEN tier = 'SILVER' AND category = 'FURNITURE' THEN 12
+        WHEN tier = 'GOLD' AND category IN ('SUBSCRIPTION', 'SOFTWARE') THEN 20
+        WHEN tier = 'GOLD' AND category = 'FURNITURE' THEN 18
+        WHEN tier = 'GOLD' THEN 15
+        WHEN tier = 'SILVER' THEN 10
+        ELSE 5
+      END
+      FROM (VALUES ('BRONZE'), ('SILVER'), ('GOLD')) AS tiers(tier)
+      CROSS JOIN (VALUES ('HARDWARE'), ('SERVICE'), ('SUBSCRIPTION'), ('ELECTRONICS'), ('FURNITURE'), ('SOFTWARE'), ('SERVICES'), ('OTHER')) AS categories(category)
+      ON CONFLICT (customer_tier, product_category) DO NOTHING;
     `);
 
     await client.query(`

@@ -150,6 +150,7 @@ function mapQuotation(row) {
     subtotal: Number(row.subtotal),
     discountAmount: Number(row.discount_amount),
     finalAmount: Number(row.final_amount),
+    confirmedAt: row.confirmed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     customer: row.customer_id ? formatCustomer({
@@ -168,7 +169,7 @@ function mapQuotation(row) {
 
 const quotationSelect = `
   SELECT q.id, q.quotation_number, q.status, q.subtotal, q.discount_amount,
-         q.final_amount, q.created_at, q.updated_at,
+         q.final_amount, q.confirmed_at, q.created_at, q.updated_at,
          customer.id AS customer_id, customer.full_name AS customer_name,
          customer.email AS customer_email, customer.company_name,
          sales_rep.id AS sales_rep_id, sales_rep.full_name AS sales_rep_name,
@@ -331,6 +332,102 @@ async function createDraft(user, input) {
   }
 }
 
+// Drafts are visible for review until the approval workflow is implemented.
+// Customer actions remain restricted to approved or negotiation states.
+const CUSTOMER_VISIBLE_STATUSES = ["DRAFT", "APPROVED", "NEGOTIATION", "CONFIRMED"];
+
+async function listCustomerQuotations(customer) {
+  const result = await db.query(
+    `${quotationSelect}
+     WHERE q.customer_id = $1 AND q.status = ANY($2::text[])
+     ORDER BY q.created_at DESC`,
+    [customer.id, CUSTOMER_VISIBLE_STATUSES],
+  );
+  return result.rows.map(mapQuotation);
+}
+
+async function getCustomerQuotation(id, customer) {
+  const ownership = await db.query("SELECT customer_id FROM public.quotations WHERE id = $1", [id]);
+  if (ownership.rows.length > 0 && ownership.rows[0].customer_id !== customer.id) {
+    throw quotationError("You do not have permission to access this quotation.", 403);
+  }
+  const quotation = await getQuotation(id, { ...customer, role: "CUSTOMER" });
+  if (!CUSTOMER_VISIBLE_STATUSES.includes(quotation.status)) {
+    throw quotationError("Quotation not found.", 404);
+  }
+
+  const negotiationResult = await db.query(
+    `SELECT id, requested_discount_percent, requested_delivery_date,
+            customer_comment, status, created_at, updated_at
+     FROM public.negotiation_requests
+     WHERE quotation_id = $1 AND customer_id = $2
+     ORDER BY created_at DESC`,
+    [id, customer.id],
+  );
+  return {
+    ...quotation,
+    negotiations: negotiationResult.rows.map((request) => ({
+      id: request.id,
+      requestedDiscountPercent: request.requested_discount_percent === null ? null : Number(request.requested_discount_percent),
+      requestedDeliveryDate: request.requested_delivery_date,
+      customerComment: request.customer_comment,
+      status: request.status,
+      createdAt: request.created_at,
+      updatedAt: request.updated_at,
+    })),
+  };
+}
+
+async function createNegotiationRequest(id, customer, input) {
+  const quotation = await getCustomerQuotation(id, customer);
+  if (!["APPROVED", "NEGOTIATION"].includes(quotation.status)) {
+    throw quotationError("This quotation is not currently available for negotiation.");
+  }
+  if (quotation.negotiations.some((request) => request.status === "PENDING")) {
+    throw quotationError("A negotiation request is already pending for this quotation.");
+  }
+
+  const hasDiscount = input.requestedDiscountPercent !== undefined && input.requestedDiscountPercent !== null && input.requestedDiscountPercent !== "";
+  const requestedDiscountPercent = hasDiscount ? Number(input.requestedDiscountPercent) : null;
+  if (hasDiscount && (!Number.isFinite(requestedDiscountPercent) || requestedDiscountPercent < 0 || requestedDiscountPercent > 100)) {
+    throw quotationError("Counter discount must be between 0 and 100 percent.");
+  }
+  const deliveryDate = input.requestedDeliveryDate || null;
+  if (deliveryDate && Number.isNaN(Date.parse(deliveryDate))) {
+    throw quotationError("Requested delivery date is invalid.");
+  }
+
+  const result = await db.query(
+    `INSERT INTO public.negotiation_requests
+     (quotation_id, customer_id, requested_discount_percent, requested_delivery_date, customer_comment)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, requested_discount_percent, requested_delivery_date, customer_comment, status, created_at`,
+    [id, customer.id, requestedDiscountPercent, deliveryDate, input.customerComment?.trim() || null],
+  );
+  await db.query(
+    `UPDATE public.quotations SET status = 'NEGOTIATION', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND customer_id = $2`,
+    [id, customer.id],
+  );
+  return result.rows[0];
+}
+
+async function confirmCustomerQuotation(id, customer) {
+  const quotation = await getCustomerQuotation(id, customer);
+  if (!["APPROVED", "NEGOTIATION"].includes(quotation.status)) {
+    if (quotation.status === "CONFIRMED") throw quotationError("This quotation has already been confirmed.");
+    throw quotationError("This quotation is not currently available for confirmation.");
+  }
+
+  const result = await db.query(
+    `UPDATE public.quotations
+     SET status = 'CONFIRMED', confirmed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND customer_id = $2
+     RETURNING id, quotation_number, status, confirmed_at`,
+    [id, customer.id],
+  );
+  return result.rows[0];
+}
+
 module.exports = {
   getCustomers,
   getProducts,
@@ -338,5 +435,9 @@ module.exports = {
   listQuotations,
   getQuotation,
   createDraft,
+  listCustomerQuotations,
+  getCustomerQuotation,
+  createNegotiationRequest,
+  confirmCustomerQuotation,
   QUOTATION_STATUSES
 };

@@ -1220,9 +1220,512 @@ a {
   line-height: 1.45;
 }
 
+.product-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.75fr) minmax(0, 1.75fr);
+  align-items: start;
+  gap: 1.25rem;
+}
+
+.product-form {
+  padding: 1.35rem;
+}
+
+.product-list-panel {
+  min-width: 0;
+}
+
+.product-search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 220px;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.product-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--text-main);
+  background: transparent;
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.product-table-wrap {
+  overflow-x: auto;
+  padding: 0 1.35rem;
+}
+
+.product-table td,
+.product-table th {
+  padding-left: 0.55rem;
+  padding-right: 0.55rem;
+  white-space: nowrap;
+}
+
+.product-table td:first-child strong,
+.product-table td:first-child small {
+  display: block;
+}
+
+.product-table td:first-child small {
+  max-width: 170px;
+  margin-top: 0.2rem;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+}
+
+.product-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.text-action-button {
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.text-action-button:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+.product-view-modal {
+  max-width: 560px;
+}
+
+.product-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.2fr);
+  gap: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+.product-detail-grid strong {
+  color: var(--text-muted);
+}
+
+.product-description {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-light);
+  font-size: 0.875rem;
+}
+
+.discount-policy-actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.discount-policy-panel {
+  overflow: hidden;
+}
+
+.discount-policy-panel .panel-heading-spread > div:first-child {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.discount-table-wrap {
+  overflow-x: auto;
+  padding: 0 1.35rem 1.35rem;
+}
+
+.discount-policy-table {
+  min-width: 960px;
+}
+
+.discount-policy-table th,
+.discount-policy-table td {
+  text-align: center;
+  padding: 0.8rem 0.55rem;
+}
+
+.discount-policy-table th:first-child,
+.discount-policy-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #ffffff;
+  text-align: left;
+}
+
+.discount-cell {
+  display: inline-flex;
+  min-width: 74px;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--primary);
+}
+
+.discount-cell-group {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.discount-toggle {
+  color: var(--primary);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.discount-toggle:hover {
+  text-decoration: underline;
+}
+
+.discount-cell:hover {
+  border-color: var(--primary-subtle);
+  background: var(--primary-light);
+}
+
+.discount-cell small {
+  color: var(--success);
+  font-size: 0.6rem;
+  font-weight: 800;
+}
+
+.discount-cell.inactive {
+  color: var(--text-muted);
+  background: #f8fafc;
+}
+
+.discount-cell.inactive small {
+  color: var(--text-muted);
+}
+
+.discount-cell.missing {
+  flex-direction: row;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.discount-policy-modal {
+  max-width: 480px;
+}
+
+.warehouse-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.4fr);
+  align-items: start;
+  gap: 1.25rem;
+}
+
+.warehouse-form {
+  padding: 1.35rem;
+}
+
+.warehouse-search-group {
+  position: relative;
+}
+
+.warehouse-search-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.warehouse-search-row .form-input {
+  min-width: 0;
+}
+
+.warehouse-search-button {
+  flex: 0 0 auto;
+  padding-left: 0.85rem;
+  padding-right: 0.85rem;
+}
+
+.warehouse-search-results {
+  position: absolute;
+  top: 4.25rem;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: var(--shadow-lg);
+}
+
+.warehouse-search-results button {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  color: var(--text-main);
+  text-align: left;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.warehouse-search-results button:hover {
+  background: var(--primary-light);
+}
+
+.warehouse-map-panel {
+  overflow: hidden;
+}
+
+.warehouse-coordinates {
+  color: var(--text-muted);
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+
+.warehouse-map-wrap {
+  height: 430px;
+  margin: 0 1.35rem;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+}
+
+.warehouse-map {
+  width: 100%;
+  height: 100%;
+}
+
+.warehouse-map-help {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.85rem 1.35rem 1.35rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.warehouse-active-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.warehouse-list-panel {
+  margin-top: 1.25rem;
+}
+
+.warehouse-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.warehouse-chart-wide {
+  grid-column: span 2;
+}
+
+.warehouse-chart-panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.warehouse-pies-panel {
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+
+.warehouse-pie-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1rem;
+  padding: 1rem 1.35rem 1.35rem;
+}
+
+.warehouse-mini-pie {
+  min-width: 0;
+  height: 235px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.warehouse-mini-pie h3 {
+  padding: 0.85rem 0.85rem 0;
+  color: var(--text-main);
+  font-size: 0.9rem;
+}
+
+.warehouse-chart-heading {
+  padding: 1.25rem 1.35rem 0;
+}
+
+.warehouse-chart-heading h2,
+.selected-warehouse-chart h3 {
+  margin-top: 0.2rem;
+  font-size: 1.05rem;
+}
+
+.warehouse-chart {
+  height: 260px;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.selected-warehouse-chart {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  margin: 0 1.35rem 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.warehouse-pie-chart {
+  height: 220px;
+}
+
+.warehouse-address-cell {
+  min-width: 260px;
+  max-width: 380px;
+  color: var(--text-muted) !important;
+  line-height: 1.4;
+}
+
+.warehouse-row {
+  cursor: pointer;
+}
+
+.warehouse-row.selected td,
+.warehouse-row:hover td {
+  background: var(--primary-light) !important;
+}
+
+.warehouse-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.warehouse-row-hint {
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.inventory-panel {
+  margin-top: 1.25rem;
+  overflow: hidden;
+}
+
+.inventory-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(140px, 0.6fr) auto;
+  align-items: end;
+  gap: 0.9rem;
+  padding: 0 1.35rem 1.25rem;
+}
+
+.inventory-form .form-group {
+  margin-bottom: 0;
+}
+
+.inventory-save-button {
+  width: auto;
+  white-space: nowrap;
+}
+
+.inventory-table-wrap {
+  overflow-x: auto;
+  margin: 0 1.35rem;
+  border-top: 1px solid var(--border-light);
+}
+
+.inventory-quantity {
+  color: var(--primary) !important;
+  font-size: 1rem !important;
+  font-weight: 800;
+}
+
+.danger-icon {
+  color: var(--danger);
+}
+
+.warehouse-map-marker {
+  border: 0;
+  background: transparent;
+}
+
+.warehouse-map-marker span {
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.35);
+}
+
+.warehouse-map-marker span::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  bottom: -8px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 9px solid var(--primary);
+}
+
 @media (max-width: 850px) {
   .staff-layout,
+  .product-layout,
+  .warehouse-layout,
+  .warehouse-analytics-grid,
+  .inventory-form,
   .admin-action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .product-search {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .discount-policy-actions {
+    width: 100%;
+  }
+
+  .inventory-save-button {
+    width: 100%;
+  }
+
+  .warehouse-chart-wide {
+    grid-column: auto;
+  }
+
+  .selected-warehouse-chart {
     grid-template-columns: 1fr;
   }
 

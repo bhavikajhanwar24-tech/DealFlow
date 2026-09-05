@@ -6,6 +6,9 @@ import AuthPage from "./pages/AuthPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminApprovals from "./pages/AdminApprovals";
 import AdminStaff from "./pages/AdminStaff";
+import ProductManagement from "./pages/ProductManagement";
+import AdminWarehouses from "./pages/AdminWarehouses";
+import DiscountPolicies from "./pages/DiscountPolicies";
 import SalesDashboard from "./pages/SalesDashboard";
 import Quotations from "./pages/Quotations";
 import CreateQuotation from "./pages/CreateQuotation";
@@ -61,10 +64,7 @@ function AppContent() {
   // Sync route on login
   useEffect(() => {
     if (!loading) {
-      if (
-        user &&
-        (currentRoute === "/login" || currentRoute === "/signup")
-      ) {
+      if (user && (currentRoute === "/login" || currentRoute === "/signup")) {
         const dest = getRoleDestination(user);
         navigate(dest);
       } else if (
@@ -155,6 +155,27 @@ function AppContent() {
       return <AdminStaff />;
     }
 
+    if (currentRoute === "/admin/products") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <ProductManagement />;
+    }
+
+    if (currentRoute === "/admin/warehouses") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <AdminWarehouses />;
+    }
+
+    if (currentRoute === "/admin/discount-policies") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <DiscountPolicies />;
+    }
+
     // 2. Sales Routes
     if (currentRoute.startsWith("/sales/quotations/")) {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
@@ -208,7 +229,7 @@ function AppContent() {
 
     // 5. Customer Routes
     if (currentRoute === "/customer/portal") {
-      const allowed = ["CUSTOMER", "ADMIN"];
+      const allowed = ["CUSTOMER"];
       if (!allowed.includes(user.role)) {
         return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
       }
@@ -223,6 +244,9 @@ function AppContent() {
     currentRoute === "/admin/dashboard" ||
     currentRoute === "/admin/employee-approvals" ||
     currentRoute === "/admin/staff" ||
+    currentRoute === "/admin/products" ||
+    currentRoute === "/admin/warehouses" ||
+    currentRoute === "/admin/discount-policies" ||
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||
     currentRoute.startsWith("/sales/quotations");

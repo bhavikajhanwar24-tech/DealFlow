@@ -243,6 +243,319 @@ async function updateStaff(userId, data, adminUserId, ipAddress) {
   return staff;
 }
 
+function mapProduct(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    productId: row.sku,
+    sku: row.sku,
+    category: row.category,
+    description: row.description || "",
+    sellingPrice: Number(row.unit_price),
+    cost: Number(row.cost),
+    inventoryReference: row.inventory_reference || "",
+    status: row.is_active ? "ACTIVE" : "INACTIVE",
+    currency: row.currency,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+async function getProducts() {
+  const result = await db.query(`
+    SELECT id, name, sku, category, description, unit_price, cost,
+           inventory_reference, is_active, currency, created_at, updated_at
+    FROM public.products
+    ORDER BY created_at DESC, name
+  `);
+  return result.rows.map(mapProduct);
+}
+
+async function createProduct(data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    INSERT INTO public.products
+      (name, sku, category, description, unit_price, cost, inventory_reference, is_active)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    RETURNING id, name, sku, category, description, unit_price, cost,
+              inventory_reference, is_active, currency, created_at, updated_at
+  `, [
+    data.name.trim(), data.sku.trim().toUpperCase(), data.category.toUpperCase(),
+    data.description?.trim() || null, Number(data.unitPrice), Number(data.cost),
+    data.inventoryReference?.trim() || null, String(data.status || "ACTIVE").toUpperCase() === "ACTIVE"
+  ]);
+  const product = mapProduct(result.rows[0]);
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "PRODUCT_CREATED", JSON.stringify({ productId: product.id, sku: product.sku }), ipAddress || null]
+  );
+  return product;
+}
+
+async function updateProduct(productId, data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    UPDATE public.products
+    SET name = $1, category = $2, description = $3, unit_price = $4,
+        cost = $5, inventory_reference = $6, is_active = $7,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $8
+    RETURNING id, name, sku, category, description, unit_price, cost,
+              inventory_reference, is_active, currency, created_at, updated_at
+  `, [
+    data.name.trim(), data.category.toUpperCase(), data.description?.trim() || null,
+    Number(data.unitPrice), Number(data.cost), data.inventoryReference?.trim() || null,
+    String(data.status || "ACTIVE").toUpperCase() === "ACTIVE", productId
+  ]);
+  if (result.rows.length === 0) {
+    const error = new Error("Product not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+  const product = mapProduct(result.rows[0]);
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "PRODUCT_UPDATED", JSON.stringify({ productId: product.id, sku: product.sku }), ipAddress || null]
+  );
+  return product;
+}
+
+async function getWarehouses() {
+  const result = await db.query(`
+    SELECT id, name, address, latitude, longitude, is_active, created_at, updated_at
+    FROM public.warehouses
+    ORDER BY name ASC
+  `);
+  return result.rows;
+}
+
+async function createWarehouse(data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    INSERT INTO public.warehouses (name, address, latitude, longitude, created_by)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, name, address, latitude, longitude, is_active, created_at, updated_at
+  `, [
+    data.name.trim(),
+    data.address.trim(),
+    Number(data.latitude),
+    Number(data.longitude),
+    adminUserId,
+  ]);
+
+  const warehouse = result.rows[0];
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address)
+     VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "WAREHOUSE_CREATED", JSON.stringify({ warehouseId: warehouse.id }), ipAddress || null]
+  );
+  return warehouse;
+}
+
+async function updateWarehouse(warehouseId, data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    UPDATE public.warehouses
+    SET name = $1,
+        address = $2,
+        latitude = $3,
+        longitude = $4,
+        is_active = $5,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $6
+    RETURNING id, name, address, latitude, longitude, is_active, created_at, updated_at
+  `, [
+    data.name.trim(),
+    data.address.trim(),
+    Number(data.latitude),
+    Number(data.longitude),
+    data.isActive !== false,
+    warehouseId,
+  ]);
+
+  if (result.rows.length === 0) {
+    const error = new Error("Warehouse not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const warehouse = result.rows[0];
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address)
+     VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "WAREHOUSE_UPDATED", JSON.stringify({ warehouseId: warehouse.id }), ipAddress || null]
+  );
+  return warehouse;
+}
+
+function mapDiscountPolicy(row) {
+  return {
+    id: row.id,
+    customerTier: row.customer_tier,
+    productCategory: row.product_category,
+    maxDiscount: Number(row.max_discount),
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+async function getDiscountPolicies() {
+  const result = await db.query(`
+    SELECT id, customer_tier, product_category, max_discount, status, created_at, updated_at
+    FROM public.discount_policies
+    ORDER BY CASE customer_tier WHEN 'BRONZE' THEN 1 WHEN 'SILVER' THEN 2 WHEN 'GOLD' THEN 3 END,
+             product_category
+  `);
+  return result.rows.map(mapDiscountPolicy);
+}
+
+async function createDiscountPolicy(data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    INSERT INTO public.discount_policies (customer_tier, product_category, max_discount, status)
+    VALUES ($1, $2, $3, $4)
+    RETURNING id, customer_tier, product_category, max_discount, status, created_at, updated_at
+  `, [
+    data.customerTier.toUpperCase(), data.productCategory.trim().toUpperCase(), Number(data.maxDiscount),
+    String(data.status || "ACTIVE").toUpperCase()
+  ]);
+  const policy = mapDiscountPolicy(result.rows[0]);
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "DISCOUNT_POLICY_CREATED", JSON.stringify({ policyId: policy.id, customerTier: policy.customerTier, productCategory: policy.productCategory }), ipAddress || null]
+  );
+  return policy;
+}
+
+async function updateDiscountPolicy(policyId, data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    UPDATE public.discount_policies
+    SET customer_tier = $1, product_category = $2, max_discount = $3, status = $4,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $5
+    RETURNING id, customer_tier, product_category, max_discount, status, created_at, updated_at
+  `, [
+    data.customerTier.toUpperCase(), data.productCategory.trim().toUpperCase(), Number(data.maxDiscount),
+    String(data.status || "ACTIVE").toUpperCase(), policyId
+  ]);
+  if (result.rows.length === 0) {
+    const error = new Error("Discount policy not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+  const policy = mapDiscountPolicy(result.rows[0]);
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "DISCOUNT_POLICY_UPDATED", JSON.stringify({ policyId: policy.id, customerTier: policy.customerTier, productCategory: policy.productCategory, status: policy.status }), ipAddress || null]
+  );
+  return policy;
+}
+
+async function getWarehouseInventory(warehouseId) {
+  const result = await db.query(`
+    SELECT wi.id, wi.warehouse_id, wi.product_id, wi.quantity,
+           p.name, p.sku, p.category, p.unit_price, p.currency,
+           wi.created_at, wi.updated_at
+    FROM public.warehouse_inventory wi
+    JOIN public.products p ON p.id = wi.product_id
+    WHERE wi.warehouse_id = $1
+    ORDER BY p.name ASC
+  `, [warehouseId]);
+  return result.rows;
+}
+
+async function upsertWarehouseInventory(warehouseId, data, adminUserId, ipAddress) {
+  const warehouse = await db.query("SELECT id FROM public.warehouses WHERE id = $1", [warehouseId]);
+  if (warehouse.rows.length === 0) {
+    const error = new Error("Warehouse not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const product = await db.query("SELECT id FROM public.products WHERE id = $1", [data.productId]);
+  if (product.rows.length === 0) {
+    const error = new Error("Product not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const result = await db.query(`
+    INSERT INTO public.warehouse_inventory (warehouse_id, product_id, quantity, updated_by)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (warehouse_id, product_id)
+    DO UPDATE SET quantity = EXCLUDED.quantity,
+                  updated_by = EXCLUDED.updated_by,
+                  updated_at = CURRENT_TIMESTAMP
+    RETURNING id, warehouse_id, product_id, quantity, updated_at
+  `, [warehouseId, data.productId, Number(data.quantity), adminUserId]);
+
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address)
+     VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "WAREHOUSE_INVENTORY_UPDATED", JSON.stringify({ warehouseId, productId: data.productId, quantity: Number(data.quantity) }), ipAddress || null]
+  );
+
+  const inventory = await getWarehouseInventory(warehouseId);
+  return inventory.find((item) => item.id === result.rows[0].id) || result.rows[0];
+}
+
+async function removeWarehouseInventory(inventoryId, adminUserId, ipAddress) {
+  const result = await db.query(
+    "DELETE FROM public.warehouse_inventory WHERE id = $1 RETURNING warehouse_id, product_id",
+    [inventoryId]
+  );
+  if (result.rows.length === 0) {
+    const error = new Error("Warehouse inventory item not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address)
+     VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "WAREHOUSE_INVENTORY_REMOVED", JSON.stringify(result.rows[0]), ipAddress || null]
+  );
+}
+
+async function getWarehouseAnalytics() {
+  const warehouses = await db.query(`
+    SELECT w.id, w.name,
+           COUNT(DISTINCT wi.product_id)::INTEGER AS product_count,
+           COALESCE(SUM(wi.quantity), 0)::INTEGER AS total_units,
+           COALESCE(SUM(wi.quantity * p.unit_price), 0)::NUMERIC AS inventory_value
+    FROM public.warehouses w
+    LEFT JOIN public.warehouse_inventory wi ON wi.warehouse_id = w.id
+    LEFT JOIN public.products p ON p.id = wi.product_id
+    GROUP BY w.id, w.name
+    ORDER BY w.name ASC
+  `);
+
+  const products = await db.query(`
+    SELECT p.id, p.name,
+           COALESCE(SUM(wi.quantity), 0)::INTEGER AS total_units,
+           COALESCE(SUM(wi.quantity * p.unit_price), 0)::NUMERIC AS inventory_value
+    FROM public.products p
+    JOIN public.warehouse_inventory wi ON wi.product_id = p.id
+    GROUP BY p.id, p.name
+    HAVING SUM(wi.quantity) > 0
+    ORDER BY total_units DESC, p.name ASC
+  `);
+
+  const warehouseMix = await db.query(`
+    SELECT w.id AS warehouse_id, w.name AS warehouse_name,
+           p.id AS product_id, p.name AS product_name,
+           SUM(wi.quantity)::INTEGER AS total_units
+    FROM public.warehouse_inventory wi
+    JOIN public.warehouses w ON w.id = wi.warehouse_id
+    JOIN public.products p ON p.id = wi.product_id
+    WHERE wi.quantity > 0
+    GROUP BY w.id, w.name, p.id, p.name
+    ORDER BY w.name ASC, total_units DESC, p.name ASC
+  `);
+
+  return {
+    warehouses: warehouses.rows,
+    products: products.rows,
+    warehouseMix: warehouseMix.rows,
+  };
+}
+
 module.exports = {
   getEmployeeRegistrations,
   approveEmployee,
@@ -250,5 +563,18 @@ module.exports = {
   getAdminStats,
   getStaff,
   createStaff,
-  updateStaff
+  updateStaff,
+  getProducts,
+  createProduct,
+  updateProduct,
+  getWarehouses,
+  createWarehouse,
+  updateWarehouse,
+  getDiscountPolicies,
+  createDiscountPolicy,
+  updateDiscountPolicy,
+  getWarehouseInventory,
+  upsertWarehouseInventory,
+  removeWarehouseInventory,
+  getWarehouseAnalytics
 };

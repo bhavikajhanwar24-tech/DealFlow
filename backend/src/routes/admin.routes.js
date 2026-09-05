@@ -7,7 +7,12 @@ const { requireRole } = require("../middleware/role.middleware");
 const {
   validateRejection,
   validateStaff,
-  validateStaffUpdate
+  validateStaffUpdate,
+  validateProduct,
+  validateWarehouse,
+  validateDiscountPolicy
+  ,
+  validateWarehouseInventory
 } = require("../validators/auth.validator");
 
 // Apply authentication, active status, and ADMIN role to all routes in this router
@@ -26,5 +31,18 @@ router.get("/stats", adminController.getAdminStats);
 router.get("/staff", adminController.getStaff);
 router.post("/staff", validateStaff, adminController.createStaff);
 router.put("/staff/:id", validateStaffUpdate, adminController.updateStaff);
+router.get("/products", adminController.getProducts);
+router.post("/products", validateProduct, adminController.createProduct);
+router.put("/products/:id", validateProduct, adminController.updateProduct);
+router.get("/warehouses", adminController.getWarehouses);
+router.post("/warehouses", validateWarehouse, adminController.createWarehouse);
+router.put("/warehouses/:id", validateWarehouse, adminController.updateWarehouse);
+router.get("/discount-policies", adminController.getDiscountPolicies);
+router.post("/discount-policies", validateDiscountPolicy, adminController.createDiscountPolicy);
+router.put("/discount-policies/:id", validateDiscountPolicy, adminController.updateDiscountPolicy);
+router.get("/warehouses/analytics", adminController.getWarehouseAnalytics);
+router.get("/warehouses/:id/inventory", adminController.getWarehouseInventory);
+router.put("/warehouses/:id/inventory", validateWarehouseInventory, adminController.upsertWarehouseInventory);
+router.delete("/warehouses/:id/inventory/:inventoryId", adminController.removeWarehouseInventory);
 
 module.exports = router;
