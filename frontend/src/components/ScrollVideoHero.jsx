@@ -131,7 +131,7 @@ export default function ScrollVideoHero({ onNavigate }) {
 
     if (!isAnimatingRef.current) {
       isAnimatingRef.current = true;
-      rafIdRef.current = requestAnimationFrame(renderLoop);
+      rafIdRef.current = requestAnimationFrame(() => renderLoopRef.current());
     }
   }, [renderLoop]);
 
