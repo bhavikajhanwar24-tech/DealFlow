@@ -90,7 +90,15 @@ async function createOrderForQuotation(quotationId) {
   }
 }
 
-async function allocateItem(client, orderId, orderItemId, productId, requiredQuantity, allocationType) {
+async function allocateItem(
+  client,
+  orderId,
+  orderItemId,
+  productId,
+  requiredQuantity,
+  allocationType,
+  createBackorder = true,
+) {
   const inventory = await client.query(
     `SELECT wi.id, wi.warehouse_id, wi.quantity, w.name, w.latitude, w.longitude
      FROM public.warehouse_inventory wi
@@ -118,7 +126,7 @@ async function allocateItem(client, orderId, orderItemId, productId, requiredQua
     remaining -= quantity;
   }
 
-  if (remaining > 0) {
+  if (remaining > 0 && createBackorder) {
     await client.query(
       `INSERT INTO public.backorders (order_id, order_item_id, quantity) VALUES ($1, $2, $3)`,
       [orderId, orderItemId, remaining],
@@ -263,11 +271,48 @@ async function consolidateBackorders(orderId, user) {
   const client = await db.pool.connect();
   try {
     await client.query("BEGIN");
-    const backorders = await client.query(`SELECT b.id, b.order_item_id, b.quantity, oi.product_id FROM public.backorders b JOIN public.order_items oi ON oi.id = b.order_item_id WHERE b.order_id = $1 AND b.status = 'OPEN' FOR UPDATE`, [orderId]);
+    const backorders = await client.query(
+            `WITH locked_backorders AS (
+          SELECT b.id, b.order_item_id, b.quantity
+          FROM public.backorders b
+          WHERE b.order_id = $1 AND b.status = 'OPEN'
+          FOR UPDATE
+        )
+        SELECT (ARRAY_AGG(lb.id ORDER BY lb.id))[1] AS id,
+          ARRAY_AGG(lb.id) AS ids,
+          lb.order_item_id,
+          SUM(lb.quantity)::int AS quantity,
+              oi.product_id
+        FROM locked_backorders lb
+        JOIN public.order_items oi ON oi.id = lb.order_item_id
+        GROUP BY lb.order_item_id, oi.product_id`,
+      [orderId],
+    );
     for (const backorder of backorders.rows) {
-      const remaining = await allocateItem(client, orderId, backorder.order_item_id, backorder.product_id, backorder.quantity, "CONSOLIDATED");
-      if (remaining === 0) await client.query("UPDATE public.backorders SET status = 'FULFILLED', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [backorder.id]);
-      else await client.query("UPDATE public.backorders SET quantity = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2", [remaining, backorder.id]);
+      const remaining = await allocateItem(
+        client,
+        orderId,
+        backorder.order_item_id,
+        backorder.product_id,
+        backorder.quantity,
+        "CONSOLIDATED",
+        false,
+      );
+      if (remaining === 0) {
+        await client.query(
+          "UPDATE public.backorders SET status = 'FULFILLED', updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1::uuid[])",
+          [backorder.ids],
+        );
+      } else {
+        await client.query(
+          "UPDATE public.backorders SET quantity = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+          [remaining, backorder.id],
+        );
+        await client.query(
+          "UPDATE public.backorders SET status = 'FULFILLED', updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1::uuid[]) AND id <> $2",
+          [backorder.ids, backorder.id],
+        );
+      }
     }
     await client.query("UPDATE public.orders SET fulfillment_status = CASE WHEN EXISTS (SELECT 1 FROM public.backorders WHERE order_id = $1 AND status = 'OPEN') THEN 'PARTIAL_BACKORDER' ELSE 'READY' END, updated_at = CURRENT_TIMESTAMP WHERE id = $1", [orderId]);
     await client.query("COMMIT");
