@@ -88,12 +88,23 @@ class MessageService {
     }
     const quotation = checkRes.rows[0];
 
-    const messagesQuery = `
-      SELECT id, quotation_id, sender_id, sender_role, sender_name, message, created_at
-      FROM public.quotation_messages
-      WHERE quotation_id = $1
-      ORDER BY created_at ASC
-    `;
+    // Exclude internal AI_BOT messages for CUSTOMER users
+    let messagesQuery;
+    if (user.role === "CUSTOMER") {
+      messagesQuery = `
+        SELECT id, quotation_id, sender_id, sender_role, sender_name, message, created_at
+        FROM public.quotation_messages
+        WHERE quotation_id = $1 AND sender_role != 'AI_BOT'
+        ORDER BY created_at ASC
+      `;
+    } else {
+      messagesQuery = `
+        SELECT id, quotation_id, sender_id, sender_role, sender_name, message, created_at
+        FROM public.quotation_messages
+        WHERE quotation_id = $1
+        ORDER BY created_at ASC
+      `;
+    }
     const { rows: messages } = await pool.query(messagesQuery, [quotationId]);
 
     return { quotation, messages };
@@ -122,25 +133,7 @@ class MessageService {
       [quotationId]
     );
 
-    const sentMessage = rows[0];
-
-    // Trigger AI Auto-Negotiator response if customer asks about discount, price, or counter-offer
-    if (senderRole === "CUSTOMER") {
-      const lowerMsg = message.toLowerCase();
-      const isNegotiationIntent = ["discount", "price", "counter", "lower", "reduce", "cost", "offer", "budget"].some(word => lowerMsg.includes(word));
-
-      if (isNegotiationIntent) {
-        setTimeout(async () => {
-          try {
-            await this.generateAIAutoReply(quotationId, { id: senderId });
-          } catch (autoErr) {
-            console.error("AI Auto-reply error:", autoErr.message);
-          }
-        }, 1200);
-      }
-    }
-
-    return sentMessage;
+    return rows[0];
   }
 
   async analyzeQuotationDeal(quotationId) {
