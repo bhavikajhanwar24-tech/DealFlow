@@ -63,10 +63,7 @@ function AppContent() {
   // Sync route on login
   useEffect(() => {
     if (!loading) {
-      if (
-        user &&
-        (currentRoute === "/login" || currentRoute === "/signup")
-      ) {
+      if (user && (currentRoute === "/login" || currentRoute === "/signup")) {
         const dest = getRoleDestination(user);
         navigate(dest);
       } else if (
@@ -224,7 +221,7 @@ function AppContent() {
 
     // 5. Customer Routes
     if (currentRoute === "/customer/portal") {
-      const allowed = ["CUSTOMER", "ADMIN"];
+      const allowed = ["CUSTOMER"];
       if (!allowed.includes(user.role)) {
         return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
       }
@@ -243,7 +240,8 @@ function AppContent() {
     currentRoute === "/admin/warehouses" ||
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||
-    currentRoute.startsWith("/sales/quotations");
+    currentRoute.startsWith("/sales/quotations") ||
+    currentRoute === "/customer/portal";
   return (
     <div className="app-layout">
       {showNavbar && (
