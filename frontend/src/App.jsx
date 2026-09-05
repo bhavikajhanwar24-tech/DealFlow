@@ -181,8 +181,16 @@ function AppContent() {
       return <DiscountPolicies />;
     }
 
-    if (["/admin/audit-logs", "/admin/billing-configuration", "/admin/subscription-plans", "/admin/customer-tiers"].includes(currentRoute)) {
-      if (user.role !== "ADMIN") return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+    if (
+      [
+        "/admin/audit-logs",
+        "/admin/billing-configuration",
+        "/admin/subscription-plans",
+        "/admin/customer-tiers",
+      ].includes(currentRoute)
+    ) {
+      if (user.role !== "ADMIN")
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
       const modeByRoute = {
         "/admin/audit-logs": "audit",
         "/admin/billing-configuration": "billing",
@@ -249,7 +257,7 @@ function AppContent() {
       if (!allowed.includes(user.role)) {
         return <AccessDenied onNavigate={navigate} requiredRoles={allowed} />;
       }
-      return <OperationsDashboard />;
+      return <OperationsDashboard onNavigate={navigate} />;
     }
 
     // 5. Customer Routes
@@ -286,6 +294,7 @@ function AppContent() {
     currentRoute === "/admin/subscription-plans" ||
     currentRoute === "/admin/customer-tiers" ||
     currentRoute === "/sales/fulfillment" ||
+    currentRoute === "/operations/dashboard" ||
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||
     currentRoute.startsWith("/sales/quotations") ||
