@@ -187,7 +187,7 @@ async function getDashboardSummary(user) {
     repFilter = " WHERE sales_rep_id = $1";
   }
 
-  const [quotations, approvals, monthlyStats] = await Promise.all([
+  const [openQuotationsResult, pendingApprovalsResult, atRiskDealsResult, monthlyStatsResult, overallSummaryResult] = await Promise.all([
     db.query(
       `SELECT COUNT(*)::int AS count
        FROM public.quotations
@@ -201,60 +201,111 @@ async function getDashboardSummary(user) {
       params
     ),
     db.query(
+      `SELECT COUNT(*)::int AS count
+       FROM public.quotations
+       ${repFilter ? repFilter + " AND risk_level IN ('HIGH', 'CRITICAL')" : "WHERE risk_level IN ('HIGH', 'CRITICAL')"}`,
+      params
+    ),
+    db.query(
       `SELECT 
          to_char(created_at, 'Mon') AS month,
+         to_char(created_at, 'Month') AS full_month,
+         EXTRACT(MONTH FROM created_at) AS month_num,
          COALESCE(SUM(final_amount), 0) AS total_revenue,
-         COALESCE(AVG(CASE WHEN subtotal > 0 THEN ((subtotal - discount_amount) / subtotal) * 100 ELSE 25 END), 25) AS avg_margin
+         COALESCE(SUM(gross_margin), 0) AS total_gross_margin,
+         COALESCE(AVG(margin_percentage), 0) AS avg_margin
        FROM public.quotations
-       GROUP BY to_char(created_at, 'Mon')`
+       ${repFilter}
+       GROUP BY to_char(created_at, 'Mon'), to_char(created_at, 'Month'), EXTRACT(MONTH FROM created_at)
+       ORDER BY EXTRACT(MONTH FROM created_at) ASC`,
+      params
+    ),
+    db.query(
+      `SELECT 
+         COALESCE(SUM(final_amount), 0) AS total_revenue,
+         COALESCE(SUM(gross_margin), 0) AS total_gross_margin,
+         COALESCE(AVG(margin_percentage), 0) AS avg_margin
+       FROM public.quotations
+       ${repFilter}`,
+      params
     )
   ]);
 
-  const pendingVal = approvals.rows[0]?.count > 0 ? approvals.rows[0].count : 3;
-  const openVal = quotations.rows[0]?.count > 0 ? quotations.rows[0].count : 8;
-  const atRiskVal = 1;
+  const openVal = Number(openQuotationsResult.rows[0]?.count || 0);
+  const pendingVal = Number(pendingApprovalsResult.rows[0]?.count || 0);
+  const atRiskVal = Number(atRiskDealsResult.rows[0]?.count || 0);
 
-  // Baseline data template for 6 months (Apr-Sep)
-  const defaultMonths = [
-    { month: "Apr", fullMonth: "April", revenue: 28, margin: 21, grossMarginVal: "₹5.88L" },
-    { month: "May", fullMonth: "May", revenue: 34, margin: 23, grossMarginVal: "₹7.82L" },
-    { month: "Jun", fullMonth: "June", revenue: 39, margin: 22, grossMarginVal: "₹8.58L" },
-    { month: "Jul", fullMonth: "July", revenue: 45, margin: 26, grossMarginVal: "₹11.70L" },
-    { month: "Aug", fullMonth: "August", revenue: 52, margin: 25, grossMarginVal: "₹13.00L" },
-    { month: "Sep", fullMonth: "September", revenue: 61, margin: 28, grossMarginVal: "₹17.08L" }
-  ];
+  const overall = overallSummaryResult.rows[0] || {};
+  const totalRevenueNum = Number(overall.total_revenue || 0);
+  const totalGrossMarginNum = Number(overall.total_gross_margin || 0);
+  const avgMarginNum = Number(overall.avg_margin || 0);
+
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const fullMonthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  
+  const currentMonthIdx = new Date().getMonth();
+  const recent6Months = [];
+  for (let i = 5; i >= 0; i--) {
+    const idx = (currentMonthIdx - i + 12) % 12;
+    recent6Months.push({
+      month: monthNames[idx],
+      fullMonth: fullMonthNames[idx],
+    });
+  }
 
   const dbMonthMap = new Map();
-  if (monthlyStats && monthlyStats.rows) {
-    monthlyStats.rows.forEach((row) => {
+  if (monthlyStatsResult.rows && monthlyStatsResult.rows.length > 0) {
+    monthlyStatsResult.rows.forEach((row) => {
       if (row.month) {
+        const revAmount = Number(row.total_revenue || 0);
+        const marginPct = Number(row.avg_margin || 0);
+        const grossMargin = Number(row.total_gross_margin || 0);
         dbMonthMap.set(row.month.trim(), {
-          revenue: Math.round(Number(row.total_revenue) / 100000) || 0,
-          margin: Math.round(Number(row.avg_margin)) || 25
+          rawRevenue: revAmount,
+          revenueLakhs: Number((revAmount / 100000).toFixed(2)),
+          marginPct: Number(marginPct.toFixed(1)),
+          grossMarginRaw: grossMargin,
+          grossMarginVal: revAmount >= 100000 
+            ? `₹${(grossMargin / 100000).toFixed(2)}L` 
+            : `₹${Number(grossMargin.toFixed(0)).toLocaleString("en-IN")}`
         });
       }
     });
   }
 
-  const chartData = defaultMonths.map((item) => {
+  const chartData = recent6Months.map((item) => {
     if (dbMonthMap.has(item.month)) {
       const real = dbMonthMap.get(item.month);
-      const rev = real.revenue > 0 ? real.revenue : item.revenue;
-      const mar = real.margin > 0 ? real.margin : item.margin;
-      const gVal = (rev * (mar / 100)).toFixed(2);
       return {
-        ...item,
-        revenue: rev,
-        margin: mar,
-        grossMarginVal: `₹${gVal}L`
+        month: item.month,
+        fullMonth: item.fullMonth,
+        revenue: real.revenueLakhs,
+        margin: real.marginPct,
+        grossMarginVal: real.grossMarginVal,
       };
     }
-    return item;
+    return {
+      month: item.month,
+      fullMonth: item.fullMonth,
+      revenue: 0,
+      margin: 0,
+      grossMarginVal: "₹0",
+    };
   });
 
-  const totalRevLakhs = chartData.reduce((acc, curr) => acc + curr.revenue, 0);
-  const avgMarginVal = (chartData.reduce((acc, curr) => acc + curr.margin, 0) / chartData.length).toFixed(1);
-  const totalGrossMarginLakhs = chartData.reduce((acc, curr) => acc + (curr.revenue * curr.margin / 100), 0).toFixed(1);
+  const formattedTotalRevenue = totalRevenueNum >= 10000000
+    ? `₹${(totalRevenueNum / 10000000).toFixed(2)}Cr`
+    : totalRevenueNum >= 100000
+    ? `₹${(totalRevenueNum / 100000).toFixed(2)}L`
+    : `₹${Number(totalRevenueNum.toFixed(0)).toLocaleString("en-IN")}`;
+
+  const formattedGrossMargin = totalGrossMarginNum >= 10000000
+    ? `₹${(totalGrossMarginNum / 10000000).toFixed(2)}Cr`
+    : totalGrossMarginNum >= 100000
+    ? `₹${(totalGrossMarginNum / 100000).toFixed(2)}L`
+    : `₹${Number(totalGrossMarginNum.toFixed(0)).toLocaleString("en-IN")}`;
+
+  const formattedAvgMargin = `${avgMarginNum.toFixed(1)}%`;
 
   return {
     pendingApprovals: pendingVal,
@@ -263,14 +314,16 @@ async function getDashboardSummary(user) {
     analytics: {
       chartData,
       summary: {
-        totalRevenue: `₹${(totalRevLakhs / 100).toFixed(2)}Cr`,
-        totalRevenueGrowth: "+18.4%",
-        avgMargin: `${avgMarginVal}%`,
-        avgMarginGrowth: "+3.2%",
-        grossMargin: `₹${totalGrossMarginLakhs}L`,
-        grossMarginGrowth: "+22.1%"
+        totalRevenue: formattedTotalRevenue,
+        totalRevenueGrowth: "+0.0%",
+        avgMargin: formattedAvgMargin,
+        avgMarginGrowth: "+0.0%",
+        grossMargin: formattedGrossMargin,
+        grossMarginGrowth: "+0.0%"
       },
-      aiInsight: "Revenue increased 18.4% while average margin improved by 3.2 percentage points. July–September shows the strongest profitability trend."
+      aiInsight: totalRevenueNum > 0
+        ? `Real-time database analytics show total revenue of ${formattedTotalRevenue} with an average margin of ${formattedAvgMargin} across active sales deals.`
+        : "No quotation deals recorded yet for this period. Create new quotations to track real-time revenue and margin analytics."
     }
   };
 }
@@ -716,14 +769,18 @@ async function finalizeQuotation(quotationId, user) {
   const salespersonName = updatedQuotation.salesRep?.fullName || user.full_name || "Sales Representative";
   const salespersonEmail = updatedQuotation.salesRep?.email || user.email;
   const customerName = updatedQuotation.customer?.companyName || updatedQuotation.customer?.fullName || "Customer";
+  const customerEmail = updatedQuotation.customer?.email;
+
+  const targetEmail = customerEmail || salespersonEmail;
 
   let emailResult = { success: false, error: "Email execution bypassed" };
   try {
     emailResult = await emailService.sendQuotationFinalizedEmail({
+      customerName,
+      customerEmail: targetEmail,
       salespersonName,
       salespersonEmail,
       quotationNumber: updatedQuotation.quotationNumber,
-      customerName,
       totalAmount: updatedQuotation.finalAmount,
       marginPercentage: updatedQuotation.marginPercentage,
       grossMargin: updatedQuotation.grossMargin,
@@ -739,7 +796,7 @@ async function finalizeQuotation(quotationId, user) {
     data: updatedQuotation,
     notification: {
       emailSent: Boolean(emailResult.success),
-      email: salespersonEmail,
+      email: targetEmail,
       error: emailResult.success ? null : emailResult.error
     }
   };

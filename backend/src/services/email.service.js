@@ -22,22 +22,24 @@ function createTransporter() {
 }
 
 /**
- * Sends a confirmation email to the salesperson when a quotation is finalized.
+ * Sends a confirmation email to the CUSTOMER when a quotation is finalized.
  *
  * @param {Object} params
- * @param {string} params.salespersonName - Full name of the salesperson
- * @param {string} params.salespersonEmail - Destination Gmail / Email address
- * @param {string} params.quotationNumber - E.g., QT-2026-0001
  * @param {string} params.customerName - Name of the customer / company
+ * @param {string} params.customerEmail - Destination Customer email address
+ * @param {string} params.salespersonName - Full name of assigned salesperson
+ * @param {string} params.salespersonEmail - Salesperson email address
+ * @param {string} params.quotationNumber - E.g., QT-2026-0001
  * @param {number} params.totalAmount - Final quotation total amount
  * @param {number} params.marginPercentage - Gross margin percentage
  * @param {number} params.grossMargin - Gross margin in currency
  */
 async function sendQuotationFinalizedEmail({
+  customerName,
+  customerEmail,
   salespersonName,
   salespersonEmail,
   quotationNumber,
-  customerName,
   totalAmount,
   marginPercentage,
   grossMargin,
@@ -54,9 +56,11 @@ async function sendQuotationFinalizedEmail({
       };
     }
 
-    if (!salespersonEmail) {
+    const recipientEmail = customerEmail || salespersonEmail;
+
+    if (!recipientEmail) {
       console.warn(
-        "[Email Service] No salesperson email address provided for notification."
+        "[Email Service] No recipient email address provided for customer quotation finalization."
       );
       return { success: false, error: "No recipient email address available" };
     }
@@ -192,9 +196,9 @@ async function sendQuotationFinalizedEmail({
       <h1>Quotation Finalized Successfully</h1>
     </div>
     <div class="content-body">
-      <div class="greeting">Hello ${salespersonName || "Sales Representative"},</div>
+      <div class="greeting">Hello ${customerName || "Valued Customer"},</div>
       <div class="intro-text">
-        Your quotation has been successfully finalized. Here are the confirmed deal metrics for your records:
+        Your quotation has been successfully finalized. Here are the confirmed quotation details for your records:
       </div>
 
       <div class="details-box">
@@ -208,11 +212,15 @@ async function sendQuotationFinalizedEmail({
         </div>
         <div class="detail-row">
           <span class="detail-label">Total Amount:</span>
-          <span class="detail-value">${formattedAmount}</span>
+          <span class="detail-value" style="color: #2563eb;">${formattedAmount}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Margin:</span>
           <span class="detail-value" style="color: #059669;">${formattedMargin}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Sales Representative:</span>
+          <span class="detail-value">${salespersonName} ${salespersonEmail ? `(${salespersonEmail})` : ''}</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Status:</span>
@@ -236,20 +244,19 @@ async function sendQuotationFinalizedEmail({
 
     const info = await transporter.sendMail({
       from: `"DealFlow360 Sales Operations" <${process.env.EMAIL_USER}>`,
-      to: salespersonEmail,
+      to: recipientEmail,
       subject: `DealFlow360 — Quotation ${quotationNumber} Finalized`,
       html: htmlContent,
     });
 
     console.log(
-      `[Email Service] Confirmation email sent for ${quotationNumber} to ${salespersonEmail} (MessageId: ${info.messageId})`
+      `[Email Service] Customer confirmation email sent for ${quotationNumber} to ${recipientEmail} (MessageId: ${info.messageId})`
     );
 
-    return { success: true, messageId: info.messageId, email: salespersonEmail };
+    return { success: true, messageId: info.messageId, email: recipientEmail };
   } catch (error) {
-    // Log backend error silently without exposing password/credentials
     console.error(
-      `[Email Service Error] Failed to send email for ${quotationNumber}:`,
+      `[Email Service Error] Failed to send customer email for ${quotationNumber}:`,
       error.message
     );
     return { success: false, error: error.message };
