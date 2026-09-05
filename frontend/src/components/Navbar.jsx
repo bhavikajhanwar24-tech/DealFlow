@@ -343,11 +343,14 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
             {/* Dropdown Menu for Additional Admin Modules */}
             <div className="more-dropdown-container" ref={moreDropdownRef}>
               <button
-                className={`nav-link-btn ${isMoreActive ? "active" : ""}`}
+                className={`nav-more-trigger ${isMoreActive ? "active" : ""} ${isMoreOpen ? "open" : ""}`}
                 onClick={() => setIsMoreOpen((prev) => !prev)}
-                title="More Modules"
+                title="More Platform Modules"
               >
-                <GridIcon size={16} /> More Options{" "}
+                <div className="nav-more-icon-box">
+                  <GridIcon size={16} />
+                </div>
+                <span className="nav-more-text">More Options</span>
                 <ChevronDownIcon
                   size={14}
                   style={{
@@ -358,108 +361,249 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               </button>
 
               {isMoreOpen && (
-                <div className="more-dropdown-menu">
-                  <div className="more-dropdown-header">
-                    Operations & Logistics
+                <div className="more-mega-menu">
+                  <div className="mega-menu-top-bar">
+                    <div className="mega-menu-title">
+                      <GridIcon size={15} /> Platform Administration & Portals
+                    </div>
+                    <span className="mega-menu-badge">10 Modules</span>
                   </div>
-                  <button
-                    className={`more-dropdown-item ${currentRoute === "/admin/warehouses" ? "active" : ""}`}
-                    onClick={() => {
-                      setCurrentRoute("/admin/warehouses");
-                      setIsMoreOpen(false);
-                    }}
-                  >
-                    <TruckIcon size={15} /> Warehouses
-                  </button>
-                  <button
-                    className={`more-dropdown-item ${currentRoute === "/admin/discount-policies" ? "active" : ""}`}
-                    onClick={() => {
-                      setCurrentRoute("/admin/discount-policies");
-                      setIsMoreOpen(false);
-                    }}
-                  >
-                    <PercentIcon size={15} /> Discount Policies
-                  </button>
-                  <button
-                    className={`more-dropdown-item ${currentRoute === "/sales/fulfillment" ? "active" : ""}`}
-                    onClick={() => {
-                      setCurrentRoute("/sales/fulfillment");
-                      setIsMoreOpen(false);
-                    }}
-                  >
-                    <TruckIcon size={15} /> Fulfillment
-                  </button>
 
-                  <div className="more-dropdown-header">
-                    Governance & Config
-                  </div>
-                  <button
-                    className={`more-dropdown-item ${currentRoute === "/admin/audit-logs" ? "active" : ""}`}
-                    onClick={() => {
-                      setCurrentRoute("/admin/audit-logs");
-                      setIsMoreOpen(false);
-                    }}
-                  >
-                    <ShieldCheckIcon size={15} /> Audit Logs
-                  </button>
-                  <button
-                    className={`more-dropdown-item ${currentRoute === "/admin/customer-tiers" ? "active" : ""}`}
-                    onClick={() => {
-                      setCurrentRoute("/admin/customer-tiers");
-                      setIsMoreOpen(false);
-                    }}
-                  >
-                    <UserCheckIcon size={15} /> Customer Tiers
-                  </button>
-                  <button
-                    className={`more-dropdown-item ${currentRoute === "/admin/subscription-plans" ? "active" : ""}`}
-                    onClick={() => {
-                      setCurrentRoute("/admin/subscription-plans");
-                      setIsMoreOpen(false);
-                    }}
-                  >
-                    <FileTextIcon size={15} /> Subscription Plans
-                  </button>
-                  <button
-                    className={`more-dropdown-item ${currentRoute === "/admin/billing-configuration" ? "active" : ""}`}
-                    onClick={() => {
-                      setCurrentRoute("/admin/billing-configuration");
-                      setIsMoreOpen(false);
-                    }}
-                  >
-                    <SettingsGearIcon size={15} /> Billing Configuration
-                  </button>
+                  <div className="mega-menu-grid">
+                    {/* Column 1: Operations & Logistics */}
+                    <div className="mega-column">
+                      <div className="mega-section-label">
+                        Operations & Logistics
+                      </div>
 
-                  <div className="more-dropdown-header">
-                    Dashboards & Messages
+                      <button
+                        className={`mega-item-card ${currentRoute === "/admin/warehouses" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/admin/warehouses");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon blue">
+                          <TruckIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">Warehouses</div>
+                          <div className="mega-item-desc">
+                            Stock locations & hub inventory
+                          </div>
+                        </div>
+                        {currentRoute === "/admin/warehouses" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/admin/discount-policies" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/admin/discount-policies");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon emerald">
+                          <PercentIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">
+                            Discount Policies
+                          </div>
+                          <div className="mega-item-desc">
+                            Rule-based discount tiers
+                          </div>
+                        </div>
+                        {currentRoute === "/admin/discount-policies" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/sales/fulfillment" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/sales/fulfillment");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon amber">
+                          <TruckIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">
+                            Order Fulfillment
+                          </div>
+                          <div className="mega-item-desc">
+                            Shipment dispatch & status
+                          </div>
+                        </div>
+                        {currentRoute === "/sales/fulfillment" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/finance/dashboard" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/finance/dashboard");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon green">
+                          <DollarSignIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">
+                            Finance Dashboard
+                          </div>
+                          <div className="mega-item-desc">
+                            Financial metrics & overview
+                          </div>
+                        </div>
+                        {currentRoute === "/finance/dashboard" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/operations/dashboard" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/operations/dashboard");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon orange">
+                          <TruckIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">
+                            Operations Dashboard
+                          </div>
+                          <div className="mega-item-desc">
+                            Supply chain health metrics
+                          </div>
+                        </div>
+                        {currentRoute === "/operations/dashboard" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Column 2: Governance & Config */}
+                    <div className="mega-column">
+                      <div className="mega-section-label">
+                        Governance & System
+                      </div>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/admin/audit-logs" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/admin/audit-logs");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon indigo">
+                          <ShieldCheckIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">Audit Logs</div>
+                          <div className="mega-item-desc">
+                            Security trails & events
+                          </div>
+                        </div>
+                        {currentRoute === "/admin/audit-logs" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/admin/customer-tiers" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/admin/customer-tiers");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon purple">
+                          <UserCheckIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">Customer Tiers</div>
+                          <div className="mega-item-desc">
+                            Tier limits & benefit rules
+                          </div>
+                        </div>
+                        {currentRoute === "/admin/customer-tiers" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/admin/subscription-plans" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/admin/subscription-plans");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon cyan">
+                          <FileTextIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">
+                            Subscription Plans
+                          </div>
+                          <div className="mega-item-desc">
+                            SaaS plans & capabilities
+                          </div>
+                        </div>
+                        {currentRoute === "/admin/subscription-plans" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/admin/billing-configuration" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/admin/billing-configuration");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon slate">
+                          <SettingsGearIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">Billing Config</div>
+                          <div className="mega-item-desc">
+                            Invoicing & gateway setup
+                          </div>
+                        </div>
+                        {currentRoute === "/admin/billing-configuration" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute.includes("messages") ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/sales/messages");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon rose">
+                          <MessageSquareIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">Messages</div>
+                          <div className="mega-item-desc">
+                            Negotiation & sales chat
+                          </div>
+                        </div>
+                        {currentRoute.includes("messages") && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    className={`more-dropdown-item ${currentRoute === "/finance/dashboard" ? "active" : ""}`}
-                    onClick={() => {
-                      setCurrentRoute("/finance/dashboard");
-                      setIsMoreOpen(false);
-                    }}
-                  >
-                    <DollarSignIcon size={15} /> Finance Dashboard
-                  </button>
-                  <button
-                    className={`more-dropdown-item ${currentRoute === "/operations/dashboard" ? "active" : ""}`}
-                    onClick={() => {
-                      setCurrentRoute("/operations/dashboard");
-                      setIsMoreOpen(false);
-                    }}
-                  >
-                    <TruckIcon size={15} /> Operations Dashboard
-                  </button>
-                  <button
-                    className={`more-dropdown-item ${currentRoute.includes("messages") ? "active" : ""}`}
-                    onClick={() => {
-                      setCurrentRoute("/sales/messages");
-                      setIsMoreOpen(false);
-                    }}
-                  >
-                    <MessageSquareIcon size={15} /> Messages
-                  </button>
                 </div>
               )}
             </div>
