@@ -520,59 +520,76 @@ export default function SalesDashboard({ onNavigate }) {
             
           </div>
 
-          {/* Export Buttons */}
-          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleExportCSV}
-              style={{ padding: "0.45rem 0.85rem", fontSize: "0.825rem", display: "inline-flex", gap: "0.35rem" }}
-            >
-              <Download size={15} color="#166534" /> Export CSV / XLS
-            </button>
+          {/* Export Controls Layout: Export CSV & Configure Download in same line, Download PDF below */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.45rem" }}>
+            {/* Row 1: Export CSV and Configure Download in same line */}
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleExportCSV}
+                style={{
+                  padding: "0.35rem 0.75rem",
+                  fontSize: "0.8rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  height: "32px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Download size={14} color="#166534" /> Export CSV / XLS
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const config = await promptExportDialog({
+                    defaultName: "Sales_Quotations_Report",
+                    defaultFormat: "pdf",
+                  });
+                  if (config) {
+                    setActionSuccess(`Download preferences updated: ${config.filename}.${config.format}`);
+                  }
+                }}
+                title="Configure download name & format preferences"
+                style={{
+                  padding: "0.35rem 0.75rem",
+                  fontSize: "0.8rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  background: "#f8fafc",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "7px",
+                  color: "#334155",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  height: "32px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Settings2 size={13} color="#2563eb" /> Configure Download
+              </button>
+            </div>
+
+            {/* Row 2: Download PDF directly below Configure Download */}
             <button
               type="button"
               className="btn-primary"
               onClick={handleExportPDF}
               style={{
-                padding: "0.45rem 0.95rem",
+                padding: "0.4rem 0.95rem",
                 fontSize: "0.825rem",
                 background: "linear-gradient(135deg, #1d4ed8, #2563eb)",
                 border: "none",
                 display: "inline-flex",
                 gap: "0.35rem",
                 alignItems: "center",
+                height: "34px",
+                whiteSpace: "nowrap",
               }}
             >
-              <Printer size={15} /> Export / Print PDF
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                const config = await promptExportDialog({
-                  defaultName: "Sales_Quotations_Report",
-                  defaultFormat: "pdf",
-                });
-                if (config) {
-                  setActionSuccess(`Download preferences updated: ${config.filename}.${config.format}`);
-                }
-              }}
-              title="Configure download name & format preferences"
-              style={{
-                padding: "0.45rem 0.75rem",
-                fontSize: "0.825rem",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.35rem",
-                background: "#f1f5f9",
-                border: "1px solid #cbd5e1",
-                borderRadius: "8px",
-                color: "#334155",
-                cursor: "pointer",
-                fontWeight: 600,
-              }}
-            >
-              <Settings2 size={14} color="#64748b" /> Configure Download
+              <Download size={15} /> Download PDF
             </button>
           </div>
         </div>

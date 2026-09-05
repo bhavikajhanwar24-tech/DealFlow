@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import {
-  ArrowLeft, AlertTriangle, CheckCircle2, Mail, Printer,
+  ArrowLeft, AlertTriangle, CheckCircle2, Mail, Printer, Download,
   Edit3, Save, X, Plus, Trash2, RotateCcw, Send
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -379,7 +379,7 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
             onClick={handlePrintQuotation}
             style={{ padding: "0.5rem 0.95rem", fontSize: "0.85rem", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
           >
-            <Printer size={16} color="#2563eb" /> Print / PDF
+            <Download size={16} color="#2563eb" /> Download PDF
           </button>
 
           <span className={`badge ${quotation.status === "FINALIZED" ? "badge-active" : quotation.status === "REJECTED" ? "badge-rejected" : "badge-pending"}`}>
