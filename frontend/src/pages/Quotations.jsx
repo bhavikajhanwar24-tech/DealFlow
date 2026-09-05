@@ -160,9 +160,29 @@ export default function Quotations({ onNavigate }) {
                       {currency(quotation.finalAmount)}
                     </td>
                     <td>
-                      <span className="badge badge-active">
-                        {quotation.status}
-                      </span>
+                      <div>
+                        <span
+                          className={`badge ${quotation.status === "REJECTED" ? "badge-rejected" : "badge-active"}`}
+                        >
+                          {quotation.status}
+                        </span>
+                        {quotation.customerRequest && (
+                          <div
+                            style={{
+                              color: "#b45309",
+                              fontSize: "0.72rem",
+                              marginTop: "0.35rem",
+                              maxWidth: "180px",
+                            }}
+                          >
+                            Customer response:{" "}
+                            {quotation.customerRequest.status}
+                            {quotation.customerRequest
+                              .requestedDiscountPercent !== null &&
+                              ` · ${quotation.customerRequest.requestedDiscountPercent}% requested`}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td style={{ color: "#64748b" }}>
                       {new Date(quotation.createdAt).toLocaleDateString(

@@ -129,6 +129,20 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
           {quotation.salesRep?.fullName}
         </div>
       </section>
+      {quotation.customerRequest && (
+        <div
+          className="alert alert-warning"
+          style={{ marginBottom: "1.25rem" }}
+        >
+          Customer response: {quotation.customerRequest.status}
+          {quotation.customerRequest.requestedDiscountPercent !== null &&
+            ` · Requested discount: ${quotation.customerRequest.requestedDiscountPercent}%`}
+          {quotation.customerRequest.requestedDeliveryDate &&
+            ` · Requested delivery: ${quotation.customerRequest.requestedDeliveryDate}`}
+          {quotation.customerRequest.customerComment &&
+            ` · ${quotation.customerRequest.customerComment}`}
+        </div>
+      )}
       <div className="data-table-card">
         <div style={{ overflowX: "auto" }}>
           <table className="data-table">
