@@ -226,8 +226,12 @@ function AppContent() {
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||
     currentRoute.startsWith("/sales/quotations");
+
+  const isSalesRoute =
+    currentRoute.startsWith("/sales") || currentRoute === "/approvals";
+
   return (
-    <div className="app-layout">
+    <div className={`app-layout ${isSalesRoute ? "sales-bg-active" : ""}`}>
       {showNavbar && (
         <Navbar currentRoute={currentRoute} setCurrentRoute={navigate} />
       )}

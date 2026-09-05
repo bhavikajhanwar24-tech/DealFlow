@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, FilePlus2, ClipboardList, Activity } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import RevenueMarginChart from "../components/RevenueMarginChart";
 
 const API_BASE = "http://localhost:5000/api";
 
@@ -129,6 +130,9 @@ export default function SalesDashboard({ onNavigate }) {
           <ClipboardList size={17} /> View Quotations
         </button>
       </div>
+
+      {/* Analytics Feature: Revenue vs Margin Component */}
+      <RevenueMarginChart analytics={summary?.analytics} onNavigate={onNavigate} />
 
       <section
         style={{
