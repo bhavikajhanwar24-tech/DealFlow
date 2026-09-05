@@ -482,8 +482,8 @@ const quotationSelect = `
          (SELECT nr.requested_delivery_date FROM public.negotiation_requests nr WHERE nr.quotation_id = q.id ORDER BY nr.created_at DESC LIMIT 1) AS requested_delivery_date,
          (SELECT nr.customer_comment FROM public.negotiation_requests nr WHERE nr.quotation_id = q.id ORDER BY nr.created_at DESC LIMIT 1) AS customer_comment
   FROM public.quotations q
-  JOIN public.users customer ON customer.id = q.customer_id
-  JOIN public.users sales_rep ON sales_rep.id = q.sales_rep_id
+  LEFT JOIN public.users customer ON customer.id = q.customer_id
+  LEFT JOIN public.users sales_rep ON sales_rep.id = q.sales_rep_id
 `;
 
 async function listQuotations(user) {
