@@ -558,8 +558,8 @@ export default function QuotationMessages({ onNavigate }) {
                     recipientRole === "ADMIN"
                       ? "linear-gradient(90deg, #f5f3ff, #faf5ff)"
                       : recipientRole === "CUSTOMER"
-                      ? "linear-gradient(90deg, #f0fdf4, #f0fdfa)"
-                      : "linear-gradient(90deg, #eff6ff, #f8fafc)",
+                        ? "linear-gradient(90deg, #f0fdf4, #f0fdfa)"
+                        : "linear-gradient(90deg, #eff6ff, #f8fafc)",
                   borderBottom: "1px solid #e2e8f0",
                   display: "flex",
                   justifyContent: "space-between",
@@ -733,19 +733,19 @@ export default function QuotationMessages({ onNavigate }) {
                             borderRadius: isAiBot
                               ? "14px"
                               : isMyMessage
-                              ? "16px 16px 4px 16px"
-                              : "16px 16px 16px 4px",
+                                ? "16px 16px 4px 16px"
+                                : "16px 16px 16px 4px",
                             background: isAiBot
                               ? "linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%)"
                               : isMyMessage
-                              ? "#2563eb"
-                              : "#ffffff",
+                                ? "#2563eb"
+                                : "#ffffff",
                             color: isAiBot ? "#1e3a8a" : isMyMessage ? "#ffffff" : "#0f172a",
                             border: isAiBot
                               ? "1px solid #93c5fd"
                               : isMyMessage
-                              ? "none"
-                              : "1px solid #e2e8f0",
+                                ? "none"
+                                : "1px solid #e2e8f0",
                             boxShadow: isAiBot
                               ? "0 4px 14px rgba(37, 99, 235, 0.09)"
                               : "0 2px 6px rgba(0,0,0,0.04)",

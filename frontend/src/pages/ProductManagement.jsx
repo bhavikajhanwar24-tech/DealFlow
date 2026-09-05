@@ -137,7 +137,18 @@ export default function ProductManagement() {
           <h1>Products</h1>
           <p className="page-subtitle">Manage the catalog used when creating quotations and deals.</p>
         </div>
-        <button className="btn-secondary" onClick={loadProducts} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh</button>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button
+            className="btn-secondary"
+            onClick={() => window.location.href = "/admin/bulk-upload"}
+            style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
+          >
+            <Package size={15} /> Bulk Upload (CSV/Excel)
+          </button>
+          <button className="btn-secondary" onClick={loadProducts} disabled={loading}>
+            <RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh
+          </button>
+        </div>
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}
