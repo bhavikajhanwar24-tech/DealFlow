@@ -603,6 +603,29 @@ async function initDatabase() {
       `);
     }
 
+    // Create staff_complaints table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.staff_complaints (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        customer_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+        staff_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+        quotation_id UUID REFERENCES public.quotations(id) ON DELETE SET NULL,
+        category VARCHAR(50) NOT NULL DEFAULT 'GENERAL',
+        subject VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        status VARCHAR(30) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ACTION_TAKEN', 'REJECTED')),
+        admin_notes TEXT,
+        resolved_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+        resolved_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_staff_complaints_customer ON public.staff_complaints(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_staff_complaints_staff ON public.staff_complaints(staff_id);
+      CREATE INDEX IF NOT EXISTS idx_staff_complaints_status ON public.staff_complaints(status);
+    `);
+
     // Seed default Admin if not exists
     const adminCheck = await client.query(
       "SELECT id FROM public.users WHERE role = 'ADMIN' LIMIT 1"

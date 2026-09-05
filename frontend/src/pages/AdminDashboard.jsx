@@ -43,7 +43,7 @@ export default function AdminDashboard({ onNavigate }) {
   }, [token]);
 
   const metrics = [
-    ["Pending Employee Approvals", stats?.pendingApprovals],
+    ["Pending Staff Complaints", stats?.pendingComplaints ?? 0],
     ["Active Employees", stats?.activeEmployees],
     ["Registered Customers", stats?.totalCustomers],
     ["Audit Log Events", stats?.totalAuditLogs],
@@ -125,6 +125,13 @@ export default function AdminDashboard({ onNavigate }) {
           <span className="admin-action-kicker">Catalog control</span>
           <strong>Manage products</strong>
           <span>Maintain product prices, costs, categories, and availability for quotations.</span>
+        </button>
+        <button className="admin-action-card" onClick={() => onNavigate("/admin/complaints")}>
+          <span className="admin-action-kicker" style={{ color: stats?.pendingComplaints > 0 ? "#dc2626" : "#2563eb" }}>
+            {stats?.pendingComplaints > 0 ? `${stats.pendingComplaints} Pending Review` : "Customer Oversight"}
+          </span>
+          <strong>Staff Complaints</strong>
+          <span>Review client complaints against staff, take corrective actions, and respond to customers.</span>
         </button>
       </section>
     </main>
