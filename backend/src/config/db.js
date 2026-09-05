@@ -119,6 +119,20 @@ async function initDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.warehouses (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        address TEXT NOT NULL,
+        latitude NUMERIC(10, 7) NOT NULL CHECK (latitude >= -90 AND latitude <= 90),
+        longitude NUMERIC(10, 7) NOT NULL CHECK (longitude >= -180 AND longitude <= 180),
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_by UUID REFERENCES public.users(id),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Create indexes for performance if not exist
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
@@ -130,6 +144,7 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_quotations_customer ON public.quotations(customer_id);
       CREATE INDEX IF NOT EXISTS idx_quotations_sales_rep ON public.quotations(sales_rep_id);
       CREATE INDEX IF NOT EXISTS idx_quotation_items_quotation ON public.quotation_items(quotation_id);
+      CREATE INDEX IF NOT EXISTS idx_warehouses_active ON public.warehouses(is_active);
     `);
 
     await client.query(`

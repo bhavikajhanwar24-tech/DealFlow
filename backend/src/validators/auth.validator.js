@@ -239,6 +239,32 @@ function validateProduct(req, res, next) {
   next();
 }
 
+function validateWarehouse(req, res, next) {
+  const { name, address, latitude, longitude } = req.body;
+  const parsedLatitude = Number(latitude);
+  const parsedLongitude = Number(longitude);
+  const errors = [];
+
+  if (!name || typeof name !== "string" || name.trim().length < 2) {
+    errors.push("Warehouse name is required.");
+  }
+  if (!address || typeof address !== "string" || address.trim().length < 3) {
+    errors.push("Warehouse address is required.");
+  }
+  if (!Number.isFinite(parsedLatitude) || parsedLatitude < -90 || parsedLatitude > 90) {
+    errors.push("Latitude must be between -90 and 90.");
+  }
+  if (!Number.isFinite(parsedLongitude) || parsedLongitude < -180 || parsedLongitude > 180) {
+    errors.push("Longitude must be between -180 and 180.");
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ success: false, message: errors[0], errors });
+  }
+
+  next();
+}
+
 module.exports = {
   validateEmployeeRegister,
   validateCustomerRegister,
@@ -248,6 +274,7 @@ module.exports = {
   validateStaffUpdate,
   validateProduct,
   PRODUCT_CATEGORIES,
+  validateWarehouse,
   ALLOWED_EMPLOYEE_ROLES,
   ALLOWED_DEPARTMENTS
 };

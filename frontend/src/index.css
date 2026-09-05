@@ -1170,9 +1170,152 @@ a {
   font-size: 0.875rem;
 }
 
+.warehouse-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.4fr);
+  align-items: start;
+  gap: 1.25rem;
+}
+
+.warehouse-form {
+  padding: 1.35rem;
+}
+
+.warehouse-search-group {
+  position: relative;
+}
+
+.warehouse-search-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.warehouse-search-row .form-input {
+  min-width: 0;
+}
+
+.warehouse-search-button {
+  flex: 0 0 auto;
+  padding-left: 0.85rem;
+  padding-right: 0.85rem;
+}
+
+.warehouse-search-results {
+  position: absolute;
+  top: 4.25rem;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: var(--shadow-lg);
+}
+
+.warehouse-search-results button {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  color: var(--text-main);
+  text-align: left;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.warehouse-search-results button:hover {
+  background: var(--primary-light);
+}
+
+.warehouse-map-panel {
+  overflow: hidden;
+}
+
+.warehouse-coordinates {
+  color: var(--text-muted);
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+
+.warehouse-map-wrap {
+  height: 430px;
+  margin: 0 1.35rem;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+}
+
+.warehouse-map {
+  width: 100%;
+  height: 100%;
+}
+
+.warehouse-map-help {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.85rem 1.35rem 1.35rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.warehouse-active-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.warehouse-list-panel {
+  margin-top: 1.25rem;
+}
+
+.warehouse-address-cell {
+  min-width: 260px;
+  max-width: 380px;
+  color: var(--text-muted) !important;
+  line-height: 1.4;
+}
+
+.warehouse-map-marker {
+  border: 0;
+  background: transparent;
+}
+
+.warehouse-map-marker span {
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.35);
+}
+
+.warehouse-map-marker span::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  bottom: -8px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 9px solid var(--primary);
+}
+
 @media (max-width: 850px) {
   .staff-layout,
   .product-layout,
+  .warehouse-layout,
   .admin-action-grid {
     grid-template-columns: 1fr;
   }

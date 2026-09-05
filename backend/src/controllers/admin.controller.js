@@ -135,6 +135,35 @@ async function updateProduct(req, res) {
   }
 }
 
+async function getWarehouses(req, res) {
+  try {
+    const warehouses = await adminService.getWarehouses();
+    return res.status(200).json({ success: true, count: warehouses.length, data: warehouses });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to retrieve warehouses." });
+  }
+}
+
+async function createWarehouse(req, res) {
+  try {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const warehouse = await adminService.createWarehouse(req.body, req.user.id, ip);
+    return res.status(201).json({ success: true, message: "Warehouse created successfully.", data: warehouse });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to create warehouse." });
+  }
+}
+
+async function updateWarehouse(req, res) {
+  try {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const warehouse = await adminService.updateWarehouse(req.params.id, req.body, req.user.id, ip);
+    return res.status(200).json({ success: true, message: "Warehouse updated successfully.", data: warehouse });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to update warehouse." });
+  }
+}
+
 module.exports = {
   getEmployeeApprovals,
   approveEmployee,
@@ -145,5 +174,8 @@ module.exports = {
   updateStaff,
   getProducts,
   createProduct,
-  updateProduct
+  updateProduct,
+  getWarehouses,
+  createWarehouse,
+  updateWarehouse
 };
