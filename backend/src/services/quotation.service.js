@@ -44,14 +44,15 @@ async function getCustomers() {
 
 async function getProducts() {
   const result = await db.query(
-    `SELECT id, name, sku, category, description, unit_price, currency
+    `SELECT id, name, sku, category, description, unit_price, cost, currency
      FROM public.products
      WHERE is_active = TRUE
      ORDER BY category, name`
   );
   return result.rows.map((product) => ({
     ...product,
-    unitPrice: Number(product.unit_price)
+    unitPrice: Number(product.unit_price),
+    costPrice: Number(product.cost)
   }));
 }
 
@@ -281,6 +282,9 @@ function mapQuotation(row) {
     subtotal: Number(row.subtotal),
     discountAmount: Number(row.discount_amount),
     finalAmount: Number(row.final_amount),
+    totalCost: Number(row.total_cost),
+    grossMargin: Number(row.gross_margin),
+    marginPercentage: Number(row.margin_percentage),
     confirmedAt: row.confirmed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -314,7 +318,8 @@ function mapQuotation(row) {
 
 const quotationSelect = `
   SELECT q.id, q.quotation_number, q.status, q.subtotal, q.discount_amount,
-         q.final_amount, q.confirmed_at, q.created_at, q.updated_at,
+         q.final_amount, q.total_cost, q.gross_margin, q.margin_percentage,
+         q.confirmed_at, q.created_at, q.updated_at,
          q.risk_score, q.risk_level, q.approval_route, q.risk_factors,
          q.risk_analysis, q.risk_analyzed_at,
          customer.id AS customer_id, customer.full_name AS customer_name,
@@ -360,8 +365,8 @@ async function getQuotation(id, user) {
   if (quotationResult.rows.length === 0) throw quotationError("Quotation not found.", 404);
 
   const itemResult = await db.query(
-        `SELECT qi.id, qi.product_id, p.name, p.sku, p.category, p.cost, qi.quantity,
-          qi.unit_price, qi.discount_percent, qi.discount_amount, qi.line_total
+    `SELECT qi.id, qi.product_id, p.name, p.sku, p.category, p.cost, qi.quantity,
+            qi.unit_price, qi.discount_percent, qi.discount_amount, qi.line_total
      FROM public.quotation_items qi
      JOIN public.products p ON p.id = qi.product_id
      WHERE qi.quotation_id = $1
@@ -380,6 +385,8 @@ async function getQuotation(id, user) {
       cost: Number(item.cost || 0),
       quantity: item.quantity,
       unitPrice: Number(item.unit_price),
+      costPrice: Number(item.cost),
+      totalCost: money(Number(item.cost) * Number(item.quantity)),
       discountPercent: Number(item.discount_percent),
       discountAmount: Number(item.discount_amount),
       lineTotal: Number(item.line_total)
@@ -405,11 +412,13 @@ async function createDraft(user, input) {
     }
     seenProducts.add(item.productId);
     const quantity = Number(item.quantity);
+    const unitPrice = item.unitPrice === undefined ? null : Number(item.unitPrice);
     const discountPercent = Number(item.discountPercent || 0);
     if (!Number.isInteger(quantity) || quantity <= 0) throw quotationError("Quantity must be a positive whole number.");
     if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
       throw quotationError("Discount must be between 0 and 100 percent.");
     }
+    if (unitPrice !== null && (!Number.isFinite(unitPrice) || unitPrice < 0)) throw quotationError("Selling price cannot be negative.");
     productIds.push(item.productId);
   }
 
@@ -424,7 +433,7 @@ async function createDraft(user, input) {
     if (customerResult.rows.length === 0) throw quotationError("Selected customer is not available.", 404);
 
     const productsResult = await client.query(
-      `SELECT id, name, sku, category, unit_price
+      `SELECT id, name, sku, category, unit_price, cost
        FROM public.products WHERE id = ANY($1::uuid[]) AND is_active = TRUE`,
       [productIds]
     );
@@ -435,19 +444,26 @@ async function createDraft(user, input) {
     let discountAmount = 0;
     const calculatedItems = items.map((item) => {
       const product = productsById.get(item.productId);
+      const costPrice = Number(product.cost);
+      if (!Number.isFinite(costPrice) || costPrice < 0) {
+        throw quotationError(`Product ${product.name} has an invalid cost price.`);
+      }
       const quantity = Number(item.quantity);
       const discountPercent = Number(item.discountPercent || 0);
-      const unitPrice = Number(product.unit_price);
+      const unitPrice = item.unitPrice === undefined ? Number(product.unit_price) : Number(item.unitPrice);
       const lineSubtotal = money(unitPrice * quantity);
       const lineDiscount = money(lineSubtotal * discountPercent / 100);
       const lineTotal = money(lineSubtotal - lineDiscount);
       subtotal += lineSubtotal;
       discountAmount += lineDiscount;
-      return { product, quantity, unitPrice, discountPercent, lineDiscount, lineTotal };
+      return { product, quantity, unitPrice, costPrice, discountPercent, lineDiscount, lineTotal };
     });
     subtotal = money(subtotal);
     discountAmount = money(discountAmount);
     const finalAmount = money(subtotal - discountAmount);
+    const totalCost = money(calculatedItems.reduce((sum, item) => sum + item.costPrice * item.quantity, 0));
+    const grossMargin = money(finalAmount - totalCost);
+    const marginPercentage = finalAmount === 0 ? 0 : money((grossMargin / finalAmount) * 100);
 
     const numberResult = await client.query(
       `SELECT COUNT(*)::int + 1 AS next_number
@@ -457,10 +473,10 @@ async function createDraft(user, input) {
 
     const quotationResult = await client.query(
       `INSERT INTO public.quotations
-       (quotation_number, customer_id, sales_rep_id, status, subtotal, discount_amount, final_amount)
-       VALUES ($1, $2, $3, 'DRAFT', $4, $5, $6)
+      (quotation_number, customer_id, sales_rep_id, status, subtotal, discount_amount, final_amount, total_cost, gross_margin, margin_percentage)
+      VALUES ($1, $2, $3, 'DRAFT', $4, $5, $6, $7, $8, $9)
        RETURNING id`,
-      [quotationNumber, customerId, user.id, subtotal, discountAmount, finalAmount]
+      [quotationNumber, customerId, user.id, subtotal, discountAmount, finalAmount, totalCost, grossMargin, marginPercentage]
     );
     const quotationId = quotationResult.rows[0].id;
 

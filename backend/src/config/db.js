@@ -104,6 +104,9 @@ async function initDatabase() {
         subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
         discount_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
         final_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        total_cost NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (total_cost >= 0),
+        gross_margin NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        margin_percentage NUMERIC(7, 2) NOT NULL DEFAULT 0 CHECK (margin_percentage >= -100 AND margin_percentage <= 100),
         risk_score NUMERIC(6, 3),
         risk_level VARCHAR(20),
         approval_route VARCHAR(40),
@@ -117,6 +120,9 @@ async function initDatabase() {
 
     await client.query(`
       ALTER TABLE public.quotations
+      ADD COLUMN IF NOT EXISTS total_cost NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS gross_margin NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS margin_percentage NUMERIC(7, 2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS risk_score NUMERIC(6, 3),
       ADD COLUMN IF NOT EXISTS risk_level VARCHAR(20),
       ADD COLUMN IF NOT EXISTS approval_route VARCHAR(40),
@@ -141,6 +147,26 @@ async function initDatabase() {
     await client.query(`
       ALTER TABLE public.quotations
       ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
+    `);
+
+    await client.query(`
+      UPDATE public.quotations q
+      SET total_cost = totals.total_cost,
+          gross_margin = q.final_amount - totals.total_cost,
+          margin_percentage = CASE
+            WHEN q.final_amount = 0 THEN 0
+            ELSE ROUND(((q.final_amount - totals.total_cost) / q.final_amount) * 100, 2)
+          END
+      FROM (
+        SELECT qi.quotation_id, COALESCE(SUM(p.cost * qi.quantity), 0) AS total_cost
+        FROM public.quotation_items qi
+        JOIN public.products p ON p.id = qi.product_id
+        GROUP BY qi.quotation_id
+      ) totals
+      WHERE q.id = totals.quotation_id
+        AND q.total_cost = 0
+        AND q.gross_margin = 0
+        AND q.margin_percentage = 0
     `);
 
     await client.query(`

@@ -219,6 +219,7 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
         }}
       >
         <div
+          className="pricing-margin-card"
           style={{
             display: "flex",
             alignItems: "center",
@@ -249,6 +250,9 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
             <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Final Price:</span>
             <strong style={{ color: "#2563eb", fontSize: "1.15rem", fontWeight: 800 }}>{currency(quotation.finalAmount)}</strong>
           </div>
+          <div className="margin-summary-row"><span>Total Product Cost</span><strong>{currency(quotation.totalCost)}</strong></div>
+          <div className="margin-summary-row"><span>Gross Margin</span><strong>{currency(quotation.grossMargin)}</strong></div>
+          <div className="margin-summary-row"><span>Margin %</span><strong>{Number(quotation.marginPercentage || 0).toFixed(2)}%</strong></div>
         </div>
       </div>
     </main>
