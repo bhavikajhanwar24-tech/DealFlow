@@ -8,6 +8,7 @@ import AdminApprovals from "./pages/AdminApprovals";
 import AdminStaff from "./pages/AdminStaff";
 import ProductManagement from "./pages/ProductManagement";
 import AdminWarehouses from "./pages/AdminWarehouses";
+import DiscountPolicies from "./pages/DiscountPolicies";
 import SalesDashboard from "./pages/SalesDashboard";
 import Quotations from "./pages/Quotations";
 import CreateQuotation from "./pages/CreateQuotation";
@@ -168,6 +169,13 @@ function AppContent() {
       return <AdminWarehouses />;
     }
 
+    if (currentRoute === "/admin/discount-policies") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <DiscountPolicies />;
+    }
+
     // 2. Sales Routes
     if (currentRoute.startsWith("/sales/quotations/")) {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
@@ -238,6 +246,7 @@ function AppContent() {
     currentRoute === "/admin/staff" ||
     currentRoute === "/admin/products" ||
     currentRoute === "/admin/warehouses" ||
+    currentRoute === "/admin/discount-policies" ||
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||
     currentRoute.startsWith("/sales/quotations") ||

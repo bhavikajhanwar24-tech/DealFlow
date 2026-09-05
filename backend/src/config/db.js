@@ -153,6 +153,24 @@ async function initDatabase() {
     `);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS public.discount_policies (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        customer_tier VARCHAR(20) NOT NULL CHECK (customer_tier IN ('BRONZE', 'SILVER', 'GOLD')),
+        product_category VARCHAR(30) NOT NULL CHECK (product_category IN ('HARDWARE', 'SERVICE', 'SUBSCRIPTION', 'ELECTRONICS', 'FURNITURE', 'SOFTWARE', 'SERVICES', 'OTHER')),
+        max_discount NUMERIC(5, 2) NOT NULL CHECK (max_discount >= 0 AND max_discount <= 100),
+        status VARCHAR(10) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE')),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT discount_policies_tier_category_unique UNIQUE (customer_tier, product_category)
+      );
+    `);
+
+    await client.query(`
+      ALTER TABLE public.discount_policies
+      DROP CONSTRAINT IF EXISTS discount_policies_product_category_check
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS public.warehouse_inventory (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         warehouse_id UUID NOT NULL REFERENCES public.warehouses(id) ON DELETE CASCADE,
@@ -179,8 +197,25 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_negotiation_requests_quotation ON public.negotiation_requests(quotation_id);
       CREATE INDEX IF NOT EXISTS idx_negotiation_requests_customer ON public.negotiation_requests(customer_id);
       CREATE INDEX IF NOT EXISTS idx_warehouses_active ON public.warehouses(is_active);
+      CREATE INDEX IF NOT EXISTS idx_discount_policies_lookup ON public.discount_policies(customer_tier, product_category, status);
       CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_warehouse ON public.warehouse_inventory(warehouse_id);
       CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_product ON public.warehouse_inventory(product_id);
+    `);
+
+    await client.query(`
+      INSERT INTO public.discount_policies (customer_tier, product_category, max_discount)
+      SELECT tier, category, CASE
+        WHEN tier = 'BRONZE' AND category = 'FURNITURE' THEN 8
+        WHEN tier = 'SILVER' AND category = 'FURNITURE' THEN 12
+        WHEN tier = 'GOLD' AND category IN ('SUBSCRIPTION', 'SOFTWARE') THEN 20
+        WHEN tier = 'GOLD' AND category = 'FURNITURE' THEN 18
+        WHEN tier = 'GOLD' THEN 15
+        WHEN tier = 'SILVER' THEN 10
+        ELSE 5
+      END
+      FROM (VALUES ('BRONZE'), ('SILVER'), ('GOLD')) AS tiers(tier)
+      CROSS JOIN (VALUES ('HARDWARE'), ('SERVICE'), ('SUBSCRIPTION'), ('ELECTRONICS'), ('FURNITURE'), ('SOFTWARE'), ('SERVICES'), ('OTHER')) AS categories(category)
+      ON CONFLICT (customer_tier, product_category) DO NOTHING;
     `);
 
     await client.query(`

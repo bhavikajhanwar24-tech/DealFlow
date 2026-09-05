@@ -384,6 +384,69 @@ async function updateWarehouse(warehouseId, data, adminUserId, ipAddress) {
   return warehouse;
 }
 
+function mapDiscountPolicy(row) {
+  return {
+    id: row.id,
+    customerTier: row.customer_tier,
+    productCategory: row.product_category,
+    maxDiscount: Number(row.max_discount),
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+async function getDiscountPolicies() {
+  const result = await db.query(`
+    SELECT id, customer_tier, product_category, max_discount, status, created_at, updated_at
+    FROM public.discount_policies
+    ORDER BY CASE customer_tier WHEN 'BRONZE' THEN 1 WHEN 'SILVER' THEN 2 WHEN 'GOLD' THEN 3 END,
+             product_category
+  `);
+  return result.rows.map(mapDiscountPolicy);
+}
+
+async function createDiscountPolicy(data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    INSERT INTO public.discount_policies (customer_tier, product_category, max_discount, status)
+    VALUES ($1, $2, $3, $4)
+    RETURNING id, customer_tier, product_category, max_discount, status, created_at, updated_at
+  `, [
+    data.customerTier.toUpperCase(), data.productCategory.trim().toUpperCase(), Number(data.maxDiscount),
+    String(data.status || "ACTIVE").toUpperCase()
+  ]);
+  const policy = mapDiscountPolicy(result.rows[0]);
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "DISCOUNT_POLICY_CREATED", JSON.stringify({ policyId: policy.id, customerTier: policy.customerTier, productCategory: policy.productCategory }), ipAddress || null]
+  );
+  return policy;
+}
+
+async function updateDiscountPolicy(policyId, data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    UPDATE public.discount_policies
+    SET customer_tier = $1, product_category = $2, max_discount = $3, status = $4,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $5
+    RETURNING id, customer_tier, product_category, max_discount, status, created_at, updated_at
+  `, [
+    data.customerTier.toUpperCase(), data.productCategory.trim().toUpperCase(), Number(data.maxDiscount),
+    String(data.status || "ACTIVE").toUpperCase(), policyId
+  ]);
+  if (result.rows.length === 0) {
+    const error = new Error("Discount policy not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+  const policy = mapDiscountPolicy(result.rows[0]);
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)`,
+    [adminUserId, "DISCOUNT_POLICY_UPDATED", JSON.stringify({ policyId: policy.id, customerTier: policy.customerTier, productCategory: policy.productCategory, status: policy.status }), ipAddress || null]
+  );
+  return policy;
+}
+
 async function getWarehouseInventory(warehouseId) {
   const result = await db.query(`
     SELECT wi.id, wi.warehouse_id, wi.product_id, wi.quantity,
@@ -507,6 +570,9 @@ module.exports = {
   getWarehouses,
   createWarehouse,
   updateWarehouse,
+  getDiscountPolicies,
+  createDiscountPolicy,
+  updateDiscountPolicy,
   getWarehouseInventory,
   upsertWarehouseInventory,
   removeWarehouseInventory,

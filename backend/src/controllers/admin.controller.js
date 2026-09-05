@@ -164,6 +164,41 @@ async function updateWarehouse(req, res) {
   }
 }
 
+async function getDiscountPolicies(req, res) {
+  try {
+    const policies = await adminService.getDiscountPolicies();
+    return res.status(200).json({ success: true, count: policies.length, data: policies });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to retrieve discount policies." });
+  }
+}
+
+async function createDiscountPolicy(req, res) {
+  try {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const policy = await adminService.createDiscountPolicy(req.body, req.user.id, ip);
+    return res.status(201).json({ success: true, message: "Discount rule added successfully.", data: policy });
+  } catch (error) {
+    const duplicate = error.code === "23505";
+    return res.status(duplicate ? 409 : error.statusCode || 500).json({ success: false, message: duplicate ? "A rule already exists for this customer tier and product category." : error.message || "Failed to create discount policy." });
+  }
+}
+
+async function updateDiscountPolicy(req, res) {
+  try {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const policy = await adminService.updateDiscountPolicy(req.params.id, req.body, req.user.id, ip);
+    const isStatusChange = String(req.body.status || "").toUpperCase() === "INACTIVE" || String(req.body.status || "").toUpperCase() === "ACTIVE";
+    const message = isStatusChange
+      ? `Discount rule ${policy.status === "ACTIVE" ? "enabled" : "disabled"} successfully.`
+      : "Discount ceiling updated successfully.";
+    return res.status(200).json({ success: true, message, data: policy });
+  } catch (error) {
+    const duplicate = error.code === "23505";
+    return res.status(duplicate ? 409 : error.statusCode || 500).json({ success: false, message: duplicate ? "A rule already exists for this customer tier and product category." : error.message || "Failed to update discount policy." });
+  }
+}
+
 async function getWarehouseInventory(req, res) {
   try {
     const inventory = await adminService.getWarehouseInventory(req.params.id);
@@ -216,6 +251,9 @@ module.exports = {
   getWarehouses,
   createWarehouse,
   updateWarehouse,
+  getDiscountPolicies,
+  createDiscountPolicy,
+  updateDiscountPolicy,
   getWarehouseInventory,
   upsertWarehouseInventory,
   removeWarehouseInventory,

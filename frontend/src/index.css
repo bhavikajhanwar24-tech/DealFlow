@@ -1170,6 +1170,106 @@ a {
   font-size: 0.875rem;
 }
 
+.discount-policy-actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.discount-policy-panel {
+  overflow: hidden;
+}
+
+.discount-policy-panel .panel-heading-spread > div:first-child {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.discount-table-wrap {
+  overflow-x: auto;
+  padding: 0 1.35rem 1.35rem;
+}
+
+.discount-policy-table {
+  min-width: 960px;
+}
+
+.discount-policy-table th,
+.discount-policy-table td {
+  text-align: center;
+  padding: 0.8rem 0.55rem;
+}
+
+.discount-policy-table th:first-child,
+.discount-policy-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #ffffff;
+  text-align: left;
+}
+
+.discount-cell {
+  display: inline-flex;
+  min-width: 74px;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--primary);
+}
+
+.discount-cell-group {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.discount-toggle {
+  color: var(--primary);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.discount-toggle:hover {
+  text-decoration: underline;
+}
+
+.discount-cell:hover {
+  border-color: var(--primary-subtle);
+  background: var(--primary-light);
+}
+
+.discount-cell small {
+  color: var(--success);
+  font-size: 0.6rem;
+  font-weight: 800;
+}
+
+.discount-cell.inactive {
+  color: var(--text-muted);
+  background: #f8fafc;
+}
+
+.discount-cell.inactive small {
+  color: var(--text-muted);
+}
+
+.discount-cell.missing {
+  flex-direction: row;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.discount-policy-modal {
+  max-width: 480px;
+}
+
 .warehouse-layout {
   display: grid;
   grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.4fr);
@@ -1458,6 +1558,10 @@ a {
 
   .product-search {
     min-width: 0;
+    width: 100%;
+  }
+
+  .discount-policy-actions {
     width: 100%;
   }
 
