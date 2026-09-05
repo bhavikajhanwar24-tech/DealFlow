@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 
 // Inline SVG Icon components for React 19 stability
@@ -61,6 +62,14 @@ const PackageIcon = ({ size = 16 }) => (
   </svg>
 );
 
+const PercentIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="19" y1="5" x2="5" y2="19" />
+    <circle cx="6.5" cy="6.5" r="2.5" />
+    <circle cx="17.5" cy="17.5" r="2.5" />
+  </svg>
+);
+
 const DollarSignIcon = ({ size = 16 }) => (
   <svg
     width={size}
@@ -114,6 +123,12 @@ const FileTextIcon = ({ size = 16 }) => (
   </svg>
 );
 
+const MessageSquareIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
 const LogOutIcon = ({ size = 15 }) => (
   <svg
     width={size}
@@ -133,6 +148,18 @@ const LogOutIcon = ({ size = 15 }) => (
 
 export default function Navbar({ currentRoute, setCurrentRoute }) {
   const { user, logout } = useAuth();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   if (!user) return null;
 
@@ -201,16 +228,32 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
             >
               <TruckIcon size={16} /> Warehouses
             </button>
+            <button
+              className={`nav-link-btn ${currentRoute === "/admin/discount-policies" ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/admin/discount-policies")}
+            >
+              <PercentIcon size={16} /> Discount Policies
+            </button>
           </>
         )}
 
-        {isSales && (
-          <button
-            className={`nav-link-btn ${currentRoute === "/sales/dashboard" ? "active" : ""}`}
-            onClick={() => setCurrentRoute("/sales/dashboard")}
-          >
-            <BriefcaseIcon size={16} /> Sales Dashboard
-          </button>
+        {(isSales || isAdmin) && (
+          <>
+            {isSales && (
+              <button
+                className={`nav-link-btn ${currentRoute === "/sales/dashboard" ? "active" : ""}`}
+                onClick={() => setCurrentRoute("/sales/dashboard")}
+              >
+                <BriefcaseIcon size={16} /> Sales Dashboard
+              </button>
+            )}
+            <button
+              className={`nav-link-btn ${currentRoute.includes("messages") ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/sales/messages")}
+            >
+              <MessageSquareIcon size={16} /> Messages
+            </button>
+          </>
         )}
 
         {isFinance && (
@@ -240,65 +283,88 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               <FileTextIcon size={16} /> My Quotations
             </button>
             <button
-              className="nav-link-btn"
-              onClick={() => window.alert("Messages will be available soon.")}
+              className={`nav-link-btn ${currentRoute.includes("messages") ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/customer/messages")}
             >
-              <FileTextIcon size={16} /> Messages
-            </button>
-            <button
-              className="nav-link-btn"
-              onClick={() =>
-                window.alert("Profile settings will be available soon.")
-              }
-            >
-              <UserCheckIcon size={16} /> Profile
+              <MessageSquareIcon size={16} /> Messages
             </button>
           </>
         )}
       </nav>
 
-      <div className="topbar-user">
-        <div className="user-meta">
-          <div className="user-name">{user.full_name}</div>
-          <div className="user-sub">
-            <span
-              className={`badge ${
-                user.role === "ADMIN"
-                  ? "badge-pending"
-                  : user.role === "CUSTOMER"
-                    ? "badge-active"
-                    : "badge-suspended"
-              }`}
-              style={{ fontSize: "0.6875rem", padding: "0.15rem 0.5rem" }}
-            >
-              {user.role}
-            </span>
-            {user.employee_id && (
-              <span style={{ marginLeft: "6px", color: "#64748b" }}>
-                {user.employee_id}
-              </span>
-            )}
-            {user.company_name && (
-              <span style={{ marginLeft: "6px", color: "#64748b" }}>
-                {user.company_name}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="user-avatar" title={user.full_name}>
-          {user.full_name ? user.full_name.charAt(0).toUpperCase() : "U"}
-        </div>
-
+      <div className="topbar-user-container" ref={dropdownRef}>
         <button
-          className="btn-secondary"
-          style={{ padding: "0.45rem 0.75rem", fontSize: "0.8125rem" }}
-          onClick={logout}
-          title="Sign Out"
+          className="user-avatar-btn"
+          onClick={() => setIsMenuOpen((prev) => !prev)}
+          aria-label="User Profile"
+          title={user.full_name}
         >
-          <LogOutIcon size={15} /> Logout
+          <div className="user-avatar">
+            {user.full_name ? user.full_name.charAt(0).toUpperCase() : "U"}
+          </div>
         </button>
+
+        {isMenuOpen && (
+          <div className="user-dropdown-menu">
+            <div className="dropdown-header">
+              <div className="dropdown-avatar">
+                {user.full_name ? user.full_name.charAt(0).toUpperCase() : "U"}
+              </div>
+              <div className="dropdown-user-details">
+                <div className="dropdown-name">{user.full_name}</div>
+                {user.email && <div className="dropdown-email">{user.email}</div>}
+              </div>
+            </div>
+
+            <div className="dropdown-divider" />
+
+            <div className="dropdown-info-list">
+              <div className="dropdown-info-item">
+                <span className="info-label">Role</span>
+                <span
+                  className={`badge ${
+                    user.role === "ADMIN"
+                      ? "badge-pending"
+                      : user.role === "CUSTOMER"
+                        ? "badge-active"
+                        : "badge-suspended"
+                  }`}
+                  style={{ fontSize: "0.6875rem", padding: "0.15rem 0.5rem" }}
+                >
+                  {user.role}
+                </span>
+              </div>
+
+              {(user.employee_id || user.id) && (
+                <div className="dropdown-info-item">
+                  <span className="info-label">User ID</span>
+                  <span className="info-value">{user.employee_id || user.id}</span>
+                </div>
+              )}
+
+              {user.company_name && (
+                <div className="dropdown-info-item">
+                  <span className="info-label">Company</span>
+                  <span className="info-value">{user.company_name}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="dropdown-divider" />
+
+            <button
+              className="dropdown-logout-btn"
+              onClick={() => {
+                setIsMenuOpen(false);
+                logout();
+              }}
+            >
+              <LogOutIcon size={16} /> Sign Out
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );
 }
+

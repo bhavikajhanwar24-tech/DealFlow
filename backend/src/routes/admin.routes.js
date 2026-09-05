@@ -10,6 +10,8 @@ const {
   validateStaffUpdate,
   validateProduct,
   validateWarehouse,
+  validateDiscountPolicy
+  ,
   validateWarehouseInventory
 } = require("../validators/auth.validator");
 
@@ -35,6 +37,9 @@ router.put("/products/:id", validateProduct, adminController.updateProduct);
 router.get("/warehouses", adminController.getWarehouses);
 router.post("/warehouses", validateWarehouse, adminController.createWarehouse);
 router.put("/warehouses/:id", validateWarehouse, adminController.updateWarehouse);
+router.get("/discount-policies", adminController.getDiscountPolicies);
+router.post("/discount-policies", validateDiscountPolicy, adminController.createDiscountPolicy);
+router.put("/discount-policies/:id", validateDiscountPolicy, adminController.updateDiscountPolicy);
 router.get("/warehouses/analytics", adminController.getWarehouseAnalytics);
 router.get("/warehouses/:id/inventory", adminController.getWarehouseInventory);
 router.put("/warehouses/:id/inventory", validateWarehouseInventory, adminController.upsertWarehouseInventory);

@@ -8,6 +8,7 @@ import AdminApprovals from "./pages/AdminApprovals";
 import AdminStaff from "./pages/AdminStaff";
 import ProductManagement from "./pages/ProductManagement";
 import AdminWarehouses from "./pages/AdminWarehouses";
+import DiscountPolicies from "./pages/DiscountPolicies";
 import SalesDashboard from "./pages/SalesDashboard";
 import Quotations from "./pages/Quotations";
 import CreateQuotation from "./pages/CreateQuotation";
@@ -15,6 +16,7 @@ import QuotationDetail from "./pages/QuotationDetail";
 import FinanceDashboard from "./pages/FinanceDashboard";
 import OperationsDashboard from "./pages/OperationsDashboard";
 import CustomerPortal from "./pages/CustomerPortal";
+import QuotationMessages from "./pages/QuotationMessages";
 import AccessDenied from "./pages/AccessDenied";
 import "./App.css";
 
@@ -168,6 +170,13 @@ function AppContent() {
       return <AdminWarehouses />;
     }
 
+    if (currentRoute === "/admin/discount-policies") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <DiscountPolicies />;
+    }
+
     // 2. Sales Routes
     if (currentRoute.startsWith("/sales/quotations/")) {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
@@ -228,6 +237,15 @@ function AppContent() {
       return <CustomerPortal />;
     }
 
+    // 6. Messages Routes (Shared Chat view for Sales & Customer)
+    if (
+      currentRoute === "/messages" ||
+      currentRoute === "/sales/messages" ||
+      currentRoute === "/customer/messages"
+    ) {
+      return <QuotationMessages onNavigate={navigate} />;
+    }
+
     // Default Fallback
     return <AccessDenied onNavigate={navigate} />;
   };
@@ -238,12 +256,21 @@ function AppContent() {
     currentRoute === "/admin/staff" ||
     currentRoute === "/admin/products" ||
     currentRoute === "/admin/warehouses" ||
+    currentRoute === "/admin/discount-policies" ||
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||
     currentRoute.startsWith("/sales/quotations") ||
-    currentRoute === "/customer/portal";
+    currentRoute.startsWith("/customer") ||
+    currentRoute.includes("messages");
+
+  const isSalesRoute =
+    currentRoute.startsWith("/sales") ||
+    currentRoute === "/approvals" ||
+    currentRoute.startsWith("/customer") ||
+    currentRoute.includes("messages");
+
   return (
-    <div className="app-layout">
+    <div className={`app-layout ${isSalesRoute ? "sales-bg-active" : ""}`}>
       {showNavbar && (
         <Navbar currentRoute={currentRoute} setCurrentRoute={navigate} />
       )}

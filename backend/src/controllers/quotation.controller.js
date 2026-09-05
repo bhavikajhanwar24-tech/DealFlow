@@ -46,7 +46,7 @@ async function createQuotation(req, res) {
     return res.status(201).json({
       success: true,
       message: `Quotation ${quotation.quotationNumber} created successfully.`,
-      data: quotation
+      data: quotation,
     });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ success: false, message: error.message });
@@ -66,6 +66,33 @@ async function submitQuotation(req, res) {
   }
 }
 
+async function listCustomerRequests(req, res) {
+  try {
+    return res.json({
+      success: true,
+      data: await quotationService.listPendingCustomerQuoteRequests(req.user),
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+}
+
+async function convertCustomerRequest(req, res) {
+  try {
+    const quotation = await quotationService.convertCustomerQuoteRequest(
+      req.params.requestId,
+      req.user,
+    );
+    return res.status(201).json({
+      success: true,
+      message: `Quotation ${quotation.quotationNumber} created from the customer request.`,
+      data: quotation,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+}
+
 module.exports = {
   getCustomers,
   getProducts,
@@ -73,5 +100,7 @@ module.exports = {
   listQuotations,
   getQuotation,
   createQuotation,
-  submitQuotation
+  submitQuotation,
+  listCustomerRequests,
+  convertCustomerRequest,
 };

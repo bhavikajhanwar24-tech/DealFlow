@@ -7,10 +7,12 @@ const currency = (value) =>
   `₹${Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function Quotations({ onNavigate }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [customerRequests, setCustomerRequests] = useState([]);
+  const [requestActionLoading, setRequestActionLoading] = useState(null);
 
   async function loadQuotations() {
     setLoading(true);
@@ -32,7 +34,46 @@ export default function Quotations({ onNavigate }) {
 
   useEffect(() => {
     loadQuotations();
+    if (["SALES_REP", "SALES_MANAGER", "ADMIN"].includes(user?.role)) {
+      loadCustomerRequests();
+    }
   }, [token]);
+
+  async function loadCustomerRequests() {
+    try {
+      const response = await fetch(`${API_BASE}/quotations/customer-requests`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (response.ok) setCustomerRequests(data.data || []);
+    } catch {
+      // The quotation list remains usable if the optional request queue fails.
+    }
+  }
+
+  async function convertRequest(requestId) {
+    setRequestActionLoading(requestId);
+    setError("");
+    try {
+      const response = await fetch(
+        `${API_BASE}/quotations/customer-requests/${requestId}/convert`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+      );
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(
+          data.message || "Unable to create quotation from request.",
+        );
+      setCustomerRequests((current) =>
+        current.filter((request) => request.id !== requestId),
+      );
+      setQuotations((current) => [data.data, ...current]);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setRequestActionLoading(null);
+    }
+  }
 
   return (
     <main className="main-content">
@@ -91,6 +132,86 @@ export default function Quotations({ onNavigate }) {
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}
+      {customerRequests.length > 0 && (
+        <section
+          style={{
+            background: "#fff",
+            border: "1px solid #bfdbfe",
+            borderRadius: "16px",
+            padding: "1.25rem 1.5rem",
+            marginBottom: "1.25rem",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: "1.1rem",
+              fontWeight: 800,
+              marginBottom: "0.75rem",
+            }}
+          >
+            Customer Quotation Requests
+          </h2>
+          {customerRequests.map((request) => (
+            <div
+              key={request.id}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "1rem",
+                flexWrap: "wrap",
+                padding: "0.85rem 0",
+                borderBottom: "1px solid #eef2f7",
+              }}
+            >
+              <div>
+                <strong>{request.company_name || request.customer_name}</strong>
+                <div
+                  style={{
+                    color: "#64748b",
+                    fontSize: "0.8rem",
+                    marginTop: "0.25rem",
+                  }}
+                >
+                  {request.items
+                    .map((item) => `${item.name} × ${item.quantity}`)
+                    .join(", ")}
+                  {request.requested_delivery_date &&
+                    ` · Delivery by ${request.requested_delivery_date}`}
+                </div>
+                {request.customer_comment && (
+                  <div
+                    style={{
+                      color: "#475569",
+                      fontSize: "0.8rem",
+                      marginTop: "0.25rem",
+                    }}
+                  >
+                    “{request.customer_comment}”
+                  </div>
+                )}
+              </div>
+              {user?.role === "SALES_REP" ||
+              user?.role === "SALES_MANAGER" ||
+              user?.role === "ADMIN" ? (
+                <button
+                  className="btn-primary"
+                  style={{ width: "auto" }}
+                  onClick={() => convertRequest(request.id)}
+                  disabled={requestActionLoading === request.id}
+                >
+                  {requestActionLoading === request.id
+                    ? "Creating..."
+                    : "Create Quotation"}
+                </button>
+              ) : (
+                <span className="badge badge-pending">Ready for review</span>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
       <div className="data-table-card">
         <div style={{ overflowX: "auto" }}>
           <table className="data-table">
@@ -160,9 +281,29 @@ export default function Quotations({ onNavigate }) {
                       {currency(quotation.finalAmount)}
                     </td>
                     <td>
-                      <span className="badge badge-active">
-                        {quotation.status}
-                      </span>
+                      <div>
+                        <span
+                          className={`badge ${quotation.status === "REJECTED" ? "badge-rejected" : "badge-active"}`}
+                        >
+                          {quotation.status}
+                        </span>
+                        {quotation.customerRequest && (
+                          <div
+                            style={{
+                              color: "#b45309",
+                              fontSize: "0.72rem",
+                              marginTop: "0.35rem",
+                              maxWidth: "180px",
+                            }}
+                          >
+                            Customer response:{" "}
+                            {quotation.customerRequest.status}
+                            {quotation.customerRequest
+                              .requestedDiscountPercent !== null &&
+                              ` · ${quotation.customerRequest.requestedDiscountPercent}% requested`}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td style={{ color: "#64748b" }}>
                       {new Date(quotation.createdAt).toLocaleDateString(

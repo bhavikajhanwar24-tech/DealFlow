@@ -129,6 +129,20 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
           {quotation.salesRep?.fullName}
         </div>
       </section>
+      {quotation.customerRequest && (
+        <div
+          className="alert alert-warning"
+          style={{ marginBottom: "1.25rem" }}
+        >
+          Customer response: {quotation.customerRequest.status}
+          {quotation.customerRequest.requestedDiscountPercent !== null &&
+            ` · Requested discount: ${quotation.customerRequest.requestedDiscountPercent}%`}
+          {quotation.customerRequest.requestedDeliveryDate &&
+            ` · Requested delivery: ${quotation.customerRequest.requestedDeliveryDate}`}
+          {quotation.customerRequest.customerComment &&
+            ` · ${quotation.customerRequest.customerComment}`}
+        </div>
+      )}
       <div className="data-table-card">
         <div style={{ overflowX: "auto" }}>
           <table className="data-table">
@@ -206,49 +220,34 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
       >
         <div
           style={{
-            minWidth: "280px",
+            display: "flex",
+            alignItems: "center",
+            gap: "1.25rem",
+            flexWrap: "wrap",
             background: "#fff",
             border: "1px solid var(--border-light)",
-            borderRadius: "16px",
-            padding: "1.25rem",
+            borderRadius: "14px",
+            padding: "0.85rem 1.25rem",
             boxShadow: "var(--shadow-sm)",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              color: "#64748b",
-              marginBottom: "0.65rem",
-            }}
-          >
-            <span>Subtotal</span>
-            <strong>{currency(quotation.subtotal)}</strong>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Subtotal:</span>
+            <strong style={{ color: "#0f172a", fontSize: "0.95rem" }}>{currency(quotation.subtotal)}</strong>
           </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              color: "#ef4444",
-              marginBottom: "0.65rem",
-            }}
-          >
-            <span>Discount Total</span>
-            <strong>-{currency(quotation.discountAmount)}</strong>
+
+          <span style={{ color: "#cbd5e1" }}>•</span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Discount:</span>
+            <strong style={{ color: "#ef4444", fontSize: "0.95rem" }}>-{currency(quotation.discountAmount)}</strong>
           </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              color: "#0f172a",
-              fontSize: "1.15rem",
-              fontWeight: 800,
-              borderTop: "1px solid #e2e8f0",
-              paddingTop: "0.75rem",
-            }}
-          >
-            <span>Final Price</span>
-            <strong>{currency(quotation.finalAmount)}</strong>
+
+          <span style={{ color: "#cbd5e1" }}>•</span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Final Price:</span>
+            <strong style={{ color: "#2563eb", fontSize: "1.15rem", fontWeight: 800 }}>{currency(quotation.finalAmount)}</strong>
           </div>
         </div>
       </div>
