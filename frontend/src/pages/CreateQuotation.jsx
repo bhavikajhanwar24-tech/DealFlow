@@ -449,57 +449,45 @@ export default function CreateQuotation({ onNavigate }) {
         <div
           style={{
             display: "flex",
-            justifyContent: "flex-end",
+            justifyContent: "space-between",
+            alignItems: "center",
             gap: "1.25rem",
-            alignItems: "flex-start",
             flexWrap: "wrap",
+            marginTop: "1.5rem",
           }}
         >
           <div
             style={{
-              minWidth: "280px",
+              display: "flex",
+              alignItems: "center",
+              gap: "1.25rem",
+              flexWrap: "wrap",
               background: "#fff",
               border: "1px solid var(--border-light)",
-              borderRadius: "16px",
-              padding: "1.25rem",
+              borderRadius: "14px",
+              padding: "0.85rem 1.25rem",
               boxShadow: "var(--shadow-sm)",
+              flex: "1",
+              minWidth: "300px",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                color: "#64748b",
-                marginBottom: "0.65rem",
-              }}
-            >
-              <span>Subtotal</span>
-              <strong>{currency(totals.subtotal)}</strong>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Subtotal:</span>
+              <strong style={{ color: "#0f172a", fontSize: "0.95rem" }}>{currency(totals.subtotal)}</strong>
             </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                color: "#ef4444",
-                marginBottom: "0.65rem",
-              }}
-            >
-              <span>Discount</span>
-              <strong>-{currency(totals.discount)}</strong>
+
+            <span style={{ color: "#cbd5e1" }}>•</span>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Discount:</span>
+              <strong style={{ color: "#ef4444", fontSize: "0.95rem" }}>-{currency(totals.discount)}</strong>
             </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                color: "#0f172a",
-                fontSize: "1.15rem",
-                fontWeight: 800,
-                borderTop: "1px solid #e2e8f0",
-                paddingTop: "0.75rem",
-              }}
-            >
-              <span>Final Price</span>
-              <strong>{currency(totals.subtotal - totals.discount)}</strong>
+
+            <span style={{ color: "#cbd5e1" }}>•</span>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Final Price:</span>
+              <strong style={{ color: "#2563eb", fontSize: "1.15rem", fontWeight: 800 }}>{currency(totals.subtotal - totals.discount)}</strong>
             </div>
           </div>
           <div style={{ display: "flex", gap: "0.75rem" }}>
