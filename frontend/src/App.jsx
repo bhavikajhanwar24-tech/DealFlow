@@ -117,7 +117,7 @@ function AppContent() {
   // Keep the public cinematic landing page at the root route.
   if (!user || user.status !== "ACTIVE") {
     if (currentRoute === "/") {
-      return <ScrollVideoHero />;
+      return <ScrollVideoHero onNavigate={navigate} />;
     }
 
     return (
