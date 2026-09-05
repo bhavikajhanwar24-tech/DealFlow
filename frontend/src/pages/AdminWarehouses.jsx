@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Edit3, MapPin, Package, Plus, RefreshCw, Search, Trash2, Warehouse as WarehouseIcon, X } from "lucide-react";
+import { Edit3, MapPin, Package, Plus, Search, Trash2, Warehouse as WarehouseIcon, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
   Bar,
@@ -320,9 +320,6 @@ export default function AdminWarehouses() {
           <h1>Warehouses & locations</h1>
           <p className="page-subtitle">Create warehouse locations, search their address, and place an exact map pin for fulfillment planning.</p>
         </div>
-        <button className="btn-secondary" onClick={loadWarehouses} disabled={loading}>
-          <RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh
-        </button>
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}

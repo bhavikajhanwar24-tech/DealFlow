@@ -6,7 +6,6 @@ import {
   Building2,
   ArrowRight,
   FileText,
-  RefreshCw,
   Sparkles,
   Bot,
   TrendingUp,
@@ -303,9 +302,6 @@ export default function QuotationMessages({ onNavigate }) {
             Dedicated channel messaging between Sales Rep, Admin, and Customer with real-time AI negotiation intelligence.
           </p>
         </div>
-        <button className="btn-secondary" style={{ padding: "0.45rem 0.9rem", fontSize: "0.82rem" }} onClick={() => loadQuotations(true)}>
-          <RefreshCw size={14} /> Refresh
-        </button>
       </div>
 
       {error && (

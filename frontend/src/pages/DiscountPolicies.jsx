@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit3, Percent, Plus, RefreshCw, X } from "lucide-react";
+import { Edit3, Percent, Plus, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
@@ -116,7 +116,6 @@ export default function DiscountPolicies() {
           <p className="page-subtitle">Manage maximum discount limits for customer tiers and product categories.</p>
         </div>
         <div className="discount-policy-actions">
-          <button className="btn-secondary" onClick={loadPolicies} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh</button>
           <button className="btn-primary" onClick={openAdd} disabled={loading}><Plus size={16} /> Add Discount Rule</button>
         </div>
       </div>

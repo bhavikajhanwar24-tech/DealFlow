@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Edit3, Plus, RefreshCw, ShieldCheck, UserRound, X } from "lucide-react";
+import { Edit3, Plus, ShieldCheck, UserRound, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
@@ -110,9 +110,6 @@ export default function AdminStaff() {
           <h1>Staff & credentials</h1>
           <p className="page-subtitle">Create controlled access for internal teams. Staff accounts cannot self-register.</p>
         </div>
-        <button className="btn-secondary" onClick={loadStaff} disabled={loading}>
-          <RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh
-        </button>
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}

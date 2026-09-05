@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
-  RefreshCw,
   Warehouse,
   PackageCheck,
 } from "lucide-react";
@@ -155,13 +154,6 @@ export default function Fulfillment({ onNavigate }) {
             orders.
           </p>
         </div>
-        <button
-          className="btn-secondary"
-          onClick={loadOrders}
-          disabled={loading}
-        >
-          <RefreshCw size={16} /> Refresh
-        </button>
       </div>
       {error && <div className="alert alert-danger">{error}</div>}
       {success && (

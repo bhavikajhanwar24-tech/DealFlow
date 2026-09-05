@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Clock, RefreshCw } from "lucide-react";
+import { Clock } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
@@ -45,9 +45,6 @@ export default function AdminActivityFeed() {
           <h1>Activity Feed</h1>
           <p className="page-subtitle">Real-time view of important system activities and audit events.</p>
         </div>
-        <button className="btn-secondary" onClick={loadFeed} disabled={loading}>
-          <RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh
-        </button>
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}

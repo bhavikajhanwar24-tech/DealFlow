@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Activity, RefreshCw } from "lucide-react";
+import { Activity } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
@@ -76,9 +76,6 @@ export default function AdminDealHealth() {
           <h1>Deal Health Monitor</h1>
           <p className="page-subtitle">Rule-based scoring to identify at-risk quotations and deals.</p>
         </div>
-        <button className="btn-secondary" onClick={loadHealth} disabled={loading}>
-          <RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh
-        </button>
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}

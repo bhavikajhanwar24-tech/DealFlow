@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import {
   FilePlus2,
-  RefreshCw,
   ArrowRight,
   Download,
   Printer,
@@ -251,13 +250,6 @@ export default function Quotations({ onNavigate }) {
             style={{ padding: "0.45rem 0.85rem", fontSize: "0.825rem", display: "inline-flex", gap: "0.35rem" }}
           >
             <Printer size={15} color="#2563eb" /> Print / PDF
-          </button>
-          <button
-            className="btn-secondary"
-            onClick={loadQuotations}
-            disabled={loading}
-          >
-            <RefreshCw size={15} /> Refresh
           </button>
           <button
             className="btn-primary"

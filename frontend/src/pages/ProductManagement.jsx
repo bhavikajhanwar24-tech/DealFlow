@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Edit3, Package, Plus, RefreshCw, Search, X } from "lucide-react";
+import { Eye, Edit3, Package, Plus, Search, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
@@ -146,9 +146,6 @@ export default function ProductManagement() {
             style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
           >
             <Package size={15} /> Bulk Upload (CSV/Excel)
-          </button>
-          <button className="btn-secondary" onClick={loadProducts} disabled={loading}>
-            <RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh
           </button>
         </div>
       </div>

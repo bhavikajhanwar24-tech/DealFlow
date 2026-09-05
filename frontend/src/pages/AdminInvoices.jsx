@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileText, RefreshCw, X, DollarSign, CheckCircle } from "lucide-react";
+import { FileText, X, DollarSign, CheckCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
@@ -99,9 +99,6 @@ export default function AdminInvoices() {
           <h1>Invoices & Payments</h1>
           <p className="page-subtitle">Manage generated invoices and record manual payments against them.</p>
         </div>
-        <button className="btn-secondary" onClick={loadInvoices} disabled={loading}>
-          <RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh
-        </button>
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}

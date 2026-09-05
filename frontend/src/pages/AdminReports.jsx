@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BarChart2, TrendingUp, Users, Package, ShieldCheck, RefreshCw, Sparkles, Lightbulb } from "lucide-react";
+import { BarChart2, TrendingUp, Users, Package, ShieldCheck, Sparkles, Lightbulb } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
@@ -69,9 +69,6 @@ export default function AdminReports() {
           <h1>Business Reports</h1>
           <p className="page-subtitle">Track sales performance, approvals, and product analytics over time.</p>
         </div>
-        <button className="btn-secondary" onClick={loadReports} disabled={loading}>
-          <RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh
-        </button>
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>

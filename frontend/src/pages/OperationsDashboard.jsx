@@ -864,18 +864,6 @@ export default function OperationsDashboard({ onNavigate }) {
             </div>
 
             <button
-              className="btn-secondary"
-              onClick={loadInitialData}
-              disabled={loading}
-            >
-              <RefreshCw size={15} />
-
-              {loading
-                ? "Refreshing..."
-                : "Refresh"}
-            </button>
-
-            <button
               className="btn-primary"
               style={{ width: "auto" }}
               onClick={() =>

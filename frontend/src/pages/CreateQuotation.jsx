@@ -73,7 +73,8 @@ export default function CreateQuotation({ onNavigate }) {
   );
   const finalPrice = totals.subtotal - totals.discount;
   const grossMargin = finalPrice - totals.totalCost;
-  const marginPercentage = finalPrice === 0 ? 0 : (grossMargin / finalPrice) * 100;
+  const marginPercentage =
+    finalPrice === 0 ? 0 : (grossMargin / finalPrice) * 100;
 
   function addItem() {
     const product = products.find((entry) => entry.id === productId);
@@ -161,14 +162,19 @@ export default function CreateQuotation({ onNavigate }) {
         }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Unable to save quotation.");
+      if (!response.ok)
+        throw new Error(data.message || "Unable to save quotation.");
 
-      const submitResponse = await fetch(`${API_BASE}/quotations/${data.data.id}/submit`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const submitResponse = await fetch(
+        `${API_BASE}/quotations/${data.data.id}/submit`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       const submitData = await submitResponse.json();
-      if (!submitResponse.ok) throw new Error(submitData.message || "Risk analysis failed.");
+      if (!submitResponse.ok)
+        throw new Error(submitData.message || "Risk analysis failed.");
       onNavigate(`/sales/quotations/${data.data.id}`);
     } catch (saveError) {
       setError(saveError.message);
@@ -376,109 +382,136 @@ export default function CreateQuotation({ onNavigate }) {
           </div>
         </section>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 350px", gap: "1.25rem", marginBottom: "1.25rem" }}>
-          <section
-            className="data-table-card"
-          >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 350px",
+            gap: "1.25rem",
+            marginBottom: "1.25rem",
+          }}
+        >
+          <section className="data-table-card">
             <div style={{ overflowX: "auto" }}>
               <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Category</th>
-                  <th>Unit Price</th>
-                  <th>Quantity</th>
-                  <th>Discount</th>
-                  <th>Total</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {items.length === 0 ? (
+                <thead>
                   <tr>
-                    <td
-                      colSpan="7"
-                      style={{
-                        textAlign: "center",
-                        padding: "2.5rem",
-                        color: "#64748b",
-                      }}
-                    >
-                      Add products to build this quotation.
-                    </td>
+                    <th>Product</th>
+                    <th>Category</th>
+                    <th>Unit Price</th>
+                    <th>Quantity</th>
+                    <th>Discount</th>
+                    <th>Total</th>
+                    <th />
                   </tr>
-                ) : (
-                  items.map((item) => {
-                    const subtotal = item.unitPrice * item.quantity;
-                    const total =
-                      subtotal - (subtotal * item.discountPercent) / 100;
-                    return (
-                      <tr key={item.productId}>
-                        <td style={{ fontWeight: 700 }}>{item.name}</td>
-                        <td>{item.category}</td>
-                          <td><input className="form-input no-icon" style={{ width: "120px" }} type="number" min="0" step="0.01" value={item.unitPrice} onChange={(event) => updateItem(item.productId, "unitPrice", event.target.value)} /></td>
-                        <td>
-                          <input
-                            className="form-input no-icon"
-                            style={{ width: "90px" }}
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={item.quantity}
-                            onChange={(event) =>
-                              updateItem(
-                                item.productId,
-                                "quantity",
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="form-input no-icon"
-                            style={{ width: "90px" }}
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.01"
-                            value={item.discountPercent}
-                            onChange={(event) =>
-                              updateItem(
-                                item.productId,
-                                "discountPercent",
-                                event.target.value,
-                              )
-                            }
-                          />
-                          %
-                        </td>
-                        <td style={{ fontWeight: 800 }}>{currency(total)}</td>
-                        <td>
-                          <button
-                            type="button"
-                            title="Remove product"
-                            onClick={() =>
-                              setItems((current) =>
-                                current.filter(
-                                  (entry) => entry.productId !== item.productId,
-                                ),
-                              )
-                            }
-                          >
-                            <Trash2 size={17} color="#ef4444" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {items.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan="7"
+                        style={{
+                          textAlign: "center",
+                          padding: "2.5rem",
+                          color: "#64748b",
+                        }}
+                      >
+                        Add products to build this quotation.
+                      </td>
+                    </tr>
+                  ) : (
+                    items.map((item) => {
+                      const subtotal = item.unitPrice * item.quantity;
+                      const total =
+                        subtotal - (subtotal * item.discountPercent) / 100;
+                      return (
+                        <tr key={item.productId}>
+                          <td style={{ fontWeight: 700 }}>{item.name}</td>
+                          <td>{item.category}</td>
+                          <td>
+                            <input
+                              className="form-input no-icon"
+                              style={{ width: "120px" }}
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.unitPrice}
+                              onChange={(event) =>
+                                updateItem(
+                                  item.productId,
+                                  "unitPrice",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="form-input no-icon"
+                              style={{ width: "90px" }}
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={item.quantity}
+                              onChange={(event) =>
+                                updateItem(
+                                  item.productId,
+                                  "quantity",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="form-input no-icon"
+                              style={{ width: "90px" }}
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              value={item.discountPercent}
+                              onChange={(event) =>
+                                updateItem(
+                                  item.productId,
+                                  "discountPercent",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                            %
+                          </td>
+                          <td style={{ fontWeight: 800 }}>{currency(total)}</td>
+                          <td>
+                            <button
+                              type="button"
+                              title="Remove product"
+                              onClick={() =>
+                                setItems((current) =>
+                                  current.filter(
+                                    (entry) =>
+                                      entry.productId !== item.productId,
+                                  ),
+                                )
+                              }
+                            >
+                              <Trash2 size={17} color="#ef4444" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </section>
 
-          <UpsellCrossSellPanel items={items} customerId={customerId} onAddItem={addRecommendedItem} token={token} />
+          <UpsellCrossSellPanel
+            items={items}
+            customerId={customerId}
+            onAddItem={addRecommendedItem}
+            token={token}
+          />
         </div>
 
         <div
@@ -506,27 +539,78 @@ export default function CreateQuotation({ onNavigate }) {
               minWidth: "300px",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Subtotal:</span>
-              <strong style={{ color: "#0f172a", fontSize: "0.95rem" }}>{currency(totals.subtotal)}</strong>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              <span
+                style={{
+                  color: "#64748b",
+                  fontSize: "0.85rem",
+                  fontWeight: 500,
+                }}
+              >
+                Subtotal:
+              </span>
+              <strong style={{ color: "#0f172a", fontSize: "0.95rem" }}>
+                {currency(totals.subtotal)}
+              </strong>
             </div>
 
             <span style={{ color: "#cbd5e1" }}>•</span>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Discount:</span>
-              <strong style={{ color: "#ef4444", fontSize: "0.95rem" }}>-{currency(totals.discount)}</strong>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              <span
+                style={{
+                  color: "#64748b",
+                  fontSize: "0.85rem",
+                  fontWeight: 500,
+                }}
+              >
+                Discount:
+              </span>
+              <strong style={{ color: "#ef4444", fontSize: "0.95rem" }}>
+                -{currency(totals.discount)}
+              </strong>
             </div>
 
             <span style={{ color: "#cbd5e1" }}>•</span>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 500 }}>Final Price:</span>
-              <strong style={{ color: "#2563eb", fontSize: "1.15rem", fontWeight: 800 }}>{currency(totals.subtotal - totals.discount)}</strong>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              <span
+                style={{
+                  color: "#64748b",
+                  fontSize: "0.85rem",
+                  fontWeight: 500,
+                }}
+              >
+                Final Price:
+              </span>
+              <strong
+                style={{
+                  color: "#2563eb",
+                  fontSize: "1.15rem",
+                  fontWeight: 800,
+                }}
+              >
+                {currency(totals.subtotal - totals.discount)}
+              </strong>
             </div>
-            <div className="margin-summary-row"><span>Total Product Cost</span><strong>{currency(totals.totalCost)}</strong></div>
-            <div className="margin-summary-row"><span>Gross Margin</span><strong>{currency(grossMargin)}</strong></div>
-            <div className="margin-summary-row"><span>Margin %</span><strong>{marginPercentage.toFixed(2)}%</strong></div>
+            <div className="margin-summary-row">
+              <span>Total Product Cost</span>
+              <strong>{currency(totals.totalCost)}</strong>
+            </div>
+            <div className="margin-summary-row">
+              <span>Gross Margin</span>
+              <strong>{currency(grossMargin)}</strong>
+            </div>
+            <div className="margin-summary-row">
+              <span>Margin %</span>
+              <strong>{marginPercentage.toFixed(2)}%</strong>
+            </div>
           </div>
           <div style={{ display: "flex", gap: "0.75rem" }}>
             <button

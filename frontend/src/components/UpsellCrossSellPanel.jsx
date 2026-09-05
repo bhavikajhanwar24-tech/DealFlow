@@ -21,7 +21,12 @@ const currency = (value) =>
     maximumFractionDigits: 2,
   })}`;
 
-export default function UpsellCrossSellPanel({ items, customerId, onAddItem, token }) {
+export default function UpsellCrossSellPanel({
+  items,
+  customerId,
+  onAddItem,
+  token,
+}) {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -31,7 +36,9 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
   // Initialize dismissed from sessionStorage for session-level persistence
   const [dismissed, setDismissed] = useState(() => {
     try {
-      const saved = sessionStorage.getItem("dealflow_dismissed_recommendations");
+      const saved = sessionStorage.getItem(
+        "dealflow_dismissed_recommendations",
+      );
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch {
       return new Set();
@@ -44,7 +51,7 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
     try {
       sessionStorage.setItem(
         "dealflow_dismissed_recommendations",
-        JSON.stringify(Array.from(newDismissedSet))
+        JSON.stringify(Array.from(newDismissedSet)),
       );
     } catch {
       // Ignore storage errors
@@ -82,7 +89,9 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
         if (isCancelled) return;
 
         if (!response.ok) {
-          throw new Error(data.message || "Recommendations are temporarily unavailable.");
+          throw new Error(
+            data.message || "Recommendations are temporarily unavailable.",
+          );
         }
 
         setRecommendations(data.data || []);
@@ -110,7 +119,9 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
   }, [items, customerId, token]);
 
   const visibleRecommendations = useMemo(() => {
-    return recommendations.filter((rec) => !dismissed.has(rec.id) && !dismissed.has(rec.productId));
+    return recommendations.filter(
+      (rec) => !dismissed.has(rec.id) && !dismissed.has(rec.productId),
+    );
   }, [recommendations, dismissed]);
 
   // Handle Add to Quote safely with double-click guard
@@ -175,11 +186,26 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
           <Sparkles size={22} />
         </div>
         <div>
-          <h4 style={{ margin: "0 0 0.25rem", color: "#0f172a", fontSize: "0.95rem", fontWeight: 700 }}>
+          <h4
+            style={{
+              margin: "0 0 0.25rem",
+              color: "#0f172a",
+              fontSize: "0.95rem",
+              fontWeight: 700,
+            }}
+          >
             AI Deal Recommendations
           </h4>
-          <p style={{ margin: 0, fontSize: "0.825rem", color: "#64748b", maxWidth: "260px" }}>
-            Add items to your quotation above to unlock smart upsell and cross-sell opportunities.
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.825rem",
+              color: "#64748b",
+              maxWidth: "260px",
+            }}
+          >
+            Add items to your quotation above to unlock smart upsell and
+            cross-sell opportunities.
           </p>
         </div>
       </div>
@@ -228,10 +254,20 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
             <Sparkles size={16} />
           </div>
           <div>
-            <h3 style={{ margin: 0, fontSize: "0.92rem", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.01em" }}>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: "0.92rem",
+                fontWeight: 800,
+                color: "#0f172a",
+                letterSpacing: "-0.01em",
+              }}
+            >
               Smart Recommendations
             </h3>
-            <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 500 }}>
+            <span
+              style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 500 }}
+            >
               AI Margin & Affinity Engine
             </span>
           </div>
@@ -276,7 +312,14 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
       )}
 
       {/* Panel Body */}
-      <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+      <div
+        style={{
+          padding: "1rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.85rem",
+        }}
+      >
         {/* Non-blocking Error banner */}
         {error && (
           <div
@@ -299,7 +342,9 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
 
         {/* Loading Skeleton */}
         {loading && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
+          >
             {[1, 2].map((i) => (
               <div
                 key={i}
@@ -313,9 +358,30 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
                   gap: "0.5rem",
                 }}
               >
-                <div style={{ height: "14px", width: "65%", background: "#e2e8f0", borderRadius: "4px" }} />
-                <div style={{ height: "10px", width: "40%", background: "#f1f5f9", borderRadius: "4px" }} />
-                <div style={{ height: "30px", width: "100%", background: "#f1f5f9", borderRadius: "6px" }} />
+                <div
+                  style={{
+                    height: "14px",
+                    width: "65%",
+                    background: "#e2e8f0",
+                    borderRadius: "4px",
+                  }}
+                />
+                <div
+                  style={{
+                    height: "10px",
+                    width: "40%",
+                    background: "#f1f5f9",
+                    borderRadius: "4px",
+                  }}
+                />
+                <div
+                  style={{
+                    height: "30px",
+                    width: "100%",
+                    background: "#f1f5f9",
+                    borderRadius: "6px",
+                  }}
+                />
               </div>
             ))}
           </div>
@@ -333,11 +399,28 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
               borderRadius: "12px",
             }}
           >
-            <CheckCircle2 size={24} color="#10b981" style={{ margin: "0 auto 0.5rem", display: "block" }} />
-            <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600, color: "#1e293b" }}>
+            <CheckCircle2
+              size={24}
+              color="#10b981"
+              style={{ margin: "0 auto 0.5rem", display: "block" }}
+            />
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                color: "#1e293b",
+              }}
+            >
               All recommendations reviewed
             </p>
-            <p style={{ margin: "0.25rem 0 0", fontSize: "0.75rem", color: "#64748b" }}>
+            <p
+              style={{
+                margin: "0.25rem 0 0",
+                fontSize: "0.75rem",
+                color: "#64748b",
+              }}
+            >
               You've optimized this quotation with relevant pairings.
             </p>
           </div>
@@ -368,7 +451,14 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
               >
                 {/* Header: Product Name & Badges */}
                 <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: "0.5rem",
+                    }}
+                  >
                     <h4
                       style={{
                         margin: 0,
@@ -413,7 +503,15 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
                   </div>
 
                   {/* Badges Row: Type & Score */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginTop: "0.35rem", flexWrap: "wrap" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      marginTop: "0.35rem",
+                      flexWrap: "wrap",
+                    }}
+                  >
                     {/* Upsell / Cross-sell Badge */}
                     <span
                       style={{
@@ -428,10 +526,16 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
                         gap: "0.25rem",
                         background: isUpsell ? "#f5f3ff" : "#ecfdf5",
                         color: isUpsell ? "#6d28d9" : "#047857",
-                        border: isUpsell ? "1px solid #ddd6fe" : "1px solid #a7f3d0",
+                        border: isUpsell
+                          ? "1px solid #ddd6fe"
+                          : "1px solid #a7f3d0",
                       }}
                     >
-                      {isUpsell ? <ArrowUpRight size={11} /> : <TrendingUp size={11} />}
+                      {isUpsell ? (
+                        <ArrowUpRight size={11} />
+                      ) : (
+                        <TrendingUp size={11} />
+                      )}
                       {isUpsell ? "Upsell Upgrade" : "Cross-Sell Addon"}
                     </span>
 
@@ -469,7 +573,14 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
                       lineHeight: 1.4,
                     }}
                   >
-                    <strong style={{ color: "#1e293b", fontWeight: 700, display: "block", marginBottom: "0.1rem" }}>
+                    <strong
+                      style={{
+                        color: "#1e293b",
+                        fontWeight: 700,
+                        display: "block",
+                        marginBottom: "0.1rem",
+                      }}
+                    >
                       Why recommended:
                     </strong>
                     {rec.reason || rec.llmExplanation}
@@ -491,7 +602,13 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
                   }}
                 >
                   <div>
-                    <span style={{ color: "#64748b", fontSize: "0.72rem", display: "block" }}>
+                    <span
+                      style={{
+                        color: "#64748b",
+                        fontSize: "0.72rem",
+                        display: "block",
+                      }}
+                    >
                       Price
                     </span>
                     <strong style={{ color: "#0f172a", fontSize: "0.88rem" }}>
@@ -500,7 +617,13 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
                   </div>
 
                   <div style={{ textAlign: "right" }}>
-                    <span style={{ color: "#64748b", fontSize: "0.72rem", display: "block" }}>
+                    <span
+                      style={{
+                        color: "#64748b",
+                        fontSize: "0.72rem",
+                        display: "block",
+                      }}
+                    >
                       Margin Delta
                     </span>
                     <span
@@ -513,7 +636,8 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
                       {isPositiveMargin ? "+" : ""}
                       {currency(rec.marginDelta)}{" "}
                       <small style={{ fontSize: "0.72rem", fontWeight: 600 }}>
-                        ({rec.marginDeltaPercent > 0 ? "+" : ""}{rec.marginDeltaPercent}%)
+                        ({rec.marginDeltaPercent > 0 ? "+" : ""}
+                        {rec.marginDeltaPercent}%)
                       </small>
                     </span>
                   </div>
@@ -563,10 +687,12 @@ export default function UpsellCrossSellPanel({ items, customerId, onAddItem, tok
                     boxShadow: "0 1px 2px rgba(37, 99, 235, 0.2)",
                   }}
                   onMouseEnter={(e) => {
-                    if (addingId !== rec.id) e.currentTarget.style.background = "#1d4ed8";
+                    if (addingId !== rec.id)
+                      e.currentTarget.style.background = "#1d4ed8";
                   }}
                   onMouseLeave={(e) => {
-                    if (addingId !== rec.id) e.currentTarget.style.background = "#2563eb";
+                    if (addingId !== rec.id)
+                      e.currentTarget.style.background = "#2563eb";
                   }}
                 >
                   {addingId === rec.id ? (

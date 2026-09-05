@@ -11,7 +11,6 @@ import {
   Filter,
   Calendar,
   Search,
-  RefreshCw,
   TrendingUp,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -246,9 +245,6 @@ export default function SalesDashboard({ onNavigate }) {
 
         {/* Top Quick Actions */}
         <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap" }}>
-          <button className="btn-secondary" onClick={loadData} disabled={loading}>
-            <RefreshCw size={15} /> Refresh
-          </button>
           <button
             className="btn-primary"
             style={{ width: "auto" }}

@@ -541,13 +541,6 @@ async function loadRequestData() {
             </form>
           </section>
 
-          {/* Refresh Requests Button */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
-            <button className="btn-secondary" onClick={loadRequestData} style={{ padding: "0.5rem 1rem", fontSize: "0.85rem" }}>
-              Refresh Requests
-            </button>
-          </div>
-
           {/* Section 2: Recent Pending Requests */}
           {customerRequests.length > 0 && (
             <section style={glassStyle}>
