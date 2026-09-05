@@ -60,9 +60,7 @@ function AppContent() {
     if (!loading) {
       if (
         user &&
-        (currentRoute === "/" ||
-          currentRoute === "/login" ||
-          currentRoute === "/signup")
+        (currentRoute === "/login" || currentRoute === "/signup")
       ) {
         const dest = getRoleDestination(user);
         navigate(dest);
@@ -120,7 +118,6 @@ function AppContent() {
     if (currentRoute === "/") {
       return <ScrollVideoHero onNavigate={navigate} />;
     }
-
     return (
       <AuthPage
         onLoginSuccess={(loggedInUser) => {

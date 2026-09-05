@@ -1,25 +1,131 @@
 import React, { useState } from "react";
-import {
-  Mail,
-  Lock,
-  User,
-  Building,
-  Briefcase,
-  IdCard,
-  ShieldCheck,
-  CheckCircle2,
-  AlertCircle,
-  HelpCircle,
-  MessageSquare,
-  BarChart3,
-  TrendingUp,
-  Receipt,
-  Truck,
-  ArrowRight,
-  Info,
-  X
-} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+
+// Robust Inline SVG Icon Components (eliminates React 19 lucide-react context conflict)
+const MailIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+  </svg>
+);
+
+const LockIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+
+const UserIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
+const BuildingIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+    <path d="M9 22v-4h6v4" />
+    <path d="M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01" />
+  </svg>
+);
+
+const BriefcaseIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+  </svg>
+);
+
+const IdCardIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="3" width="20" height="18" rx="2" />
+    <circle cx="9" cy="10" r="2" />
+    <path d="M15 8h2M15 12h2M7 16h10" />
+  </svg>
+);
+
+const ShieldCheckIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <path d="m9 12 2 2 4-4" />
+  </svg>
+);
+
+const CheckCircleIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
+
+const AlertCircleIcon = ({ size = 16, style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="16" x2="12.01" y2="16" />
+  </svg>
+);
+
+const HelpCircleIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+
+const MessageSquareIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
+const TrendingUpIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+    <polyline points="17 6 23 6 23 12" />
+  </svg>
+);
+
+const ReceiptIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1z" />
+    <path d="M16 8h-6M16 12H8M16 16h-4" />
+  </svg>
+);
+
+const TruckIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="1" y="3" width="15" height="13" />
+    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+    <circle cx="5.5" cy="18.5" r="2.5" />
+    <circle cx="18.5" cy="18.5" r="2.5" />
+  </svg>
+);
+
+const ArrowRightIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="5" y1="12" x2="19" y2="12" />
+    <polyline points="12 5 19 12 12 19" />
+  </svg>
+);
+
+const InfoIcon = ({ size = 18, style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="16" x2="12" y2="12" />
+    <line x1="12" y1="8" x2="12.01" y2="8" />
+  </svg>
+);
+
+const XIcon = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
 
 export default function AuthPage({ onLoginSuccess }) {
   const { login, registerEmployee, registerCustomer } = useAuth();
@@ -178,29 +284,29 @@ export default function AuthPage({ onLoginSuccess }) {
 
   return (
     <div className="atmospheric-bg">
-      {/* Floating feature pills inspired by DealFlow360 reference Image 2 */}
+      {/* Floating feature pills */}
       <div className="floating-badge badge-approvals">
-        <div style={{ color: "#f97316" }}><ShieldCheck size={18} /></div>
+        <div style={{ color: "#f97316" }}><ShieldCheckIcon size={18} /></div>
         <span>Approvals</span>
       </div>
 
       <div className="floating-badge badge-quotes">
-        <div style={{ color: "#2563eb" }}><MessageSquare size={18} /></div>
+        <div style={{ color: "#2563eb" }}><MessageSquareIcon size={18} /></div>
         <span>Quotes</span>
       </div>
 
       <div className="floating-badge badge-fulfillment">
-        <div style={{ color: "#10b981" }}><Truck size={18} /></div>
+        <div style={{ color: "#10b981" }}><TruckIcon size={18} /></div>
         <span>Fulfillment</span>
       </div>
 
       <div className="floating-badge badge-billing">
-        <div style={{ color: "#6366f1" }}><Receipt size={18} /></div>
+        <div style={{ color: "#6366f1" }}><ReceiptIcon size={18} /></div>
         <span>Billing</span>
       </div>
 
       <div className="floating-badge badge-insights">
-        <div style={{ color: "#06b6d4" }}><TrendingUp size={18} /></div>
+        <div style={{ color: "#06b6d4" }}><TrendingUpIcon size={18} /></div>
         <span>Insights</span>
       </div>
 
@@ -269,7 +375,7 @@ export default function AuthPage({ onLoginSuccess }) {
                 setErrorMessage("");
               }}
             >
-              <Briefcase size={15} /> Internal Employee
+              <BriefcaseIcon size={15} /> Internal Employee
             </button>
             <button
               type="button"
@@ -279,14 +385,14 @@ export default function AuthPage({ onLoginSuccess }) {
                 setErrorMessage("");
               }}
             >
-              <Building size={15} /> Customer Portal
+              <BuildingIcon size={15} /> Customer Portal
             </button>
           </div>
 
           {/* Error Banner */}
           {errorMessage && (
             <div className="alert alert-danger">
-              <AlertCircle size={18} style={{ flexShrink: 0 }} />
+              <AlertCircleIcon size={18} style={{ flexShrink: 0 }} />
               <div>{errorMessage}</div>
             </div>
           )}
@@ -294,12 +400,12 @@ export default function AuthPage({ onLoginSuccess }) {
           {/* Success Banner */}
           {successMessage && (
             <div className="alert alert-success">
-              <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+              <CheckCircleIcon size={18} style={{ flexShrink: 0 }} />
               <div>{successMessage}</div>
             </div>
           )}
 
-          {/* Status Notice (Pending Approval or Rejected banner) */}
+          {/* Status Notice */}
           {statusNotice && (
             <div
               className={`alert ${
@@ -310,7 +416,7 @@ export default function AuthPage({ onLoginSuccess }) {
                   : "alert-info"
               }`}
             >
-              <Info size={18} style={{ flexShrink: 0 }} />
+              <InfoIcon size={18} style={{ flexShrink: 0 }} />
               <div>
                 <strong>{statusNotice.title}</strong>
                 <div style={{ marginTop: "3px" }}>{statusNotice.message}</div>
@@ -326,7 +432,7 @@ export default function AuthPage({ onLoginSuccess }) {
                   {userCategory === "employee" ? "Work Email Address" : "Email Address"}
                 </label>
                 <div className="input-wrapper">
-                  <div className="input-icon"><Mail size={16} /></div>
+                  <div className="input-icon"><MailIcon size={16} /></div>
                   <input
                     type="email"
                     required
@@ -356,7 +462,7 @@ export default function AuthPage({ onLoginSuccess }) {
                   </button>
                 </div>
                 <div className="input-wrapper">
-                  <div className="input-icon"><Lock size={16} /></div>
+                  <div className="input-icon"><LockIcon size={16} /></div>
                   <input
                     type="password"
                     required
@@ -377,13 +483,13 @@ export default function AuthPage({ onLoginSuccess }) {
                 style={{ marginTop: "1rem" }}
               >
                 {loading ? "Signing in..." : "Log In"}
-                {!loading && <ArrowRight size={16} />}
+                {!loading && <ArrowRightIcon size={16} />}
               </button>
 
               {/* Quick Demo Credentials Bar for Hackathon judges & testers */}
               <div className="demo-bar">
                 <div className="demo-title">
-                  <HelpCircle size={14} /> Hackathon Quick Demo Accounts:
+                  <HelpCircleIcon size={14} /> Hackathon Quick Demo Accounts:
                 </div>
                 <div className="demo-chips">
                   <button
@@ -448,7 +554,7 @@ export default function AuthPage({ onLoginSuccess }) {
               <div className="form-group">
                 <label className="form-label">Full Name</label>
                 <div className="input-wrapper">
-                  <div className="input-icon"><User size={16} /></div>
+                  <div className="input-icon"><UserIcon size={16} /></div>
                   <input
                     type="text"
                     required
@@ -466,7 +572,7 @@ export default function AuthPage({ onLoginSuccess }) {
                 <div className="form-group">
                   <label className="form-label">Employee ID</label>
                   <div className="input-wrapper">
-                    <div className="input-icon"><IdCard size={16} /></div>
+                    <div className="input-icon"><IdCardIcon size={16} /></div>
                     <input
                       type="text"
                       required
@@ -505,7 +611,7 @@ export default function AuthPage({ onLoginSuccess }) {
               <div className="form-group">
                 <label className="form-label">Work Email</label>
                 <div className="input-wrapper">
-                  <div className="input-icon"><Mail size={16} /></div>
+                  <div className="input-icon"><MailIcon size={16} /></div>
                   <input
                     type="email"
                     required
@@ -545,7 +651,7 @@ export default function AuthPage({ onLoginSuccess }) {
                 <div className="form-group">
                   <label className="form-label">Password</label>
                   <div className="input-wrapper">
-                    <div className="input-icon"><Lock size={16} /></div>
+                    <div className="input-icon"><LockIcon size={16} /></div>
                     <input
                       type="password"
                       required
@@ -565,7 +671,7 @@ export default function AuthPage({ onLoginSuccess }) {
                 <div className="form-group">
                   <label className="form-label">Confirm Password</label>
                   <div className="input-wrapper">
-                    <div className="input-icon"><Lock size={16} /></div>
+                    <div className="input-icon"><LockIcon size={16} /></div>
                     <input
                       type="password"
                       required
@@ -609,7 +715,7 @@ export default function AuthPage({ onLoginSuccess }) {
               <div className="form-group">
                 <label className="form-label">Company Name</label>
                 <div className="input-wrapper">
-                  <div className="input-icon"><Building size={16} /></div>
+                  <div className="input-icon"><BuildingIcon size={16} /></div>
                   <input
                     type="text"
                     required
@@ -629,7 +735,7 @@ export default function AuthPage({ onLoginSuccess }) {
               <div className="form-group">
                 <label className="form-label">Full Name</label>
                 <div className="input-wrapper">
-                  <div className="input-icon"><User size={16} /></div>
+                  <div className="input-icon"><UserIcon size={16} /></div>
                   <input
                     type="text"
                     required
@@ -649,7 +755,7 @@ export default function AuthPage({ onLoginSuccess }) {
               <div className="form-group">
                 <label className="form-label">Email Address</label>
                 <div className="input-wrapper">
-                  <div className="input-icon"><Mail size={16} /></div>
+                  <div className="input-icon"><MailIcon size={16} /></div>
                   <input
                     type="email"
                     required
@@ -670,7 +776,7 @@ export default function AuthPage({ onLoginSuccess }) {
                 <div className="form-group">
                   <label className="form-label">Password</label>
                   <div className="input-wrapper">
-                    <div className="input-icon"><Lock size={16} /></div>
+                    <div className="input-icon"><LockIcon size={16} /></div>
                     <input
                       type="password"
                       required
@@ -690,7 +796,7 @@ export default function AuthPage({ onLoginSuccess }) {
                 <div className="form-group">
                   <label className="form-label">Confirm Password</label>
                   <div className="input-wrapper">
-                    <div className="input-icon"><Lock size={16} /></div>
+                    <div className="input-icon"><LockIcon size={16} /></div>
                     <input
                       type="password"
                       required
@@ -732,7 +838,7 @@ export default function AuthPage({ onLoginSuccess }) {
                 onClick={() => setForgotPasswordModal(false)}
                 style={{ color: "#64748b" }}
               >
-                <X size={20} />
+                <XIcon size={20} />
               </button>
             </div>
             <p style={{ fontSize: "0.875rem", color: "#475569", marginBottom: "1.25rem" }}>
