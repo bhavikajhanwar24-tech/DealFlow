@@ -1,271 +1,301 @@
 const { pool } = require("../config/db");
 
+function messageError(message, statusCode = 400) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
 class MessageService {
   async getQuotationsForUser(user) {
-    let query;
-    let params;
-
+    let ownership = "";
+    const params = [];
     if (user.role === "CUSTOMER") {
-      query = `
-        SELECT 
-          q.id,
-          q.quotation_number,
-          q.status,
-          q.final_amount,
-          q.created_at,
-          q.updated_at,
-          c.full_name as customer_name,
-          c.company_name as customer_company,
-          sr.full_name as sales_rep_name,
-          (
-            SELECT JSON_BUILD_OBJECT(
-              'message', m.message,
-              'sender_name', m.sender_name,
-              'sender_role', m.sender_role,
-              'created_at', m.created_at
-            )
-            FROM public.quotation_messages m
-            WHERE m.quotation_id = q.id
-            ORDER BY m.created_at DESC
-            LIMIT 1
-          ) as latest_message
-        FROM public.quotations q
-        JOIN public.users c ON q.customer_id = c.id
-        JOIN public.users sr ON q.sales_rep_id = sr.id
-        WHERE q.customer_id = $1
-        ORDER BY q.updated_at DESC
-      `;
-      params = [user.id];
-    } else {
-      query = `
-        SELECT 
-          q.id,
-          q.quotation_number,
-          q.status,
-          q.final_amount,
-          q.created_at,
-          q.updated_at,
-          c.full_name as customer_name,
-          c.company_name as customer_company,
-          sr.full_name as sales_rep_name,
-          (
-            SELECT JSON_BUILD_OBJECT(
-              'message', m.message,
-              'sender_name', m.sender_name,
-              'sender_role', m.sender_role,
-              'created_at', m.created_at
-            )
-            FROM public.quotation_messages m
-            WHERE m.quotation_id = q.id
-            ORDER BY m.created_at DESC
-            LIMIT 1
-          ) as latest_message
-        FROM public.quotations q
-        JOIN public.users c ON q.customer_id = c.id
-        JOIN public.users sr ON q.sales_rep_id = sr.id
-        ORDER BY q.updated_at DESC
-      `;
-      params = [];
+      ownership = "WHERE q.customer_id = $1";
+      params.push(user.id);
+    } else if (user.role === "SALES_REP") {
+      ownership = "WHERE q.sales_rep_id = $1";
+      params.push(user.id);
     }
-
-    const { rows } = await pool.query(query, params);
+    const { rows } = await pool.query(`
+      SELECT q.id, q.quotation_number, q.status, q.final_amount, q.created_at, q.updated_at,
+             c.full_name AS customer_name, c.company_name AS customer_company,
+             sr.full_name AS sales_rep_name,
+             (SELECT JSON_BUILD_OBJECT('message', m.message, 'sender_name', m.sender_name,
+                     'sender_role', m.sender_role, 'created_at', m.created_at)
+              FROM public.quotation_messages m
+              WHERE m.quotation_id = q.id
+                AND (${user.role === "CUSTOMER"
+                  ? "m.sender_role != 'AI_BOT' AND (m.recipient_role = 'CUSTOMER' OR m.sender_role = 'CUSTOMER' OR m.recipient_role IS NULL)"
+                  : "1=1"})
+              ORDER BY m.created_at DESC LIMIT 1) AS latest_message
+      FROM public.quotations q
+      JOIN public.users c ON q.customer_id = c.id
+      JOIN public.users sr ON q.sales_rep_id = sr.id
+      ${ownership}
+      ORDER BY q.updated_at DESC
+    `, params);
     return rows;
   }
 
-  async getMessagesByQuotationId(quotationId, user) {
-    const checkQuery = `
+  async getQuotationParticipants(quotationId, user) {
+    const quotation = await this.getQuotation(quotationId);
+    const adminThread = await pool.query(
+      `SELECT EXISTS (
+         SELECT 1 FROM public.quotation_messages
+         WHERE quotation_id = $1
+           AND ((sender_role = 'ADMIN' AND recipient_role = 'CUSTOMER')
+             OR (sender_role = 'CUSTOMER' AND recipient_role = 'ADMIN'))
+       ) AS exists`,
+      [quotationId],
+    );
+
+    const hasAdminThread = Boolean(adminThread.rows[0]?.exists);
+    const options = [];
+
+    if (user.role === "CUSTOMER") {
+      options.push({
+        role: "SALES_REP",
+        label: "Sales Representative",
+        sublabel: quotation.sales_rep_name,
+        userId: quotation.sales_rep_id,
+      });
+      if (hasAdminThread) {
+        options.push({
+          role: "ADMIN",
+          label: "Corporate Administrator",
+          sublabel: "Admin Desk",
+          userId: quotation.admin_id,
+        });
+      }
+    } else if (user.role === "ADMIN") {
+      options.push({
+        role: "SALES_REP",
+        label: "Sales Representative",
+        sublabel: quotation.sales_rep_name,
+        userId: quotation.sales_rep_id,
+      });
+      options.push({
+        role: "CUSTOMER",
+        label: "Customer",
+        sublabel: quotation.customer_company || quotation.customer_name,
+        userId: quotation.customer_id,
+      });
+    } else {
+      // SALES_REP or SALES_MANAGER
+      options.push({
+        role: "CUSTOMER",
+        label: "Customer",
+        sublabel: quotation.customer_company || quotation.customer_name,
+        userId: quotation.customer_id,
+      });
+      options.push({
+        role: "ADMIN",
+        label: "Administrator",
+        sublabel: "Internal Approval & Review",
+        userId: quotation.admin_id,
+      });
+    }
+
+    return { options, adminThreadExists: hasAdminThread };
+  }
+
+  async getQuotation(quotationId) {
+    const result = await pool.query(`
       SELECT q.id, q.quotation_number, q.status, q.final_amount,
-             c.full_name as customer_name, c.company_name as customer_company,
-             sr.full_name as sales_rep_name
+             c.id AS customer_id, c.full_name AS customer_name, c.company_name AS customer_company,
+             sr.id AS sales_rep_id, sr.full_name AS sales_rep_name,
+             (SELECT id FROM public.users WHERE role = 'ADMIN' AND status = 'ACTIVE' ORDER BY created_at LIMIT 1) AS admin_id
       FROM public.quotations q
       JOIN public.users c ON q.customer_id = c.id
       JOIN public.users sr ON q.sales_rep_id = sr.id
       WHERE q.id = $1
-    `;
-    const checkRes = await pool.query(checkQuery, [quotationId]);
-    if (checkRes.rows.length === 0) {
-      throw new Error("Quotation not found.");
-    }
-    const quotation = checkRes.rows[0];
-
-    // Exclude internal AI_BOT messages for CUSTOMER users
-    let messagesQuery;
-    if (user.role === "CUSTOMER") {
-      messagesQuery = `
-        SELECT id, quotation_id, sender_id, sender_role, sender_name, message, created_at
-        FROM public.quotation_messages
-        WHERE quotation_id = $1 AND sender_role != 'AI_BOT'
-        ORDER BY created_at ASC
-      `;
-    } else {
-      messagesQuery = `
-        SELECT id, quotation_id, sender_id, sender_role, sender_name, message, created_at
-        FROM public.quotation_messages
-        WHERE quotation_id = $1
-        ORDER BY created_at ASC
-      `;
-    }
-    const { rows: messages } = await pool.query(messagesQuery, [quotationId]);
-
-    return { quotation, messages };
+    `, [quotationId]);
+    if (!result.rows.length) throw messageError("Quotation not found.", 404);
+    return result.rows[0];
   }
 
-  async sendMessage({ quotationId, senderId, senderRole, senderName, message }) {
-    if (!message || !message.trim()) {
-      throw new Error("Message text cannot be empty.");
+  async getMessagesByQuotationId(quotationId, user, recipientRole = "") {
+    const quotation = await this.getQuotation(quotationId);
+    const participants = await this.getQuotationParticipants(quotationId, user);
+    
+    // Find target recipient or fallback to first available
+    let selected = participants.options.find((option) => option.role === recipientRole);
+    if (!selected) {
+      selected = participants.options[0];
+    }
+    if (!selected) {
+      throw messageError("No permitted chat participant is available.", 403);
     }
 
-    const insertQuery = `
-      INSERT INTO public.quotation_messages (quotation_id, sender_id, sender_role, sender_name, message)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, quotation_id, sender_id, sender_role, sender_name, message, created_at
-    `;
-    const { rows } = await pool.query(insertQuery, [
-      quotationId,
-      senderId,
-      senderRole,
-      senderName,
-      message.trim(),
-    ]);
+    const targetRole = selected.role;
+    let filterClause = "";
+    const params = [quotationId];
 
-    await pool.query(
-      `UPDATE public.quotations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-      [quotationId]
-    );
+    if (user.role === "CUSTOMER") {
+      if (targetRole === "ADMIN") {
+        // Customer chatting with Admin
+        filterClause = `
+          (
+            (sender_role = 'ADMIN' AND recipient_role = 'CUSTOMER')
+            OR
+            (sender_role = 'CUSTOMER' AND recipient_role = 'ADMIN')
+          )
+        `;
+      } else {
+        // Customer chatting with Sales Rep (default)
+        filterClause = `
+          (
+            (sender_role IN ('SALES_REP', 'SALES_MANAGER') AND (recipient_role = 'CUSTOMER' OR recipient_role IS NULL))
+            OR
+            (sender_role = 'CUSTOMER' AND (recipient_role IN ('SALES_REP', 'SALES_MANAGER') OR recipient_role IS NULL))
+          )
+        `;
+      }
+    } else if (user.role === "ADMIN") {
+      if (targetRole === "CUSTOMER") {
+        // Admin chatting with Customer
+        filterClause = `
+          (
+            (sender_role = 'ADMIN' AND recipient_role = 'CUSTOMER')
+            OR
+            (sender_role = 'CUSTOMER' AND recipient_role = 'ADMIN')
+          )
+        `;
+      } else {
+        // Admin chatting with Sales Rep
+        filterClause = `
+          (
+            sender_role = 'AI_BOT'
+            OR
+            (sender_role = 'ADMIN' AND recipient_role IN ('SALES_REP', 'SALES_MANAGER'))
+            OR
+            (sender_role IN ('SALES_REP', 'SALES_MANAGER') AND recipient_role = 'ADMIN')
+          )
+        `;
+      }
+    } else {
+      // Sales Rep / Sales Manager
+      if (targetRole === "ADMIN") {
+        // Sales Rep chatting with Admin
+        filterClause = `
+          (
+            sender_role = 'AI_BOT'
+            OR
+            (sender_role IN ('SALES_REP', 'SALES_MANAGER') AND recipient_role = 'ADMIN')
+            OR
+            (sender_role = 'ADMIN' AND recipient_role IN ('SALES_REP', 'SALES_MANAGER'))
+          )
+        `;
+      } else {
+        // Sales Rep chatting with Customer
+        filterClause = `
+          (
+            (sender_role IN ('SALES_REP', 'SALES_MANAGER') AND (recipient_role = 'CUSTOMER' OR recipient_role IS NULL))
+            OR
+            (sender_role = 'CUSTOMER' AND (recipient_role IN ('SALES_REP', 'SALES_MANAGER') OR recipient_role IS NULL))
+          )
+        `;
+      }
+    }
 
-    return rows[0];
+    const messageResult = await pool.query(`
+      SELECT id, quotation_id, sender_id, sender_role, sender_name, message,
+             recipient_role, recipient_id, created_at
+      FROM public.quotation_messages
+      WHERE quotation_id = $1
+        AND (${filterClause})
+      ORDER BY created_at ASC
+    `, params);
+
+    return {
+      quotation,
+      messages: messageResult.rows,
+      participants,
+      selectedRecipient: selected,
+    };
+  }
+
+  async sendMessage({ quotationId, senderId, senderRole, senderName, message, recipientRole }) {
+    if (!message || !message.trim()) throw messageError("Message text cannot be empty.");
+    const quotation = await this.getQuotation(quotationId);
+    const allowed = await this.getQuotationParticipants(quotationId, { id: senderId, role: senderRole });
+    const recipient = allowed.options.find((option) => option.role === recipientRole);
+    if (!recipient) {
+      throw messageError("You are not allowed to start this conversation channel.", 403);
+    }
+    if (senderRole === "CUSTOMER" && recipientRole === "ADMIN" && !allowed.adminThreadExists) {
+      throw messageError("Customers can contact an administrator only after the administrator initiates the conversation.", 403);
+    }
+
+    const result = await pool.query(`
+      INSERT INTO public.quotation_messages
+        (quotation_id, sender_id, sender_role, sender_name, message, recipient_role, recipient_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, quotation_id, sender_id, sender_role, sender_name, message, recipient_role, recipient_id, created_at
+    `, [quotationId, senderId, senderRole, senderName, message.trim(), recipient.role, recipient.userId]);
+
+    await pool.query("UPDATE public.quotations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1", [quotationId]);
+    return result.rows[0];
   }
 
   async analyzeQuotationDeal(quotationId) {
-    const qQuery = `
+    const { rows } = await pool.query(`
       SELECT q.id, q.quotation_number, q.status, q.subtotal, q.discount_amount, q.final_amount,
-             c.full_name as customer_name, c.company_name as customer_company
-      FROM public.quotations q
-      JOIN public.users c ON q.customer_id = c.id
-      WHERE q.id = $1
-    `;
-    const qRes = await pool.query(qQuery, [quotationId]);
-    if (qRes.rows.length === 0) throw new Error("Quotation not found.");
-    const quotation = qRes.rows[0];
+             c.full_name AS customer_name, c.company_name AS customer_company
+      FROM public.quotations q JOIN public.users c ON q.customer_id = c.id WHERE q.id = $1
+    `, [quotationId]);
+    if (!rows.length) throw messageError("Quotation not found.", 404);
 
-    const itemsQuery = `
-      SELECT qi.quantity, qi.unit_price, qi.line_total, qi.discount_percent,
-             p.name as product_name, p.cost as unit_cost, p.category
+    const items = await pool.query(`
+      SELECT qi.quantity, qi.unit_price, qi.discount_percent, qi.total_price,
+             p.cost, p.category, p.name
       FROM public.quotation_items qi
       JOIN public.products p ON qi.product_id = p.id
       WHERE qi.quotation_id = $1
-    `;
-    const itemsRes = await pool.query(itemsQuery, [quotationId]);
-    const items = itemsRes.rows;
+    `, [quotationId]);
 
-    const subtotal = Number(quotation.subtotal || 0);
-    const currentDiscount = Number(quotation.discount_amount || 0);
-    const finalAmount = Number(quotation.final_amount || 0);
-
+    const finalAmount = Number(rows[0].final_amount || 0);
     let totalCost = 0;
-    for (const item of items) {
-      totalCost += Number(item.unit_cost || 0) * Number(item.quantity || 1);
+    items.rows.forEach((item) => {
+      totalCost += Number(item.cost || 0) * Number(item.quantity || 1);
+    });
+
+    if (totalCost === 0 && finalAmount > 0) {
+      totalCost = finalAmount * 0.72; // default 28% gross margin estimate
     }
 
-    const currentProfit = finalAmount - totalCost;
-    const currentMarginPercent = finalAmount > 0 ? (currentProfit / finalAmount) * 100 : 0;
-
-    const negQuery = `
-      SELECT requested_discount_percent, customer_comment
-      FROM public.negotiation_requests
-      WHERE quotation_id = $1 AND status = 'PENDING'
-      ORDER BY created_at DESC LIMIT 1
-    `;
-    const negRes = await pool.query(negQuery, [quotationId]);
-    const pendingNeg = negRes.rows[0];
-
-    const requestedDiscountPct = pendingNeg ? Number(pendingNeg.requested_discount_percent || 0) : 0;
-
-    const potentialDiscountAmt = subtotal * (requestedDiscountPct / 100);
-    const potentialFinalAmt = subtotal - potentialDiscountAmt;
-    const potentialProfit = potentialFinalAmt - totalCost;
-    const potentialMarginPct = potentialFinalAmt > 0 ? (potentialProfit / potentialFinalAmt) * 100 : 0;
-
-    const minSafeMarginPct = 18.0;
-    let maxSafeDiscountPct = 0;
-    if (subtotal > 0) {
-      const maxCostFactor = totalCost / (1 - minSafeMarginPct / 100);
-      maxSafeDiscountPct = Math.max(0, ((subtotal - maxCostFactor) / subtotal) * 100);
-    }
-
-    let dealHealth = "EXCELLENT";
-    let recommendation = "Quotation terms are healthy and yield strong profit margin.";
-
-    if (potentialMarginPct < minSafeMarginPct && requestedDiscountPct > 0) {
-      dealHealth = "MARGIN_RISK";
-      recommendation = `Requested ${requestedDiscountPct}% discount drops margin to ${potentialMarginPct.toFixed(1)}% (below 18% safe threshold). Counter with maximum safe discount of ${maxSafeDiscountPct.toFixed(1)}%.`;
-    } else if (requestedDiscountPct > 0) {
-      dealHealth = "HEALTHY_NEGOTIATION";
-      recommendation = `Requested ${requestedDiscountPct}% discount maintains healthy margin of ${potentialMarginPct.toFixed(1)}%. Safe to accept or confirm.`;
-    }
+    const currentProfit = Math.max(0, finalAmount - totalCost);
+    const currentMarginPercent = finalAmount > 0 ? Math.round((currentProfit / finalAmount) * 100) : 0;
+    const isMarginRisk = currentMarginPercent < 18;
 
     return {
-      quotationNumber: quotation.quotation_number,
-      subtotal,
-      currentDiscount,
+      quotationNumber: rows[0].quotation_number,
       finalAmount,
-      totalCost,
-      currentProfit: Number(currentProfit.toFixed(2)),
-      currentMarginPercent: Number(currentMarginPercent.toFixed(1)),
-      requestedDiscountPct,
-      potentialProfit: Number(potentialProfit.toFixed(2)),
-      potentialMarginPct: Number(potentialMarginPct.toFixed(1)),
-      maxSafeDiscountPct: Number(maxSafeDiscountPct.toFixed(1)),
-      dealHealth,
-      recommendation,
-      pendingComment: pendingNeg?.customer_comment || null
+      totalCost: Math.round(totalCost * 100) / 100,
+      currentProfit: Math.round(currentProfit * 100) / 100,
+      currentMarginPercent,
+      requestedDiscountPct: rows[0].subtotal > 0 ? Math.round((rows[0].discount_amount / rows[0].subtotal) * 100) : 0,
+      potentialProfit: currentProfit,
+      potentialMarginPct: currentMarginPercent,
+      maxSafeDiscountPct: Math.max(0, currentMarginPercent - 15),
+      dealHealth: isMarginRisk ? "MARGIN_RISK" : "EXCELLENT",
+      recommendation: isMarginRisk
+        ? `Warning: Margin is at ${currentMarginPercent}%, below recommended 18% floor. Limit additional discounts to ${Math.max(0, currentMarginPercent - 15)}%.`
+        : `Deal healthy with ${currentMarginPercent}% margin (₹${currentProfit.toLocaleString("en-IN")} gross profit). Counter-offer room available.`,
+      pendingComment: null,
     };
   }
 
   async generateAIAutoReply(quotationId, user) {
     const analysis = await this.analyzeQuotationDeal(quotationId);
-
-    let aiMessage = "";
-    if (analysis.dealHealth === "MARGIN_RISK") {
-      const counterAmt = analysis.subtotal * (1 - analysis.maxSafeDiscountPct / 100);
-      aiMessage = `🤖 DealFlow AI Negotiator Analysis:
-We analyzed your requested counter-offer. Based on product cost structures (Est. Total Cost: ₹${analysis.totalCost.toLocaleString("en-IN")}), granting ${analysis.requestedDiscountPct}% discount would drop gross margin to ${analysis.potentialMarginPct}% (below 18% threshold).
-
-💡 Counter Proposal: We can approve an optimized ${analysis.maxSafeDiscountPct}% discount (Final Price: ₹${counterAmt.toLocaleString("en-IN")}) with guaranteed delivery priority!`;
-    } else if (analysis.requestedDiscountPct > 0) {
-      const discountedAmt = analysis.subtotal * (1 - analysis.requestedDiscountPct / 100);
-      aiMessage = `🤖 DealFlow AI Negotiator Analysis:
-Great news! We analyzed your requested ${analysis.requestedDiscountPct}% discount. The terms maintain a healthy gross margin of ${analysis.potentialMarginPct}% (Est. Profit: ₹${analysis.potentialProfit.toLocaleString("en-IN")}).
-
-✅ DealFlow AI recommends approving this ${analysis.requestedDiscountPct}% discount (Final Price: ₹${discountedAmt.toLocaleString("en-IN")})!`;
-    } else {
-      aiMessage = `🤖 DealFlow AI Negotiator Analysis:
-Financial review complete for ${analysis.quotationNumber}:
-- Revenue: ₹${analysis.finalAmount.toLocaleString("en-IN")}
-- Est. Product Cost: ₹${analysis.totalCost.toLocaleString("en-IN")}
-- Gross Profit: ₹${analysis.currentProfit.toLocaleString("en-IN")} (${analysis.currentMarginPercent}% Margin)
-Deal is healthy and fully compliant with corporate discount policies!`;
-    }
-
-    const insertQuery = `
-      INSERT INTO public.quotation_messages (quotation_id, sender_id, sender_role, sender_name, message)
-      VALUES ($1, $2, $3, $4, $5)
+    const result = await pool.query(`
+      INSERT INTO public.quotation_messages
+        (quotation_id, sender_id, sender_role, sender_name, message, recipient_role)
+      VALUES ($1, $2, 'AI_BOT', 'DealFlow AI Negotiator', $3, 'INTERNAL')
       RETURNING id, quotation_id, sender_id, sender_role, sender_name, message, created_at
-    `;
-    const { rows } = await pool.query(insertQuery, [
-      quotationId,
-      user.id || "00000000-0000-0000-0000-000000000000",
-      "AI_BOT",
-      "DealFlow AI Negotiator",
-      aiMessage,
-    ]);
-
-    await pool.query(
-      `UPDATE public.quotations SET updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-      [quotationId]
-    );
-
-    return { message: rows[0], analysis };
+    `, [quotationId, user.id, `DealFlow AI Profit Analysis: ${analysis.recommendation}`]);
+    return { message: result.rows[0], analysis };
   }
 }
 

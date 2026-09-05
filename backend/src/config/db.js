@@ -348,6 +348,8 @@ async function initDatabase() {
         sender_role VARCHAR(50) NOT NULL,
         sender_name VARCHAR(255) NOT NULL,
         message TEXT NOT NULL,
+        recipient_role VARCHAR(50),
+        recipient_id UUID REFERENCES public.users(id),
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -381,6 +383,12 @@ async function initDatabase() {
         recorded_by UUID REFERENCES public.users(id),
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    await client.query(`
+      ALTER TABLE public.quotation_messages
+      ADD COLUMN IF NOT EXISTS recipient_role VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS recipient_id UUID REFERENCES public.users(id)
     `);
 
     // Create indexes for performance if not exist
