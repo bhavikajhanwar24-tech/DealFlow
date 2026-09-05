@@ -142,13 +142,21 @@ async function getAdminStats() {
   `);
 
   const auditCount = await db.query(`SELECT COUNT(*) as count FROM public.audit_logs`);
+  const complaintCount = await db.query(`
+    SELECT
+      COUNT(*)::int as total,
+      COUNT(*) FILTER (WHERE status = 'PENDING')::int as pending
+    FROM public.staff_complaints
+  `);
 
   return {
     pendingApprovals: parseInt(counts.rows[0].pending_count, 10) || 0,
     activeEmployees: parseInt(counts.rows[0].active_employee_count, 10) || 0,
     totalCustomers: parseInt(counts.rows[0].customer_count, 10) || 0,
     rejectedEmployees: parseInt(counts.rows[0].rejected_count, 10) || 0,
-    totalAuditLogs: parseInt(auditCount.rows[0].count, 10) || 0
+    totalAuditLogs: parseInt(auditCount.rows[0].count, 10) || 0,
+    pendingComplaints: complaintCount.rows[0]?.pending || 0,
+    totalComplaints: complaintCount.rows[0]?.total || 0,
   };
 }
 

@@ -106,6 +106,7 @@ export default function AdminDashboard({ onNavigate }) {
     loadAlerts();
   }, [token]);
 
+
   // Load real database analytics based on timeframe filter
   useEffect(() => {
     if (!token) return;
@@ -286,10 +287,12 @@ export default function AdminDashboard({ onNavigate }) {
   const avgDealSize = totalDeals > 0 ? totalRevenue / totalDeals : 0;
 
   const topMetrics = [
+    { label: "Pending Staff Complaints", value: stats?.pendingComplaints ?? "0", icon: AlertTriangleIcon, highlight: Number(stats?.pendingComplaints) > 0 },
     { label: "Pending Employee Approvals", value: stats?.pendingApprovals ?? "0", icon: AwardIcon, highlight: Number(stats?.pendingApprovals) > 0 },
     { label: "Active Enterprise Staff", value: stats?.activeEmployees ?? "0", icon: ShieldCheckIcon },
     { label: "Total Registered Clients", value: stats?.totalCustomers ?? "0", icon: LayersIcon },
     { label: "Audit & Compliance Events", value: stats?.totalAuditLogs ?? "0", icon: BarChart3Icon },
+
   ];
 
   return (
@@ -440,6 +443,28 @@ export default function AdminDashboard({ onNavigate }) {
           </div>
         )}
       </div>
+
+
+      <section className="admin-action-grid">
+        <button className="admin-action-card" onClick={() => onNavigate("/admin/staff")}>
+          <span className="admin-action-kicker">Access control</span>
+          <strong>Manage staff</strong>
+          <span>Create and edit staff IDs, credentials, roles, and status.</span>
+        </button>
+        <button className="admin-action-card" onClick={() => onNavigate("/admin/products")}>
+          <span className="admin-action-kicker">Catalog control</span>
+          <strong>Manage products</strong>
+          <span>Maintain product prices, costs, categories, and availability for quotations.</span>
+        </button>
+        <button className="admin-action-card" onClick={() => onNavigate("/admin/complaints")}>
+          <span className="admin-action-kicker" style={{ color: stats?.pendingComplaints > 0 ? "#dc2626" : "#2563eb" }}>
+            {stats?.pendingComplaints > 0 ? `${stats.pendingComplaints} Pending Review` : "Customer Oversight"}
+          </span>
+          <strong>Staff Complaints</strong>
+          <span>Review client complaints against staff, take corrective actions, and respond to customers.</span>
+        </button>
+      </section>
+
 
       {/* ========================================================================= */}
       {/* 100% REAL DATABASE MULTI-CHART BUSINESS INTELLIGENCE SECTION             */}
@@ -844,6 +869,7 @@ export default function AdminDashboard({ onNavigate }) {
           </div>
 
         </div>
+
       </section>
     </main>
   );
