@@ -6,6 +6,8 @@ const { requireAuth, requireActiveUser } = require("../middleware/auth.middlewar
 router.use(requireAuth, requireActiveUser);
 
 router.get("/quotations", messageController.getQuotations);
+router.get("/quotations/:quotationId/ai-analysis", messageController.getAiAnalysis);
+router.post("/quotations/:quotationId/auto-reply", messageController.generateAutoReply);
 router.get("/quotations/:quotationId", messageController.getMessages);
 router.post("/quotations/:quotationId", messageController.sendMessage);
 
