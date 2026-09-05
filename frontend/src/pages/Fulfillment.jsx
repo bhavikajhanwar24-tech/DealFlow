@@ -189,16 +189,17 @@ export default function Fulfillment({ onNavigate }) {
                   <th>Quotation</th>
                   <th>Customer</th>
                   <th>Status</th>
-                  <th>Allocated</th>
+                  <th>Reserved Stock</th>
                   <th>Backorder</th>
                   <th>Warehouses</th>
+                  <th>Shipping Cost</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
                     <td
-                      colSpan="7"
+                      colSpan="8"
                       style={{ textAlign: "center", padding: "3rem" }}
                     >
                       Loading fulfillment orders...
@@ -207,7 +208,7 @@ export default function Fulfillment({ onNavigate }) {
                 ) : orders.length === 0 ? (
                   <tr>
                     <td
-                      colSpan="7"
+                      colSpan="8"
                       style={{
                         textAlign: "center",
                         padding: "3rem",
@@ -234,9 +235,10 @@ export default function Fulfillment({ onNavigate }) {
                           {order.fulfillment_status}
                         </span>
                       </td>
-                      <td>{order.allocated_quantity}</td>
+                      <td>{order.allocated_quantity} units</td>
                       <td>{order.backorder_quantity}</td>
                       <td>{order.warehouse_count}</td>
+                      <td>{money(order.shipping_cost)}</td>
                     </tr>
                   ))
                 )}
@@ -292,6 +294,47 @@ export default function Fulfillment({ onNavigate }) {
               <span className="badge badge-active">
                 {selected.fulfillment_status}
               </span>
+            </div>
+            <div
+              className="metric-grid"
+              style={{ marginTop: "1.25rem", marginBottom: 0 }}
+            >
+              <div className="metric-card">
+                <div>
+                  <div className="metric-label">Stock Reserved</div>
+                  <div className="metric-value">
+                    {selected.totals?.reservedQuantity || 0}
+                  </div>
+                  <div style={{ color: "#64748b", fontSize: "0.75rem" }}>
+                    Units reserved from warehouses
+                  </div>
+                </div>
+                <Warehouse size={22} color="#2563eb" />
+              </div>
+              <div className="metric-card">
+                <div>
+                  <div className="metric-label">Open Backorder</div>
+                  <div className="metric-value">
+                    {selected.totals?.backorderQuantity || 0}
+                  </div>
+                  <div style={{ color: "#64748b", fontSize: "0.75rem" }}>
+                    Units still required
+                  </div>
+                </div>
+                <PackageCheck size={22} color="#f59e0b" />
+              </div>
+              <div className="metric-card">
+                <div>
+                  <div className="metric-label">Shipping Cost</div>
+                  <div className="metric-value">
+                    {money(selected.totals?.shippingCost)}
+                  </div>
+                  <div style={{ color: "#64748b", fontSize: "0.75rem" }}>
+                    Estimated warehouse split cost
+                  </div>
+                </div>
+                <Warehouse size={22} color="#10b981" />
+              </div>
             </div>
             <div className="data-table-card" style={{ marginTop: "1.25rem" }}>
               <div style={{ overflowX: "auto" }}>

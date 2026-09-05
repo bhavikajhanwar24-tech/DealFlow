@@ -150,7 +150,8 @@ async function listOrders(user) {
             q.quotation_number, c.company_name, c.full_name AS customer_name,
             COALESCE(SUM(fa.quantity), 0)::int AS allocated_quantity,
             COALESCE(SUM(bo.quantity), 0)::int AS backorder_quantity,
-            COUNT(DISTINCT fa.warehouse_id)::int AS warehouse_count
+            COUNT(DISTINCT fa.warehouse_id)::int AS warehouse_count,
+            COALESCE(SUM(fa.shipping_cost), 0)::numeric AS shipping_cost
      FROM public.orders o
      JOIN public.quotations q ON q.id = o.quotation_id
      JOIN public.users c ON c.id = o.customer_id
@@ -195,7 +196,25 @@ async function getOrder(orderId) {
      WHERE oi.order_id = $1 GROUP BY oi.id, p.name ORDER BY p.name`,
     [orderId],
   );
-  return { ...orderResult.rows[0], items: items.rows };
+  const totals = await db.query(
+    `SELECT COALESCE(SUM(fa.quantity), 0)::int AS reserved_quantity,
+            COALESCE(SUM(fa.shipping_cost), 0)::numeric AS shipping_cost,
+            COALESCE(SUM(bo.quantity), 0)::int AS backorder_quantity
+     FROM public.orders o
+     LEFT JOIN public.fulfillment_allocations fa ON fa.order_id = o.id AND fa.status = 'RESERVED'
+     LEFT JOIN public.backorders bo ON bo.order_id = o.id AND bo.status = 'OPEN'
+     WHERE o.id = $1`,
+    [orderId],
+  );
+  return {
+    ...orderResult.rows[0],
+    items: items.rows,
+    totals: {
+      reservedQuantity: totals.rows[0].reserved_quantity,
+      backorderQuantity: totals.rows[0].backorder_quantity,
+      shippingCost: Number(totals.rows[0].shipping_cost),
+    },
+  };
 }
 
 async function manualSplit(orderId, user, allocations) {
