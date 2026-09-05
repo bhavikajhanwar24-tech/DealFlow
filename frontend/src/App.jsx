@@ -16,6 +16,7 @@ import QuotationDetail from "./pages/QuotationDetail";
 import FinanceDashboard from "./pages/FinanceDashboard";
 import OperationsDashboard from "./pages/OperationsDashboard";
 import CustomerPortal from "./pages/CustomerPortal";
+import QuotationMessages from "./pages/QuotationMessages";
 import AccessDenied from "./pages/AccessDenied";
 import "./App.css";
 
@@ -236,6 +237,15 @@ function AppContent() {
       return <CustomerPortal />;
     }
 
+    // 6. Messages Routes (Shared Chat view for Sales & Customer)
+    if (
+      currentRoute === "/messages" ||
+      currentRoute === "/sales/messages" ||
+      currentRoute === "/customer/messages"
+    ) {
+      return <QuotationMessages onNavigate={navigate} />;
+    }
+
     // Default Fallback
     return <AccessDenied onNavigate={navigate} />;
   };
@@ -249,10 +259,15 @@ function AppContent() {
     currentRoute === "/admin/discount-policies" ||
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||
-    currentRoute.startsWith("/sales/quotations");
+    currentRoute.startsWith("/sales/quotations") ||
+    currentRoute.startsWith("/customer") ||
+    currentRoute.includes("messages");
 
   const isSalesRoute =
-    currentRoute.startsWith("/sales") || currentRoute === "/approvals";
+    currentRoute.startsWith("/sales") ||
+    currentRoute === "/approvals" ||
+    currentRoute.startsWith("/customer") ||
+    currentRoute.includes("messages");
 
   return (
     <div className={`app-layout ${isSalesRoute ? "sales-bg-active" : ""}`}>

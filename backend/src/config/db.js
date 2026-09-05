@@ -208,6 +208,18 @@ async function initDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.quotation_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        quotation_id UUID NOT NULL REFERENCES public.quotations(id) ON DELETE CASCADE,
+        sender_id UUID NOT NULL REFERENCES public.users(id),
+        sender_role VARCHAR(50) NOT NULL,
+        sender_name VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Create indexes for performance if not exist
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
@@ -218,6 +230,7 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_products_active ON public.products(is_active);
       CREATE INDEX IF NOT EXISTS idx_quotations_customer ON public.quotations(customer_id);
       CREATE INDEX IF NOT EXISTS idx_quotations_sales_rep ON public.quotations(sales_rep_id);
+      CREATE INDEX IF NOT EXISTS idx_quotation_messages_quotation ON public.quotation_messages(quotation_id);
       CREATE INDEX IF NOT EXISTS idx_quotation_items_quotation ON public.quotation_items(quotation_id);
       CREATE INDEX IF NOT EXISTS idx_negotiation_requests_quotation ON public.negotiation_requests(quotation_id);
       CREATE INDEX IF NOT EXISTS idx_negotiation_requests_customer ON public.negotiation_requests(customer_id);
