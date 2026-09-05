@@ -143,6 +143,22 @@ async function finalizeQuotation(req, res) {
   } catch (error) {
     return res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
+async function respondToNegotiation(req, res) {
+  try {
+    const quotation = await quotationService.respondToNegotiationRequest(
+      req.user,
+      req.params.id,
+      req.params.negotiationId,
+      req.body || {},
+    );
+    return res.status(200).json({
+      success: true,
+      message: `Negotiation request has been ${req.body?.action === "ACCEPT" ? "accepted and quotation updated" : "declined"}.`,
+      data: quotation,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
 }
 
 module.exports = {
@@ -154,10 +170,11 @@ module.exports = {
   createQuotation,
   updateQuotation,
   submitQuotation,
-    previewQuotationRisk,
-    applyNegotiationSuggestion,
-    applyAiQuoteUpdate,
+  previewQuotationRisk,
+  applyNegotiationSuggestion,
+  applyAiQuoteUpdate,
   listCustomerRequests,
   convertCustomerRequest,
   finalizeQuotation,
+  respondToNegotiation,
 };

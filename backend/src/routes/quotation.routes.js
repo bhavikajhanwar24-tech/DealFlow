@@ -24,5 +24,6 @@ router.post("/:id/apply-negotiation-suggestion", salesCreators, quotationControl
 router.post("/:id/recreate-from-ai", salesCreators, quotationController.applyAiQuoteUpdate);
 router.post("/:id/submit", salesCreators, quotationController.submitQuotation);
 router.post("/:id/finalize", internalSales, quotationController.finalizeQuotation);
+router.post("/:id/negotiations/:negotiationId/respond", internalSales, quotationController.respondToNegotiation);
 
 module.exports = router;

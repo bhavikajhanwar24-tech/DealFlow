@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, Mail, Printer, Download,
-  Edit3, Save, X, Plus, Trash2, RotateCcw, Send
+  Edit3, Save, X, Plus, Trash2, RotateCcw, Send, MessageSquare, Check
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { printOrExportPDF } from "../utils/exportUtils";
@@ -20,6 +20,9 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
   const [notification, setNotification] = useState(null);
   const [pricingAiLoading, setPricingAiLoading] = useState(false);
   const [pricingAiResult, setPricingAiResult] = useState(null);
+  const [respondingNegotiation, setRespondingNegotiation] = useState(false);
+  const [salesResponseNote, setSalesResponseNote] = useState("");
+  const [negotiationSuccess, setNegotiationSuccess] = useState("");
 
   // ─── Edit Mode State ───────────────────────────────────────
   const [editMode, setEditMode] = useState(false);
@@ -266,6 +269,35 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
     }
   }
 
+  // ─── Respond to Customer Negotiation ──────────────────────
+  async function handleRespondToNegotiation(action) {
+    const pending = quotation?.negotiations?.find((n) => n.status === "PENDING");
+    if (!pending) return;
+    if (action === "REJECT" && !window.confirm("Are you sure you want to decline this negotiation request?")) return;
+    setRespondingNegotiation(true);
+    setError("");
+    setNegotiationSuccess("");
+    try {
+      const res = await fetch(`${API_BASE}/quotations/${quotationId}/negotiations/${pending.id}/respond`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          action,
+          responseNote: salesResponseNote.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to respond to negotiation.");
+      setSalesResponseNote("");
+      setNegotiationSuccess(data.message);
+      await loadQuotation();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRespondingNegotiation(false);
+    }
+  }
+
   // ─── PDF Export ───────────────────────────────────────────
   const handlePrintQuotation = () => {
     if (!quotation) return;
@@ -341,6 +373,8 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
     );
 
   const canEdit = EDITABLE_STATUSES.includes(quotation.status) && quotation.status !== "FINALIZED";
+  const pendingNegotiation = quotation.negotiations?.find((n) => n.status === "PENDING");
+  const resolvedNegotiations = quotation.negotiations?.filter((n) => n.status !== "PENDING") || [];
 
   return (
     <main className="main-content">
@@ -487,13 +521,181 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
         <div className="quotation-customer-field"><strong>Sales Rep</strong><br />{quotation.salesRep?.fullName}</div>
       </section>
 
-      {/* ── Customer Request Banner ── */}
-      {quotation.customerRequest && (
-        <div className="alert alert-warning" style={{ marginBottom: "1.25rem" }}>
-          Customer response: {quotation.customerRequest.status}
-          {quotation.customerRequest.requestedDiscountPercent !== null && ` · Requested discount: ${quotation.customerRequest.requestedDiscountPercent}%`}
-          {quotation.customerRequest.requestedDeliveryDate && ` · Requested delivery: ${quotation.customerRequest.requestedDeliveryDate}`}
-          {quotation.customerRequest.customerComment && ` · ${quotation.customerRequest.customerComment}`}
+      {/* ── Active Customer Negotiation & Item Removal Request Card ── */}
+      {pendingNegotiation && (
+        <section
+          style={{
+            background: "linear-gradient(135deg, #fffbeb 0%, #fef2f2 100%)",
+            border: "2px solid #f59e0b",
+            borderRadius: "16px",
+            padding: "1.5rem",
+            marginBottom: "1.5rem",
+            boxShadow: "0 8px 24px -4px rgba(245, 158, 11, 0.15)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem", marginBottom: "1.25rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <div
+                style={{
+                  width: "42px",
+                  height: "42px",
+                  borderRadius: "10px",
+                  background: "#fef3c7",
+                  border: "1px solid #fde68a",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <MessageSquare size={22} color="#d97706" />
+              </div>
+              <div>
+                <span className="badge badge-pending" style={{ fontSize: "0.75rem", marginBottom: "0.2rem" }}>
+                  ACTION REQUIRED · CUSTOMER NEGOTIATION
+                </span>
+                <h3 style={{ fontSize: "1.2rem", fontWeight: 800, color: "#92400e", margin: 0 }}>
+                  Customer Counter-Offer & Item Adjustment Request
+                </h3>
+                <p style={{ fontSize: "0.825rem", color: "#b45309", margin: "0.15rem 0 0" }}>
+                  Submitted on {new Date(pendingNegotiation.createdAt).toLocaleString("en-IN")} by {quotation.customer?.companyName || quotation.customer?.fullName || "Client"}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => onNavigate && onNavigate(`/quotations/${quotationId}/messages`)}
+              style={{ padding: "0.45rem 0.95rem", fontSize: "0.825rem", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              <MessageSquare size={14} /> Open Chat Thread
+            </button>
+          </div>
+
+          {/* Requested Item Removals */}
+          {pendingNegotiation.removedItemIds && pendingNegotiation.removedItemIds.length > 0 && (
+            <div
+              style={{
+                background: "#ffffff",
+                border: "1.5px solid #fca5a5",
+                borderRadius: "12px",
+                padding: "1rem 1.25rem",
+                marginBottom: "1rem",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#991b1b", fontWeight: 800, fontSize: "0.95rem", marginBottom: "0.5rem" }}>
+                <Trash2 size={16} color="#dc2626" />
+                <span>Customer Requested to Remove {pendingNegotiation.removedItemIds.length} Quoted Item(s):</span>
+              </div>
+              <div style={{ display: "grid", gap: "0.5rem" }}>
+                {(pendingNegotiation.requestedItems && pendingNegotiation.requestedItems.length > 0
+                  ? pendingNegotiation.requestedItems
+                  : quotation.items.filter((it) => pendingNegotiation.removedItemIds.includes(it.id))
+                ).map((item) => (
+                  <div
+                    key={item.id || item.productId}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "0.6rem 0.85rem",
+                      background: "#fef2f2",
+                      border: "1px dashed #f87171",
+                      borderRadius: "8px",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    <div>
+                      <strong style={{ color: "#991b1b" }}>{item.name}</strong>
+                      <span style={{ color: "#7f1d1d", marginLeft: "0.5rem" }}>Qty: {item.quantity}</span>
+                    </div>
+                    <div style={{ fontWeight: 700, color: "#991b1b" }}>
+                      -{currency(item.lineTotal || (item.unitPrice * item.quantity))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p style={{ margin: "0.6rem 0 0", fontSize: "0.8rem", color: "#b91c1c" }}>
+                ⚡ Accepting this request will remove the selected item(s) from the active quotation, automatically recalculate subtotal, discounts, cost, and gross margin, and approve the revised quotation.
+              </p>
+            </div>
+          )}
+
+          {/* Additional Terms Requested */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.85rem", marginBottom: "1rem" }}>
+            {pendingNegotiation.requestedDiscountPercent !== null && (
+              <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "10px", border: "1px solid #fde68a" }}>
+                <span style={{ fontSize: "0.75rem", color: "#92400e", fontWeight: 700, textTransform: "uppercase", display: "block" }}>
+                  Requested Discount
+                </span>
+                <strong style={{ fontSize: "1.1rem", color: "#b45309" }}>{pendingNegotiation.requestedDiscountPercent}%</strong>
+              </div>
+            )}
+            {pendingNegotiation.requestedDeliveryDate && (
+              <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "10px", border: "1px solid #fde68a" }}>
+                <span style={{ fontSize: "0.75rem", color: "#92400e", fontWeight: 700, textTransform: "uppercase", display: "block" }}>
+                  Target Delivery Date
+                </span>
+                <strong style={{ fontSize: "1rem", color: "#1e293b" }}>{pendingNegotiation.requestedDeliveryDate}</strong>
+              </div>
+            )}
+            {pendingNegotiation.customerComment && (
+              <div style={{ background: "#ffffff", padding: "0.75rem 1rem", borderRadius: "10px", border: "1px solid #fde68a", gridColumn: "1 / -1" }}>
+                <span style={{ fontSize: "0.75rem", color: "#92400e", fontWeight: 700, textTransform: "uppercase", display: "block" }}>
+                  Customer Note / Instructions
+                </span>
+                <p style={{ margin: "0.25rem 0 0", fontSize: "0.875rem", color: "#334155", fontStyle: "italic" }}>
+                  "{pendingNegotiation.customerComment}"
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Sales Response & Action Controls */}
+          <div style={{ background: "#ffffff", borderRadius: "12px", border: "1px solid #fde68a", padding: "1.15rem 1.25rem" }}>
+            <label className="form-group" style={{ margin: "0 0 1rem 0" }}>
+              <span className="form-label" style={{ fontWeight: 700, color: "#334155" }}>
+                Sales Representative Note to Customer (Optional)
+              </span>
+              <input
+                className="form-input no-icon"
+                type="text"
+                placeholder="e.g., We have approved removing the requested item(s) and revised your quotation."
+                value={salesResponseNote}
+                onChange={(e) => setSalesResponseNote(e.target.value)}
+                disabled={respondingNegotiation}
+              />
+            </label>
+
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+              <button
+                type="button"
+                className="btn-success"
+                onClick={() => handleRespondToNegotiation("ACCEPT")}
+                disabled={respondingNegotiation}
+                style={{ padding: "0.65rem 1.25rem", display: "inline-flex", alignItems: "center", gap: "0.4rem", fontWeight: 700 }}
+              >
+                {respondingNegotiation ? "Updating quotation..." : <><Check size={16} /> Accept &amp; Update Quotation</>}
+              </button>
+
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={() => handleRespondToNegotiation("REJECT")}
+                disabled={respondingNegotiation}
+                style={{ padding: "0.65rem 1.25rem", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+              >
+                {respondingNegotiation ? "Processing..." : <><X size={16} /> Decline Request</>}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Success alert for negotiation response */}
+      {negotiationSuccess && (
+        <div className="alert alert-success" style={{ marginBottom: "1.25rem", borderRadius: "12px" }}>
+          <CheckCircle2 size={17} /> {negotiationSuccess}
         </div>
       )}
 
@@ -784,16 +986,33 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {quotation.items.map((item) => (
-                    <tr key={item.id}>
-                      <td style={{ fontWeight: 700 }}>{item.name}</td>
-                      <td>{item.category}</td>
-                      <td>{item.quantity}</td>
-                      <td>{currency(item.unitPrice)}</td>
-                      <td>{item.discountPercent}%</td>
-                      <td style={{ fontWeight: 800 }}>{currency(item.lineTotal)}</td>
-                    </tr>
-                  ))}
+                  {quotation.items.map((item) => {
+                    const isRequestedRemoved = pendingNegotiation?.removedItemIds?.includes(item.id);
+                    return (
+                      <tr
+                        key={item.id}
+                        style={{
+                          background: isRequestedRemoved ? "rgba(254, 242, 242, 0.75)" : undefined,
+                        }}
+                      >
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                            <strong style={{ color: isRequestedRemoved ? "#991b1b" : "#0f172a" }}>{item.name}</strong>
+                            {isRequestedRemoved && (
+                              <span className="badge badge-rejected" style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem" }}>
+                                ⚠️ Removal Requested by Customer
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td>{item.category}</td>
+                        <td>{item.quantity}</td>
+                        <td>{currency(item.unitPrice)}</td>
+                        <td>{item.discountPercent}%</td>
+                        <td style={{ fontWeight: 800, color: isRequestedRemoved ? "#991b1b" : undefined }}>{currency(item.lineTotal)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -860,6 +1079,67 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
               <div className="margin-summary-row"><span>Margin %</span><strong>{Number(quotation.marginPercentage || 0).toFixed(2)}%</strong></div>
             </div>
           </div>
+
+          {/* ── Past Resolved Negotiation History ── */}
+          {resolvedNegotiations && resolvedNegotiations.length > 0 && (
+            <section
+              style={{
+                marginTop: "1.5rem",
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: "16px",
+                padding: "1.25rem 1.5rem",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.85rem" }}>
+                <MessageSquare size={17} color="#2563eb" />
+                <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>
+                  Negotiation History ({resolvedNegotiations.length})
+                </h3>
+              </div>
+              <div style={{ display: "grid", gap: "0.75rem" }}>
+                {resolvedNegotiations.map((neg) => (
+                  <div
+                    key={neg.id}
+                    style={{
+                      padding: "0.85rem 1.15rem",
+                      borderRadius: "10px",
+                      background: neg.status === "ACCEPTED" ? "rgba(240, 253, 244, 0.9)" : "rgba(254, 242, 242, 0.9)",
+                      border: neg.status === "ACCEPTED" ? "1px solid #bbf7d0" : "1px solid #fecaca",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <span className={`badge ${neg.status === "ACCEPTED" ? "badge-approved" : "badge-rejected"}`}>
+                        {neg.status === "ACCEPTED" ? "✓ Accepted by Sales Rep" : "✕ Declined"}
+                      </span>
+                      <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+                        Resolved {new Date(neg.updatedAt || neg.createdAt).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    {neg.removedItemIds && neg.removedItemIds.length > 0 && (
+                      <div style={{ fontSize: "0.825rem", color: "#1e293b", marginTop: "0.4rem" }}>
+                        • <strong>Requested Item Removals:</strong>{" "}
+                        {neg.requestedItems && neg.requestedItems.length > 0
+                          ? neg.requestedItems.map((i) => `${i.name} (${i.quantity}x)`).join(", ")
+                          : `${neg.removedItemIds.length} item(s)`}
+                      </div>
+                    )}
+                    {neg.requestedDiscountPercent !== null && (
+                      <div style={{ fontSize: "0.825rem", color: "#1e293b", marginTop: "0.2rem" }}>
+                        • <strong>Counter Discount:</strong> {neg.requestedDiscountPercent}%
+                      </div>
+                    )}
+                    {neg.salesRepResponse && (
+                      <div style={{ fontSize: "0.825rem", color: "#334155", marginTop: "0.3rem", fontStyle: "italic", background: "rgba(255,255,255,0.7)", padding: "0.35rem 0.65rem", borderRadius: "6px" }}>
+                        Sales Rep Response: "{neg.salesRepResponse}"
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
     </main>

@@ -61,6 +61,7 @@ export default function CustomerPortal({ onNavigate }) {
   const [requestedDiscountPercent, setRequestedDiscountPercent] = useState("");
   const [requestedDeliveryDate, setRequestedDeliveryDate] = useState("");
   const [customerComment, setCustomerComment] = useState("");
+  const [selectedRemovalItemIds, setSelectedRemovalItemIds] = useState([]);
   const [products, setProducts] = useState([]);
   const [requestItems, setRequestItems] = useState([]);
   const [requestProductId, setRequestProductId] = useState("");
@@ -234,12 +235,26 @@ async function loadRequestData() {
         setRequestedDeliveryDate("");
         setCustomerComment("");
       }
+      setSelectedRemovalItemIds([]);
       setSelectedQuotationId(id);
     } catch (requestError) {
       setError(requestError.message);
       setQuotation(null);
     } finally {
       setDetailLoading(false);
+    }
+  }
+
+  function toggleRemovalItem(itemId) {
+    if (selectedRemovalItemIds.includes(itemId)) {
+      setSelectedRemovalItemIds((prev) => prev.filter((id) => id !== itemId));
+    } else {
+      if (quotation?.items && selectedRemovalItemIds.length + 1 >= quotation.items.length) {
+        setError("Cannot mark all items for removal. At least one product must remain in the quotation.");
+        return;
+      }
+      setError("");
+      setSelectedRemovalItemIds((prev) => [...prev, itemId]);
     }
   }
 
@@ -355,11 +370,13 @@ async function loadRequestData() {
           requestedDiscountPercent,
           requestedDeliveryDate,
           customerComment,
+          removedItemIds: selectedRemovalItemIds,
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Unable to submit negotiation request.");
       setSuccess(data.message);
+      setSelectedRemovalItemIds([]);
       await openQuotation(quotation.id);
       await loadQuotations();
     } catch (requestError) {
@@ -456,6 +473,15 @@ async function loadRequestData() {
     quotation &&
     ["DRAFT", "APPROVED", "NEGOTIATION", "PENDING_APPROVAL", "SENT"].includes(quotation.status);
   const pendingRequest = quotation?.negotiations?.find((request) => request.status === "PENDING");
+
+  const remainingItems = (quotation?.items || []).filter((item) => !selectedRemovalItemIds.includes(item.id));
+  const proposedSubtotal = remainingItems.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0), 0);
+  const proposedDiscountAmount = remainingItems.reduce((sum, item) => {
+    const lineSubtotal = Number(item.unitPrice || 0) * Number(item.quantity || 0);
+    const disc = requestedDiscountPercent !== "" ? Number(requestedDiscountPercent) : Number(item.discountPercent || 0);
+    return sum + (lineSubtotal * disc) / 100;
+  }, 0);
+  const proposedFinalAmount = Math.max(0, proposedSubtotal - proposedDiscountAmount);
 
   const glassStyle = {
     background: "rgba(255, 255, 255, 0.88)",
@@ -1226,27 +1252,150 @@ async function loadRequestData() {
                     <th>Unit Price</th>
                     <th>Item Discount</th>
                     <th style={{ textAlign: "right" }}>Total Amount</th>
+                    {canRespond && !pendingRequest && <th style={{ textAlign: "center", width: "160px" }}>Item Adjustment</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {quotation.items.map((item) => (
-                    <tr key={item.id}>
-                      <td><strong style={{ color: "#0f172a" }}>{item.name}</strong></td>
-                      <td style={{ color: "#64748b" }}>{item.category}</td>
-                      <td><span style={{ fontWeight: 700 }}>{item.quantity}</span></td>
-                      <td>{currency(item.unitPrice)}</td>
-                      <td><span style={{ color: item.discountPercent > 0 ? "#ef4444" : "#64748b", fontWeight: 600 }}>{item.discountPercent}%</span></td>
-                      <td style={{ textAlign: "right", fontWeight: 800, color: "#0f172a" }}>{currency(item.lineTotal)}</td>
-                    </tr>
-                  ))}
+                  {quotation.items.map((item) => {
+                    const isPendingRemoval = pendingRequest?.removedItemIds?.includes(item.id);
+                    const isMarkedForRemoval = selectedRemovalItemIds.includes(item.id);
+
+                    return (
+                      <tr
+                        key={item.id}
+                        style={{
+                          background: isMarkedForRemoval
+                            ? "rgba(254, 242, 242, 0.75)"
+                            : isPendingRemoval
+                            ? "rgba(254, 243, 199, 0.5)"
+                            : undefined,
+                          color: isMarkedForRemoval ? "#94a3b8" : undefined,
+                        }}
+                      >
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                            <strong style={{ color: isMarkedForRemoval ? "#94a3b8" : "#0f172a", textDecoration: isMarkedForRemoval ? "line-through" : "none" }}>
+                              {item.name}
+                            </strong>
+                            {isPendingRemoval && (
+                              <span className="badge badge-pending" style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem" }}>
+                                ⏳ Removal Pending Sales Approval
+                              </span>
+                            )}
+                            {isMarkedForRemoval && (
+                              <span className="badge badge-rejected" style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem" }}>
+                                Marked for Removal
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ color: "#64748b" }}>{item.category}</td>
+                        <td><span style={{ fontWeight: 700, textDecoration: isMarkedForRemoval ? "line-through" : "none" }}>{item.quantity}</span></td>
+                        <td>{currency(item.unitPrice)}</td>
+                        <td><span style={{ color: item.discountPercent > 0 ? "#ef4444" : "#64748b", fontWeight: 600 }}>{item.discountPercent}%</span></td>
+                        <td style={{ textAlign: "right", fontWeight: 800, color: isMarkedForRemoval ? "#94a3b8" : "#0f172a", textDecoration: isMarkedForRemoval ? "line-through" : "none" }}>
+                          {currency(item.lineTotal)}
+                        </td>
+                        {canRespond && !pendingRequest && (
+                          <td style={{ textAlign: "center" }}>
+                            <button
+                              type="button"
+                              onClick={() => toggleRemovalItem(item.id)}
+                              style={{
+                                padding: "0.35rem 0.75rem",
+                                fontSize: "0.775rem",
+                                fontWeight: 700,
+                                borderRadius: "8px",
+                                border: isMarkedForRemoval ? "1px solid #dc2626" : "1px solid #fca5a5",
+                                background: isMarkedForRemoval ? "#dc2626" : "#fff1f2",
+                                color: isMarkedForRemoval ? "#ffffff" : "#be123c",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.35rem",
+                                transition: "all 0.2s ease",
+                              }}
+                            >
+                              {isMarkedForRemoval ? (
+                                <>Undo Removal</>
+                              ) : (
+                                <><Trash2 size={13} /> Request Removal</>
+                              )}
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
+            {/* Proposed Adjusted Quote Summary if items are marked for removal */}
+            {selectedRemovalItemIds.length > 0 && (
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #fef2f2 0%, #fff7ed 100%)",
+                  border: "1.5px solid #f87171",
+                  borderRadius: "12px",
+                  padding: "1rem 1.25rem",
+                  marginBottom: "1.25rem",
+                  boxShadow: "0 4px 12px rgba(239, 68, 68, 0.08)",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#991b1b", fontWeight: 800, fontSize: "0.95rem" }}>
+                    <Trash2 size={18} color="#dc2626" />
+                    <span>{selectedRemovalItemIds.length} item(s) selected for removal from this quotation</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Proposed New Total:</span>
+                    <strong style={{ fontSize: "1.2rem", color: "#b91c1c", fontWeight: 800 }}>{currency(proposedFinalAmount)}</strong>
+                    <span style={{ fontSize: "0.8rem", color: "#94a3b8", textDecoration: "line-through" }}>{currency(quotation.finalAmount)}</span>
+                  </div>
+                </div>
+                <div style={{ fontSize: "0.825rem", color: "#7f1d1d", marginTop: "0.4rem", lineHeight: "1.4" }}>
+                  When you submit your counter-offer below, a removal request will be dispatched to your sales representative. Once the sales representative reviews and approves, your quotation will be updated automatically.
+                </div>
+              </div>
+            )}
+
             {pendingRequest && (
-              <div className="alert alert-success" style={{ marginBottom: "1rem", borderRadius: "10px" }}>
-                <MessageSquare size={17} /> <strong>Active Negotiation Pending:</strong> Requested Discount:{" "}
-                {pendingRequest.requestedDiscountPercent ?? "-"}% · Target Date: {pendingRequest.requestedDeliveryDate || "Default"} · Status: Pending Sales Approval
+              <div className="alert alert-success" style={{ marginBottom: "1.25rem", borderRadius: "12px", padding: "1rem 1.25rem" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", width: "100%" }}>
+                  <MessageSquare size={20} color="#059669" style={{ marginTop: "0.15rem", flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#065f46", marginBottom: "0.25rem" }}>
+                      Active Negotiation Request Pending Sales Review
+                    </div>
+                    {pendingRequest.removedItemIds?.length > 0 && (
+                      <div style={{ fontSize: "0.85rem", color: "#065f46", marginTop: "0.25rem" }}>
+                        • <strong>Requested Item Removals:</strong>{" "}
+                        {pendingRequest.requestedItems?.length > 0
+                          ? pendingRequest.requestedItems.map((i) => `${i.name} (Qty: ${i.quantity})`).join(", ")
+                          : `${pendingRequest.removedItemIds.length} item(s)`}
+                      </div>
+                    )}
+                    {pendingRequest.requestedDiscountPercent !== null && (
+                      <div style={{ fontSize: "0.85rem", color: "#065f46", marginTop: "0.15rem" }}>
+                        • <strong>Requested Discount:</strong> {pendingRequest.requestedDiscountPercent}%
+                      </div>
+                    )}
+                    {pendingRequest.requestedDeliveryDate && (
+                      <div style={{ fontSize: "0.85rem", color: "#065f46", marginTop: "0.15rem" }}>
+                        • <strong>Requested Delivery Date:</strong> {pendingRequest.requestedDeliveryDate}
+                      </div>
+                    )}
+                    {pendingRequest.customerComment && (
+                      <div style={{ fontSize: "0.85rem", color: "#065f46", marginTop: "0.15rem", fontStyle: "italic" }}>
+                        • <strong>Customer Note:</strong> "{pendingRequest.customerComment}"
+                      </div>
+                    )}
+                    <div style={{ fontSize: "0.78rem", color: "#047857", marginTop: "0.4rem" }}>
+                      Submitted {new Date(pendingRequest.createdAt).toLocaleString("en-IN")}. Your sales representative has been notified and will update the quotation upon agreement.
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

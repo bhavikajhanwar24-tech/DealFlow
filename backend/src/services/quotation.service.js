@@ -525,6 +525,16 @@ async function getQuotation(id, user) {
     [id]
   );
 
+  const negotiationResult = await db.query(
+    `SELECT id, customer_id, requested_discount_percent, requested_delivery_date,
+            customer_comment, removed_item_ids, requested_items, sales_rep_response,
+            status, created_at, updated_at
+     FROM public.negotiation_requests
+     WHERE quotation_id = $1
+     ORDER BY created_at DESC`,
+    [id],
+  );
+
   return {
     ...mapQuotation(quotationResult.rows[0]),
     items: itemResult.rows.map((item) => ({
@@ -541,7 +551,20 @@ async function getQuotation(id, user) {
       discountPercent: Number(item.discount_percent),
       discountAmount: Number(item.discount_amount),
       lineTotal: Number(item.line_total)
-    }))
+    })),
+    negotiations: negotiationResult.rows.map((request) => ({
+      id: request.id,
+      customerId: request.customer_id,
+      requestedDiscountPercent: request.requested_discount_percent === null ? null : Number(request.requested_discount_percent),
+      requestedDeliveryDate: request.requested_delivery_date,
+      customerComment: request.customer_comment,
+      removedItemIds: Array.isArray(request.removed_item_ids) ? request.removed_item_ids : [],
+      requestedItems: Array.isArray(request.requested_items) ? request.requested_items : [],
+      salesRepResponse: request.sales_rep_response,
+      status: request.status,
+      createdAt: request.created_at,
+      updatedAt: request.updated_at,
+    })),
   };
 }
 
@@ -917,8 +940,9 @@ async function getCustomerQuotation(id, customer) {
   }
 
   const negotiationResult = await db.query(
-    `SELECT id, requested_discount_percent, requested_delivery_date,
-            customer_comment, status, created_at, updated_at
+    `SELECT id, customer_id, requested_discount_percent, requested_delivery_date,
+            customer_comment, removed_item_ids, requested_items, sales_rep_response,
+            status, created_at, updated_at
      FROM public.negotiation_requests
      WHERE quotation_id = $1
      ORDER BY created_at DESC`,
@@ -928,9 +952,13 @@ async function getCustomerQuotation(id, customer) {
     ...quotation,
     negotiations: negotiationResult.rows.map((request) => ({
       id: request.id,
+      customerId: request.customer_id,
       requestedDiscountPercent: request.requested_discount_percent === null ? null : Number(request.requested_discount_percent),
       requestedDeliveryDate: request.requested_delivery_date,
       customerComment: request.customer_comment,
+      removedItemIds: Array.isArray(request.removed_item_ids) ? request.removed_item_ids : [],
+      requestedItems: Array.isArray(request.requested_items) ? request.requested_items : [],
+      salesRepResponse: request.sales_rep_response,
       status: request.status,
       createdAt: request.created_at,
       updatedAt: request.updated_at,
@@ -957,30 +985,263 @@ async function createNegotiationRequest(id, customer, input) {
     throw quotationError("Requested delivery date is invalid.");
   }
 
+  const removedItemIds = Array.isArray(input.removedItemIds) ? input.removedItemIds : [];
+  if (removedItemIds.length > 0) {
+    if (removedItemIds.length >= quotation.items.length) {
+      throw quotationError("Cannot remove all items from quotation. If you wish to reject the entire quote, please use Reject Quotation.");
+    }
+    const currentItemIds = new Set(quotation.items.map((it) => it.id));
+    for (const rid of removedItemIds) {
+      if (!currentItemIds.has(rid)) {
+        throw quotationError("One or more selected items to remove do not belong to this quotation.");
+      }
+    }
+  }
+
+  if (!hasDiscount && !deliveryDate && removedItemIds.length === 0 && !input.customerComment?.trim()) {
+    throw quotationError("Please provide at least one negotiation change (discount, delivery date, item removal, or comment).");
+  }
+
+  const removedItemsSnapshot = quotation.items
+    .filter((it) => removedItemIds.includes(it.id))
+    .map((it) => ({
+      id: it.id,
+      productId: it.productId,
+      name: it.name,
+      sku: it.sku,
+      quantity: it.quantity,
+      unitPrice: it.unitPrice,
+      lineTotal: it.lineTotal,
+    }));
+
   const result = await db.query(
     `INSERT INTO public.negotiation_requests
-     (quotation_id, customer_id, requested_discount_percent, requested_delivery_date, customer_comment)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, requested_discount_percent, requested_delivery_date, customer_comment, status, created_at`,
-    [id, customer.id, requestedDiscountPercent, deliveryDate, input.customerComment?.trim() || null],
+     (quotation_id, customer_id, requested_discount_percent, requested_delivery_date, customer_comment, removed_item_ids, requested_items)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)
+     RETURNING id, requested_discount_percent, requested_delivery_date, customer_comment, removed_item_ids, requested_items, status, created_at`,
+    [
+      id,
+      customer.id,
+      requestedDiscountPercent,
+      deliveryDate,
+      input.customerComment?.trim() || null,
+      JSON.stringify(removedItemIds),
+      JSON.stringify(removedItemsSnapshot),
+    ],
   );
+
+  const removedNames = removedItemsSnapshot.map((i) => `${i.name} (Qty: ${i.quantity}, ₹${Number(i.lineTotal).toLocaleString("en-IN")})`).join(", ");
+
   const negotiationMessage = [
-    "Customer negotiation request",
-    hasDiscount ? `Requested discount: ${requestedDiscountPercent}%` : null,
-    deliveryDate ? `Requested delivery date: ${deliveryDate}` : null,
-    input.customerComment?.trim() ? `Comment: ${input.customerComment.trim()}` : null,
+    "📋 Customer Negotiation Request",
+    removedItemsSnapshot.length > 0 ? `• Requested Removal of Items: ${removedNames}` : null,
+    hasDiscount ? `• Requested Discount: ${requestedDiscountPercent}%` : null,
+    deliveryDate ? `• Requested Delivery Date: ${deliveryDate}` : null,
+    input.customerComment?.trim() ? `• Customer Note: "${input.customerComment.trim()}"` : null,
   ].filter(Boolean).join("\n");
+
   await db.query(
     `INSERT INTO public.quotation_messages
       (quotation_id, sender_id, sender_role, sender_name, message, recipient_role, recipient_id)
      VALUES ($1, $2, 'CUSTOMER', $3, $4, 'SALES_REP', $5)`,
-    [id, customer.id, customer.full_name || customer.email, negotiationMessage, quotation.salesRep.id],
+    [id, customer.id, customer.full_name || customer.email, negotiationMessage, quotation.salesRep?.id || null],
   );
+
   await db.query(
     `UPDATE public.quotations SET status = 'NEGOTIATION', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND customer_id = $2`,
     [id, customer.id],
   );
+
   return result.rows[0];
+}
+
+async function respondToNegotiationRequest(user, quotationId, negotiationId, input) {
+  if (!SALES_ROLES.includes(user.role) && user.role !== "ADMIN") {
+    throw quotationError("Only Sales Representatives, Managers, or Admins can respond to negotiations.", 403);
+  }
+
+  const action = (input.action || "").toUpperCase().trim();
+  if (!["ACCEPT", "REJECT"].includes(action)) {
+    throw quotationError("Action must be either ACCEPT or REJECT.", 400);
+  }
+
+  const responseNote = (input.responseNote || "").trim();
+
+  // Fetch quotation
+  const quotation = await getQuotation(quotationId, user);
+  if (!quotation) throw quotationError("Quotation not found.", 404);
+
+  // Fetch negotiation request
+  const negResult = await db.query(
+    `SELECT * FROM public.negotiation_requests WHERE id = $1 AND quotation_id = $2`,
+    [negotiationId, quotationId],
+  );
+  if (!negResult.rows.length) throw quotationError("Negotiation request not found.", 404);
+
+  const negotiation = negResult.rows[0];
+  if (negotiation.status !== "PENDING") {
+    throw quotationError(`This negotiation request has already been ${negotiation.status.toLowerCase()}.`);
+  }
+
+  const client = await db.pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    if (action === "ACCEPT") {
+      let removedItemIds = [];
+      try {
+        removedItemIds = Array.isArray(negotiation.removed_item_ids)
+          ? negotiation.removed_item_ids
+          : JSON.parse(negotiation.removed_item_ids || "[]");
+      } catch (e) {
+        removedItemIds = [];
+      }
+
+      if (removedItemIds && removedItemIds.length > 0) {
+        await client.query(
+          `DELETE FROM public.quotation_items WHERE quotation_id = $1 AND id = ANY($2::uuid[])`,
+          [quotationId, removedItemIds],
+        );
+      }
+
+      // Fetch remaining items
+      const remainingItemsResult = await client.query(
+        `SELECT qi.id, qi.product_id, qi.quantity, qi.unit_price, qi.discount_percent,
+                p.cost, p.name
+         FROM public.quotation_items qi
+         JOIN public.products p ON p.id = qi.product_id
+         WHERE qi.quotation_id = $1`,
+        [quotationId],
+      );
+
+      if (remainingItemsResult.rows.length === 0) {
+        throw quotationError("Cannot remove all items from quotation. At least one item must remain.");
+      }
+
+      // Check if counter discount was also accepted
+      const requestedDiscount = negotiation.requested_discount_percent !== null ? Number(negotiation.requested_discount_percent) : null;
+
+      let subtotal = 0;
+      let discountAmount = 0;
+      let totalCost = 0;
+
+      for (const item of remainingItemsResult.rows) {
+        const qty = Number(item.quantity);
+        const unitPrice = Number(item.unit_price);
+        const costPrice = Number(item.cost || 0);
+        const discountPercent = requestedDiscount !== null ? requestedDiscount : Number(item.discount_percent || 0);
+
+        const lineSubtotal = money(unitPrice * qty);
+        const lineDiscount = money((lineSubtotal * discountPercent) / 100);
+        const lineTotal = money(lineSubtotal - lineDiscount);
+
+        subtotal += lineSubtotal;
+        discountAmount += lineDiscount;
+        totalCost += costPrice * qty;
+
+        if (requestedDiscount !== null) {
+          await client.query(
+            `UPDATE public.quotation_items
+             SET discount_percent = $1, discount_amount = $2, line_total = $3
+             WHERE id = $4`,
+            [discountPercent, lineDiscount, lineTotal, item.id],
+          );
+        }
+      }
+
+      subtotal = money(subtotal);
+      discountAmount = money(discountAmount);
+      totalCost = money(totalCost);
+      const finalAmount = money(subtotal - discountAmount);
+      const grossMargin = money(finalAmount - totalCost);
+      const marginPercentage = finalAmount === 0 ? 0 : money((grossMargin / finalAmount) * 100);
+
+      // Update quotation header to APPROVED with recalculated figures
+      await client.query(
+        `UPDATE public.quotations
+         SET status = 'APPROVED',
+             subtotal = $1,
+             discount_amount = $2,
+             final_amount = $3,
+             total_cost = $4,
+             gross_margin = $5,
+             margin_percentage = $6,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $7`,
+        [subtotal, discountAmount, finalAmount, totalCost, grossMargin, marginPercentage, quotationId],
+      );
+
+      // Update negotiation request status
+      await client.query(
+        `UPDATE public.negotiation_requests
+         SET status = 'ACCEPTED',
+             sales_rep_response = $1,
+             resolved_by = $2,
+             resolved_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [responseNote || null, user.id, negotiationId],
+      );
+
+      // Post update message in conversation thread
+      const updateMsg = [
+        `✅ Negotiation Accepted by ${user.full_name || "Sales Representative"}.`,
+        removedItemIds.length > 0 ? `• Removed ${removedItemIds.length} item(s) per customer request.` : null,
+        requestedDiscount !== null ? `• Applied requested discount: ${requestedDiscount}%.` : null,
+        `• Updated Quotation Total: ₹${finalAmount.toLocaleString("en-IN")}.`,
+        responseNote ? `• Note from Sales: "${responseNote}"` : null,
+      ].filter(Boolean).join("\n");
+
+      await client.query(
+        `INSERT INTO public.quotation_messages
+         (quotation_id, sender_id, sender_role, sender_name, message, recipient_role, recipient_id)
+         VALUES ($1, $2, 'SALES_REP', $3, $4, 'CUSTOMER', $5)`,
+        [quotationId, user.id, user.full_name || "Sales Representative", updateMsg, quotation.customerId],
+      );
+    } else {
+      // REJECT
+      await client.query(
+        `UPDATE public.negotiation_requests
+         SET status = 'REJECTED',
+             sales_rep_response = $1,
+             resolved_by = $2,
+             resolved_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [responseNote || null, user.id, negotiationId],
+      );
+
+      await client.query(
+        `UPDATE public.quotations
+         SET status = 'APPROVED',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [quotationId],
+      );
+
+      const rejectMsg = [
+        `❌ Negotiation Request Declined by ${user.full_name || "Sales Representative"}.`,
+        "The quotation remains at the previously agreed terms.",
+        responseNote ? `• Reason / Note: "${responseNote}"` : null,
+      ].filter(Boolean).join("\n");
+
+      await client.query(
+        `INSERT INTO public.quotation_messages
+         (quotation_id, sender_id, sender_role, sender_name, message, recipient_role, recipient_id)
+         VALUES ($1, $2, 'SALES_REP', $3, $4, 'CUSTOMER', $5)`,
+        [quotationId, user.id, user.full_name || "Sales Representative", rejectMsg, quotation.customerId],
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  return await getQuotation(quotationId, user);
 }
 
 async function confirmCustomerQuotation(id, customer) {
@@ -1164,6 +1425,7 @@ module.exports = {
   listCustomerQuotations,
   getCustomerQuotation,
   createNegotiationRequest,
+  respondToNegotiationRequest,
   confirmCustomerQuotation,
   rejectCustomerQuotation,
   finalizeQuotation,
