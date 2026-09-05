@@ -101,6 +101,25 @@ async function initDatabase() {
     `);
 
     await client.query(`
+      ALTER TABLE public.quotations
+      ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.negotiation_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        quotation_id UUID NOT NULL REFERENCES public.quotations(id) ON DELETE CASCADE,
+        customer_id UUID NOT NULL REFERENCES public.users(id),
+        requested_discount_percent NUMERIC(5, 2),
+        requested_delivery_date DATE,
+        customer_comment TEXT,
+        status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS public.warehouses (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name VARCHAR(255) NOT NULL,
@@ -125,6 +144,8 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_quotations_customer ON public.quotations(customer_id);
       CREATE INDEX IF NOT EXISTS idx_quotations_sales_rep ON public.quotations(sales_rep_id);
       CREATE INDEX IF NOT EXISTS idx_quotation_items_quotation ON public.quotation_items(quotation_id);
+      CREATE INDEX IF NOT EXISTS idx_negotiation_requests_quotation ON public.negotiation_requests(quotation_id);
+      CREATE INDEX IF NOT EXISTS idx_negotiation_requests_customer ON public.negotiation_requests(customer_id);
       CREATE INDEX IF NOT EXISTS idx_warehouses_active ON public.warehouses(is_active);
     `);
 

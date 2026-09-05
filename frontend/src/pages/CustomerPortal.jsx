@@ -1,157 +1,531 @@
 import { useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  CheckCircle,
+  Lock,
+  MessageSquare,
+  Send,
+  AlertCircle,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
-
-const CheckCircleIcon = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-    <polyline points="22 4 12 14.01 9 11.01" />
-  </svg>
-);
-
-const LockIcon = ({ size = 15 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="11" width="18" height="11" rx="2" />
-    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-  </svg>
-);
-
-const AlertCircleIcon = ({ size = 18 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10" />
-    <line x1="12" y1="8" x2="12" y2="12" />
-    <line x1="12" y1="16" x2="12.01" y2="16" />
-  </svg>
-);
-
-const ShieldCheckIcon = ({ size = 20 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    <path d="m9 12 2 2 4-4" />
-  </svg>
-);
-
-const DownloadIcon = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <polyline points="7 10 12 15 17 10" />
-    <line x1="12" y1="15" x2="12" y2="3" />
-  </svg>
-);
+const visibleStatuses = ["APPROVED", "NEGOTIATION", "CONFIRMED"];
+const currency = (value) =>
+  `₹${Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const statusLabel = {
+  DRAFT: "Draft - Awaiting Review",
+  APPROVED: "Approved",
+  NEGOTIATION: "Under Negotiation",
+  CONFIRMED: "Confirmed",
+};
 
 export default function CustomerPortal() {
   const { user, token, logout } = useAuth();
-  const [portalData, setPortalData] = useState(null);
+  const [quotations, setQuotations] = useState([]);
+  const [selectedQuotationId, setSelectedQuotationId] = useState(null);
+  const [quotation, setQuotation] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
-  const [acceptedQuotes, setAcceptedQuotes] = useState([]);
+  const [success, setSuccess] = useState("");
+  const [requestedDiscountPercent, setRequestedDiscountPercent] = useState("");
+  const [requestedDeliveryDate, setRequestedDeliveryDate] = useState("");
+  const [customerComment, setCustomerComment] = useState("");
+
+  async function loadQuotations() {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(`${API_BASE}/customer/quotations`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.message || "Unable to load your quotations.");
+      setQuotations(data.data || []);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function openQuotation(id) {
+    setSelectedQuotationId(id);
+    setDetailLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`${API_BASE}/customer/quotations/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(
+          response.status === 403
+            ? "You do not have permission to access this quotation."
+            : data.message || "Quotation not found.",
+        );
+      setQuotation(data.data);
+      const pending = data.data.negotiations?.find(
+        (request) => request.status === "PENDING",
+      );
+      if (pending) {
+        setRequestedDiscountPercent(pending.requestedDiscountPercent ?? "");
+        setRequestedDeliveryDate(pending.requestedDeliveryDate || "");
+        setCustomerComment(pending.customerComment || "");
+      } else {
+        setRequestedDiscountPercent("");
+        setRequestedDeliveryDate("");
+        setCustomerComment("");
+      }
+    } catch (requestError) {
+      setError(requestError.message);
+      setQuotation(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function fetchPortal() {
-      try {
-        const response = await fetch(`${API_BASE}/customer/portal`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await response.json();
-        if (!response.ok || !data.success) {
-          throw new Error(data.message || "Failed to load customer quotations.");
-        }
-        setPortalData(data);
-      } catch (requestError) {
-        setError(requestError.message || "Network error fetching quotation portal.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchPortal();
+    loadQuotations();
   }, [token]);
 
-  const handleAcceptQuote = (quoteId) => {
-    setAcceptedQuotes((current) => [...current, quoteId]);
-    alert(`Quotation ${quoteId} officially accepted! Your account executive has been notified.`);
-  };
+  async function submitNegotiation(event) {
+    event.preventDefault();
+    if (!quotation) return;
+    setActionLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(
+        `${API_BASE}/customer/quotations/${quotation.id}/negotiate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            requestedDiscountPercent,
+            requestedDeliveryDate,
+            customerComment,
+          }),
+        },
+      );
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(
+          data.message || "Unable to submit negotiation request.",
+        );
+      setSuccess(data.message);
+      await openQuotation(quotation.id);
+      await loadQuotations();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function confirmQuotation() {
+    if (
+      !quotation ||
+      !window.confirm("Confirm this quotation with its current terms?")
+    )
+      return;
+    setActionLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(
+        `${API_BASE}/customer/quotations/${quotation.id}/confirm`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+      );
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.message || "Unable to confirm quotation.");
+      setSuccess(data.message);
+      await openQuotation(quotation.id);
+      await loadQuotations();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  const isDetail = Boolean(selectedQuotationId);
+  const canRespond =
+    quotation && ["APPROVED", "NEGOTIATION"].includes(quotation.status);
+  const pendingRequest = quotation?.negotiations?.find(
+    (request) => request.status === "PENDING",
+  );
 
   return (
     <main className="main-content">
       <div className="customer-portal-header">
         <div>
           <div className="customer-verified-badge">
-            <CheckCircleIcon size={14} /> Verified Customer Account
+            <CheckCircle size={14} /> Verified Customer Account
           </div>
-          <h1>{user?.company_name || "Enterprise Customer"} Quotation Portal</h1>
-          <p>Authorized contact: <strong>{user?.full_name}</strong> ({user?.email})</p>
+          <h1>
+            {isDetail ? "Customer Portal Negotiation Screen" : "My Quotations"}
+          </h1>
+          <p>
+            {isDetail
+              ? `${quotation?.quotationNumber || "Quotation"} for ${user?.company_name || "your company"}`
+              : "View and respond to quotations prepared for your company."}
+          </p>
         </div>
         <div className="customer-access-summary">
           <div className="customer-access-label">Access Isolation Policy</div>
-          <div className="customer-access-value"><LockIcon size={15} /> Strict Single-Tenant Portal</div>
-          <button className="btn-secondary" onClick={logout}>Logout</button>
+          <div className="customer-access-value">
+            <Lock size={15} /> Strict Single-Tenant Portal
+          </div>
+          <button className="btn-secondary" onClick={logout}>
+            Logout
+          </button>
         </div>
       </div>
 
       {error && (
         <div className="alert alert-danger">
-          <AlertCircleIcon />
-          <div>{error}</div>
+          <AlertCircle size={17} /> {error}
+        </div>
+      )}
+      {success && (
+        <div className="alert alert-success">
+          <CheckCircle size={17} /> {success}
         </div>
       )}
 
-      <div className="customer-security-banner">
-        <ShieldCheckIcon size={20} />
-        <div>
-          <strong>Role Governance Active:</strong> You can view only quotations authored for <strong>{user?.company_name || "your company"}</strong>. Internal sales margins, cost floors, and administrative tools are safeguarded.
-        </div>
-      </div>
-
-      <div className="data-table-card">
-        <div className="customer-quotes-heading">
-          <h2>Your Active Quotations</h2>
-          <div>Quotes generated by DealFlow360 commercial operations for your organization.</div>
-        </div>
-        <div style={{ overflowX: "auto" }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Quote ID</th>
-                <th>Package Description</th>
-                <th>Valid Until</th>
-                <th>Total Value</th>
-                <th>Status</th>
-                <th style={{ textAlign: "right" }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan="6" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>Loading customer quotes...</td></tr>
-              ) : (portalData?.quotations || []).map((quote) => {
-                const isAccepted = acceptedQuotes.includes(quote.id) || quote.status === "Accepted";
-                return (
-                  <tr key={quote.id}>
-                    <td><code>{quote.id}</code></td>
-                    <td><strong>{quote.description}</strong></td>
-                    <td>{quote.validUntil}</td>
-                    <td><strong>{quote.amount}</strong></td>
-                    <td><span className={`badge ${isAccepted ? "badge-active" : "badge-pending"}`}>{isAccepted ? "Accepted" : quote.status}</span></td>
-                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                      <div style={{ display: "inline-flex", gap: "0.5rem" }}>
-                        <button className="btn-secondary" style={{ padding: "0.4rem 0.75rem", fontSize: "0.8125rem" }} onClick={() => alert(`Downloading signed quotation PDF for ${quote.id}...`)}>
-                          <DownloadIcon /> PDF
-                        </button>
-                        {!isAccepted && (
-                          <button className="btn-primary" style={{ width: "auto", padding: "0.4rem 0.85rem", fontSize: "0.8125rem" }} onClick={() => handleAcceptQuote(quote.id)}>
-                            <CheckCircleIcon /> Accept Quote
-                          </button>
-                        )}
-                      </div>
+      {!isDetail ? (
+        <div className="data-table-card">
+          <div className="customer-quotes-heading">
+            <h2>My Quotations</h2>
+            <div>
+              Only quotations prepared for your customer account are shown.
+            </div>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Quotation Number</th>
+                  <th>Quotation Date</th>
+                  <th>Total Amount</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr>
+                    <td
+                      colSpan="5"
+                      style={{
+                        textAlign: "center",
+                        padding: "3rem",
+                        color: "#64748b",
+                      }}
+                    >
+                      Loading your quotations...
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                )}
+                {!loading && quotations.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan="5"
+                      style={{
+                        textAlign: "center",
+                        padding: "3rem",
+                        color: "#64748b",
+                      }}
+                    >
+                      <strong>No quotations available.</strong>
+                      <br />
+                      Your sales representative will share quotations with you
+                      here.
+                    </td>
+                  </tr>
+                )}
+                {!loading &&
+                  quotations.map((entry) => (
+                    <tr key={entry.id}>
+                      <td style={{ fontWeight: 800, color: "#1d4ed8" }}>
+                        {entry.quotationNumber}
+                      </td>
+                      <td>
+                        {new Date(entry.createdAt).toLocaleDateString("en-IN")}
+                      </td>
+                      <td style={{ fontWeight: 800 }}>
+                        {currency(entry.finalAmount)}
+                      </td>
+                      <td>
+                        <span className="badge badge-active">
+                          {statusLabel[entry.status] || entry.status}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          className="btn-secondary"
+                          style={{ padding: "0.4rem 0.75rem" }}
+                          onClick={() => openQuotation(entry.id)}
+                        >
+                          View Quotation
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : detailLoading ? (
+        <div style={{ color: "#64748b" }}>Loading quotation...</div>
+      ) : quotation ? (
+        <>
+          <button
+            className="btn-secondary"
+            onClick={() => {
+              setSelectedQuotationId(null);
+              setQuotation(null);
+            }}
+          >
+            <ArrowLeft size={16} /> Back to My Quotations
+          </button>
+          <section
+            style={{
+              background: "#fff",
+              border: "1px solid var(--border-light)",
+              borderRadius: "16px",
+              padding: "1.5rem",
+              marginTop: "1rem",
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "1rem",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <h2 style={{ fontSize: "1.35rem", fontWeight: 800 }}>
+                  {quotation.quotationNumber}
+                </h2>
+                <p style={{ color: "#64748b", marginTop: "0.35rem" }}>
+                  {user?.company_name} ·{" "}
+                  {new Date(quotation.createdAt).toLocaleDateString("en-IN")}
+                </p>
+              </div>
+              <span className="badge badge-active">
+                Status: {statusLabel[quotation.status] || quotation.status}
+              </span>
+            </div>
+            <div className="data-table-card" style={{ marginTop: "1.25rem" }}>
+              <div style={{ overflowX: "auto" }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Line Item</th>
+                      <th>Category</th>
+                      <th>Qty</th>
+                      <th>Unit Price</th>
+                      <th>Discount</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quotation.items.map((item) => (
+                      <tr key={item.id}>
+                        <td style={{ fontWeight: 700 }}>{item.name}</td>
+                        <td>{item.category}</td>
+                        <td>{item.quantity}</td>
+                        <td>{currency(item.unitPrice)}</td>
+                        <td>{item.discountPercent}%</td>
+                        <td style={{ fontWeight: 800 }}>
+                          {currency(item.lineTotal)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: "1rem",
+              }}
+            >
+              <div style={{ minWidth: "280px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    color: "#64748b",
+                  }}
+                >
+                  <span>Subtotal</span>
+                  <strong>{currency(quotation.subtotal)}</strong>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    color: "#ef4444",
+                    marginTop: "0.5rem",
+                  }}
+                >
+                  <span>Discount</span>
+                  <strong>-{currency(quotation.discountAmount)}</strong>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontWeight: 800,
+                    fontSize: "1.15rem",
+                    marginTop: "0.75rem",
+                    paddingTop: "0.75rem",
+                    borderTop: "1px solid #e2e8f0",
+                  }}
+                >
+                  <span>Final Price</span>
+                  <strong>{currency(quotation.finalAmount)}</strong>
+                </div>
+              </div>
+            </div>
+          </section>
+          {pendingRequest && (
+            <div className="alert alert-success" style={{ marginTop: "1rem" }}>
+              <MessageSquare size={17} /> Current terms · Requested discount:{" "}
+              {pendingRequest.requestedDiscountPercent ?? "-"}% · Status:
+              Pending Review
+            </div>
+          )}
+          <section
+            style={{
+              background: "#fff",
+              border: "1px solid var(--border-light)",
+              borderRadius: "16px",
+              padding: "1.5rem",
+              marginTop: "1rem",
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 800 }}>
+              Respond to quotation
+            </h2>
+            <p
+              style={{
+                color: "#64748b",
+                fontSize: "0.875rem",
+                margin: "0.35rem 0 1rem",
+              }}
+            >
+              If final terms exceed thresholds, the quote will automatically
+              re-enter approval.
+            </p>
+            <form onSubmit={submitNegotiation}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+                  gap: "1rem",
+                }}
+              >
+                <label className="form-group">
+                  <span className="form-label">Counter Discount %</span>
+                  <input
+                    className="form-input no-icon"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={requestedDiscountPercent}
+                    onChange={(event) =>
+                      setRequestedDiscountPercent(event.target.value)
+                    }
+                    disabled={!canRespond || Boolean(pendingRequest)}
+                    placeholder="Optional"
+                  />
+                </label>
+                <label className="form-group">
+                  <span className="form-label">Requested Delivery Date</span>
+                  <input
+                    className="form-input no-icon"
+                    type="date"
+                    min={new Date().toISOString().slice(0, 10)}
+                    value={requestedDeliveryDate}
+                    onChange={(event) =>
+                      setRequestedDeliveryDate(event.target.value)
+                    }
+                    disabled={!canRespond || Boolean(pendingRequest)}
+                  />
+                </label>
+              </div>
+              <label className="form-group" style={{ marginTop: "1rem" }}>
+                <span className="form-label">Customer Comment</span>
+                <textarea
+                  className="form-input no-icon"
+                  rows="3"
+                  value={customerComment}
+                  onChange={(event) => setCustomerComment(event.target.value)}
+                  disabled={!canRespond || Boolean(pendingRequest)}
+                  placeholder="Add a request or comment for the sales team"
+                />
+              </label>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "0.75rem",
+                  marginTop: "1rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <button
+                  className="btn-primary"
+                  type="submit"
+                  disabled={
+                    !canRespond || Boolean(pendingRequest) || actionLoading
+                  }
+                >
+                  {actionLoading ? (
+                    "Submitting request..."
+                  ) : (
+                    <>
+                      <Send size={16} /> Submit Request
+                    </>
+                  )}
+                </button>
+                <button
+                  className="btn-secondary"
+                  type="button"
+                  onClick={confirmQuotation}
+                  disabled={!canRespond || actionLoading}
+                >
+                  {actionLoading ? (
+                    "Confirming quotation..."
+                  ) : (
+                    <>
+                      <CheckCircle size={16} /> Confirm Quotation
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </section>
+        </>
+      ) : null}
     </main>
   );
 }

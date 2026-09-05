@@ -2,7 +2,16 @@ import { useAuth } from "../context/AuthContext";
 
 // Inline SVG Icon components for React 19 stability
 const LayoutDashboardIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <rect x="3" y="3" width="7" height="9" rx="1" />
     <rect x="14" y="3" width="7" height="5" rx="1" />
     <rect x="14" y="12" width="7" height="9" rx="1" />
@@ -11,7 +20,16 @@ const LayoutDashboardIcon = ({ size = 16 }) => (
 );
 
 const UserCheckIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
     <circle cx="9" cy="7" r="4" />
     <polyline points="16 11 18 13 22 9" />
@@ -19,21 +37,48 @@ const UserCheckIcon = ({ size = 16 }) => (
 );
 
 const BriefcaseIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
     <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
   </svg>
 );
 
 const DollarSignIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <line x1="12" y1="1" x2="12" y2="23" />
     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
   </svg>
 );
 
 const TruckIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <rect x="1" y="3" width="15" height="13" />
     <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
     <circle cx="5.5" cy="18.5" r="2.5" />
@@ -42,7 +87,16 @@ const TruckIcon = ({ size = 16 }) => (
 );
 
 const FileTextIcon = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
     <polyline points="14 2 14 8 20 8" />
     <line x1="16" y1="13" x2="8" y2="13" />
@@ -52,7 +106,16 @@ const FileTextIcon = ({ size = 16 }) => (
 );
 
 const LogOutIcon = ({ size = 15 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
     <polyline points="16 17 21 12 16 7" />
     <line x1="21" y1="12" x2="9" y2="12" />
@@ -154,12 +217,28 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
         )}
 
         {isCustomer && (
-          <button
-            className={`nav-link-btn ${currentRoute === "/customer/portal" ? "active" : ""}`}
-            onClick={() => setCurrentRoute("/customer/portal")}
-          >
-            <FileTextIcon size={16} /> Quotation Portal
-          </button>
+          <>
+            <button
+              className={`nav-link-btn ${currentRoute === "/customer/portal" ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/customer/portal")}
+            >
+              <FileTextIcon size={16} /> My Quotations
+            </button>
+            <button
+              className="nav-link-btn"
+              onClick={() => window.alert("Messages will be available soon.")}
+            >
+              <FileTextIcon size={16} /> Messages
+            </button>
+            <button
+              className="nav-link-btn"
+              onClick={() =>
+                window.alert("Profile settings will be available soon.")
+              }
+            >
+              <UserCheckIcon size={16} /> Profile
+            </button>
+          </>
         )}
       </nav>
 
