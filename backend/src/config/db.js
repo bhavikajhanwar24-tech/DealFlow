@@ -38,6 +38,7 @@ async function initDatabase() {
         role VARCHAR(50) NOT NULL,
         status VARCHAR(50) NOT NULL DEFAULT 'PENDING_APPROVAL',
         department VARCHAR(100),
+        customer_tier VARCHAR(30),
         approved_by UUID,
         approved_at TIMESTAMPTZ,
         rejected_by UUID,
@@ -48,6 +49,21 @@ async function initDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.customer_tiers (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(50) UNIQUE NOT NULL,
+        description TEXT,
+        status VARCHAR(10) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE')),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO public.customer_tiers (name) VALUES ('BRONZE'), ('SILVER'), ('GOLD')
+      ON CONFLICT (name) DO NOTHING;
+    `);
+
+    await client.query(`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS customer_tier VARCHAR(50)`);
+
     // Create audit_logs table
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.audit_logs (
@@ -57,6 +73,32 @@ async function initDatabase() {
         details JSONB,
         ip_address VARCHAR(50),
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.billing_configuration (
+        id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id = TRUE),
+        currency VARCHAR(3) NOT NULL DEFAULT 'INR',
+        invoice_prefix VARCHAR(20) NOT NULL DEFAULT 'INV-',
+        payment_terms VARCHAR(20) NOT NULL DEFAULT 'NET_30',
+        tax_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        default_tax_rate NUMERIC(5, 2) NOT NULL DEFAULT 18 CHECK (default_tax_rate >= 0 AND default_tax_rate <= 100),
+        invoice_due_period INTEGER NOT NULL DEFAULT 30 CHECK (invoice_due_period >= 0),
+        updated_by UUID REFERENCES public.users(id),
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.subscription_plans (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(100) UNIQUE NOT NULL,
+        billing_frequency VARCHAR(20) NOT NULL CHECK (billing_frequency IN ('MONTHLY', 'QUARTERLY', 'YEARLY')),
+        discount_incentive NUMERIC(5, 2) NOT NULL DEFAULT 0 CHECK (discount_incentive >= 0 AND discount_incentive <= 100),
+        status VARCHAR(10) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE')),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
     `);
 

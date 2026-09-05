@@ -234,6 +234,7 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
             >
               <PercentIcon size={16} /> Discount Policies
             </button>
+            {[["/admin/audit-logs", "Audit Logs"], ["/admin/customer-tiers", "Customer Tiers"], ["/admin/subscription-plans", "Subscription Plans"], ["/admin/billing-configuration", "Billing Configuration"]].map(([path, label]) => <button key={path} className={`nav-link-btn ${currentRoute === path ? "active" : ""}`} onClick={() => setCurrentRoute(path)}>{label}</button>)}
           </>
         )}
 

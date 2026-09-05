@@ -9,6 +9,7 @@ import AdminStaff from "./pages/AdminStaff";
 import ProductManagement from "./pages/ProductManagement";
 import AdminWarehouses from "./pages/AdminWarehouses";
 import DiscountPolicies from "./pages/DiscountPolicies";
+import AdminGovernance from "./pages/AdminGovernance";
 import SalesDashboard from "./pages/SalesDashboard";
 import Quotations from "./pages/Quotations";
 import CreateQuotation from "./pages/CreateQuotation";
@@ -177,6 +178,18 @@ function AppContent() {
       return <DiscountPolicies />;
     }
 
+    if (["/admin/audit-logs", "/admin/billing-configuration", "/admin/subscription-plans", "/admin/customer-tiers"].includes(currentRoute)) {
+      if (user.role !== "ADMIN") return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      const modeByRoute = {
+        "/admin/audit-logs": "audit",
+        "/admin/billing-configuration": "billing",
+        "/admin/subscription-plans": "plans",
+        "/admin/customer-tiers": "tiers",
+      };
+      const mode = modeByRoute[currentRoute];
+      return <AdminGovernance mode={mode} />;
+    }
+
     // 2. Sales Routes
     if (currentRoute.startsWith("/sales/quotations/")) {
       const allowed = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
@@ -257,6 +270,10 @@ function AppContent() {
     currentRoute === "/admin/products" ||
     currentRoute === "/admin/warehouses" ||
     currentRoute === "/admin/discount-policies" ||
+    currentRoute === "/admin/audit-logs" ||
+    currentRoute === "/admin/billing-configuration" ||
+    currentRoute === "/admin/subscription-plans" ||
+    currentRoute === "/admin/customer-tiers" ||
     currentRoute === "/sales/dashboard" ||
     currentRoute === "/approvals" ||
     currentRoute.startsWith("/sales/quotations") ||

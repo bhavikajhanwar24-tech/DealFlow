@@ -556,6 +556,82 @@ async function getWarehouseAnalytics() {
   };
 }
 
+async function getAuditLogs(filters = {}) {
+  const params = [];
+  const conditions = [];
+  if (filters.userId) { params.push(filters.userId); conditions.push(`a.user_id = $${params.length}`); }
+  if (filters.action) { params.push(filters.action); conditions.push(`a.action = $${params.length}`); }
+  if (filters.activityType) { params.push(`${filters.activityType}%`); conditions.push(`a.action ILIKE $${params.length}`); }
+  if (filters.dealId) { params.push(`%${filters.dealId}%`); conditions.push(`a.details::text ILIKE $${params.length}`); }
+  if (filters.from) { params.push(filters.from); conditions.push(`a.created_at >= $${params.length}::date`); }
+  if (filters.to) { params.push(filters.to); conditions.push(`a.created_at < ($${params.length}::date + INTERVAL '1 day')`); }
+  if (filters.search) { params.push(`%${filters.search}%`); conditions.push(`(a.action ILIKE $${params.length} OR a.details::text ILIKE $${params.length} OR u.full_name ILIKE $${params.length})`); }
+  const result = await db.query(`
+    SELECT a.id, a.action, a.details, a.created_at, a.ip_address,
+           u.id AS user_id, u.full_name AS user_name, u.email AS user_email
+    FROM public.audit_logs a
+    LEFT JOIN public.users u ON u.id = a.user_id
+    ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
+    ORDER BY a.created_at DESC
+    LIMIT 500
+  `, params);
+  return result.rows.map((row) => ({
+    id: row.id, action: row.action, details: row.details || {}, createdAt: row.created_at,
+    user: row.user_id ? { id: row.user_id, name: row.user_name, email: row.user_email } : null
+  }));
+}
+
+async function getBillingConfiguration() {
+  const result = await db.query("SELECT * FROM public.billing_configuration WHERE id = TRUE");
+  if (!result.rows.length) return null;
+  const row = result.rows[0];
+  return { currency: row.currency, invoicePrefix: row.invoice_prefix, paymentTerms: row.payment_terms, taxEnabled: row.tax_enabled, defaultTaxRate: Number(row.default_tax_rate), invoiceDuePeriod: row.invoice_due_period, updatedAt: row.updated_at };
+}
+
+async function updateBillingConfiguration(data, adminUserId, ipAddress) {
+  const result = await db.query(`
+    INSERT INTO public.billing_configuration (id, currency, invoice_prefix, payment_terms, tax_enabled, default_tax_rate, invoice_due_period, updated_by, updated_at)
+    VALUES (TRUE, $1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+    ON CONFLICT (id) DO UPDATE SET currency = EXCLUDED.currency, invoice_prefix = EXCLUDED.invoice_prefix,
+      payment_terms = EXCLUDED.payment_terms, tax_enabled = EXCLUDED.tax_enabled,
+      default_tax_rate = EXCLUDED.default_tax_rate, invoice_due_period = EXCLUDED.invoice_due_period,
+      updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP
+    RETURNING *
+  `, [data.currency, data.invoicePrefix.trim(), data.paymentTerms, data.taxEnabled, Number(data.defaultTaxRate), Number(data.invoiceDuePeriod), adminUserId]);
+  await db.query(`INSERT INTO public.audit_logs (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)`, [adminUserId, "BILLING_CONFIGURATION_UPDATED", JSON.stringify({ currency: data.currency, invoicePrefix: data.invoicePrefix, paymentTerms: data.paymentTerms, taxEnabled: data.taxEnabled, defaultTaxRate: Number(data.defaultTaxRate), invoiceDuePeriod: Number(data.invoiceDuePeriod) }), ipAddress || null]);
+  const row = result.rows[0];
+  return { currency: row.currency, invoicePrefix: row.invoice_prefix, paymentTerms: row.payment_terms, taxEnabled: row.tax_enabled, defaultTaxRate: Number(row.default_tax_rate), invoiceDuePeriod: row.invoice_due_period };
+}
+
+function mapPlan(row) { return { id: row.id, name: row.name, billingFrequency: row.billing_frequency, discountIncentive: Number(row.discount_incentive), status: row.status, createdAt: row.created_at, updatedAt: row.updated_at }; }
+
+async function getSubscriptionPlans() { const result = await db.query("SELECT * FROM public.subscription_plans ORDER BY name"); return result.rows.map(mapPlan); }
+
+async function createSubscriptionPlan(data, adminUserId, ipAddress) {
+  const result = await db.query(`INSERT INTO public.subscription_plans (name, billing_frequency, discount_incentive, status) VALUES ($1, $2, $3, $4) RETURNING *`, [data.name.trim(), data.billingFrequency, Number(data.discountIncentive), data.status || "ACTIVE"]);
+  const plan = mapPlan(result.rows[0]);
+  await db.query(`INSERT INTO public.audit_logs (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)`, [adminUserId, "SUBSCRIPTION_PLAN_CREATED", JSON.stringify({ planId: plan.id, name: plan.name }), ipAddress || null]);
+  return plan;
+}
+
+async function updateSubscriptionPlan(id, data, adminUserId, ipAddress) {
+  const result = await db.query(`UPDATE public.subscription_plans SET name = $1, billing_frequency = $2, discount_incentive = $3, status = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *`, [data.name.trim(), data.billingFrequency, Number(data.discountIncentive), data.status, id]);
+  if (!result.rows.length) { const error = new Error("Subscription plan not found."); error.statusCode = 404; throw error; }
+  const plan = mapPlan(result.rows[0]);
+  await db.query(`INSERT INTO public.audit_logs (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)`, [adminUserId, "SUBSCRIPTION_PLAN_UPDATED", JSON.stringify({ planId: plan.id, name: plan.name, status: plan.status }), ipAddress || null]);
+  return plan;
+}
+
+async function getCustomerTiers() { const result = await db.query("SELECT id, name, description, status, created_at, updated_at FROM public.customer_tiers ORDER BY CASE name WHEN 'BRONZE' THEN 1 WHEN 'SILVER' THEN 2 WHEN 'GOLD' THEN 3 ELSE 4 END, name"); return result.rows; }
+
+async function updateCustomerTier(id, data, adminUserId, ipAddress) {
+  const result = await db.query(`UPDATE public.customer_tiers SET description = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *`, [data.description?.trim() || null, data.status, id]);
+  if (!result.rows.length) { const error = new Error("Customer tier not found."); error.statusCode = 404; throw error; }
+  const tier = result.rows[0];
+  await db.query(`INSERT INTO public.audit_logs (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)`, [adminUserId, "CUSTOMER_TIER_UPDATED", JSON.stringify({ tierId: tier.id, name: tier.name, status: tier.status }), ipAddress || null]);
+  return tier;
+}
+
 module.exports = {
   getEmployeeRegistrations,
   approveEmployee,
@@ -577,4 +653,12 @@ module.exports = {
   upsertWarehouseInventory,
   removeWarehouseInventory,
   getWarehouseAnalytics
+  , getAuditLogs,
+  getBillingConfiguration,
+  updateBillingConfiguration,
+  getSubscriptionPlans,
+  createSubscriptionPlan,
+  updateSubscriptionPlan,
+  getCustomerTiers,
+  updateCustomerTier
 };

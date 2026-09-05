@@ -237,6 +237,15 @@ async function getWarehouseAnalytics(req, res) {
   }
 }
 
+async function getAuditLogs(req, res) { try { return res.json({ success: true, data: await adminService.getAuditLogs(req.query) }); } catch (error) { return res.status(error.statusCode || 500).json({ success: false, message: error.message }); } }
+async function getBillingConfiguration(req, res) { try { return res.json({ success: true, data: await adminService.getBillingConfiguration() }); } catch (error) { return res.status(error.statusCode || 500).json({ success: false, message: error.message }); } }
+async function updateBillingConfiguration(req, res) { try { const ip = req.ip || req.socket.remoteAddress; return res.json({ success: true, message: "Billing configuration updated successfully.", data: await adminService.updateBillingConfiguration(req.body, req.user.id, ip) }); } catch (error) { return res.status(error.statusCode || 500).json({ success: false, message: error.message }); } }
+async function getSubscriptionPlans(req, res) { try { return res.json({ success: true, data: await adminService.getSubscriptionPlans() }); } catch (error) { return res.status(error.statusCode || 500).json({ success: false, message: error.message }); } }
+async function createSubscriptionPlan(req, res) { try { const plan = await adminService.createSubscriptionPlan(req.body, req.user.id, req.ip); return res.status(201).json({ success: true, message: "Subscription plan created successfully.", data: plan }); } catch (error) { return res.status(error.code === "23505" ? 409 : 500).json({ success: false, message: error.code === "23505" ? "Subscription plan already exists." : error.message }); } }
+async function updateSubscriptionPlan(req, res) { try { const plan = await adminService.updateSubscriptionPlan(req.params.id, req.body, req.user.id, req.ip); return res.json({ success: true, message: `Subscription plan ${plan.status === "ACTIVE" ? "enabled" : "disabled"} successfully.`, data: plan }); } catch (error) { return res.status(error.code === "23505" ? 409 : error.statusCode || 500).json({ success: false, message: error.code === "23505" ? "Subscription plan already exists." : error.message }); } }
+async function getCustomerTiers(req, res) { try { return res.json({ success: true, data: await adminService.getCustomerTiers() }); } catch (error) { return res.status(500).json({ success: false, message: error.message }); } }
+async function updateCustomerTier(req, res) { try { const tier = await adminService.updateCustomerTier(req.params.id, req.body, req.user.id, req.ip); return res.json({ success: true, message: `Customer tier ${tier.status === "ACTIVE" ? "enabled" : "disabled"} successfully.`, data: tier }); } catch (error) { return res.status(error.statusCode || 500).json({ success: false, message: error.message }); } }
+
 module.exports = {
   getEmployeeApprovals,
   approveEmployee,
@@ -258,4 +267,12 @@ module.exports = {
   upsertWarehouseInventory,
   removeWarehouseInventory,
   getWarehouseAnalytics
+  , getAuditLogs,
+  getBillingConfiguration,
+  updateBillingConfiguration,
+  getSubscriptionPlans,
+  createSubscriptionPlan,
+  updateSubscriptionPlan,
+  getCustomerTiers,
+  updateCustomerTier
 };

@@ -13,6 +13,9 @@ const {
   validateDiscountPolicy
   ,
   validateWarehouseInventory
+  , validateBillingConfiguration,
+  validateSubscriptionPlan,
+  validateCustomerTier
 } = require("../validators/auth.validator");
 
 // Apply authentication, active status, and ADMIN role to all routes in this router
@@ -44,5 +47,13 @@ router.get("/warehouses/analytics", adminController.getWarehouseAnalytics);
 router.get("/warehouses/:id/inventory", adminController.getWarehouseInventory);
 router.put("/warehouses/:id/inventory", validateWarehouseInventory, adminController.upsertWarehouseInventory);
 router.delete("/warehouses/:id/inventory/:inventoryId", adminController.removeWarehouseInventory);
+router.get("/audit-logs", adminController.getAuditLogs);
+router.get("/billing-configuration", adminController.getBillingConfiguration);
+router.put("/billing-configuration", validateBillingConfiguration, adminController.updateBillingConfiguration);
+router.get("/subscription-plans", adminController.getSubscriptionPlans);
+router.post("/subscription-plans", validateSubscriptionPlan, adminController.createSubscriptionPlan);
+router.put("/subscription-plans/:id", validateSubscriptionPlan, adminController.updateSubscriptionPlan);
+router.get("/customer-tiers", adminController.getCustomerTiers);
+router.put("/customer-tiers/:id", validateCustomerTier, adminController.updateCustomerTier);
 
 module.exports = router;

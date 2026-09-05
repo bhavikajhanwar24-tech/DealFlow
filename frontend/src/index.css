@@ -1447,6 +1447,43 @@ a {
   margin-left: auto;
 }
 
+.governance-panel,
+.governance-form,
+.governance-table-wrap {
+  padding: 1.35rem;
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.governance-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(130px, 1fr)) auto;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.governance-table-wrap {
+  overflow-x: auto;
+}
+
+.governance-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+@media (max-width: 850px) {
+  .governance-filters,
+  .governance-form .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 600px) {
   .pricing-margin-card {
     width: 100%;

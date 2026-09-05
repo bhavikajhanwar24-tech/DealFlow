@@ -301,6 +301,28 @@ function validateWarehouseInventory(req, res, next) {
   next();
 }
 
+function validateBillingConfiguration(req, res, next) {
+  const { currency, invoicePrefix, paymentTerms, taxEnabled, defaultTaxRate, invoiceDuePeriod } = req.body;
+  const rate = Number(defaultTaxRate);
+  const days = Number(invoiceDuePeriod);
+  if (!currency || !invoicePrefix?.trim() || !["DUE_ON_RECEIPT", "NET_15", "NET_30", "NET_45", "NET_60"].includes(paymentTerms) || !Number.isFinite(rate) || rate < 0 || rate > 100 || !Number.isInteger(days) || days < 0) return res.status(400).json({ success: false, message: "Please provide valid billing configuration values." });
+  next();
+}
+
+function validateSubscriptionPlan(req, res, next) {
+  const discount = Number(req.body.discountIncentive);
+  if (!req.body.name?.trim()) return res.status(400).json({ success: false, message: "Please enter a value." });
+  if (!["MONTHLY", "QUARTERLY", "YEARLY"].includes(req.body.billingFrequency)) return res.status(400).json({ success: false, message: "Billing frequency is invalid." });
+  if (!Number.isFinite(discount) || discount < 0 || discount > 100) return res.status(400).json({ success: false, message: "Discount must be between 0% and 100%." });
+  if (req.body.status && !["ACTIVE", "INACTIVE"].includes(req.body.status)) return res.status(400).json({ success: false, message: "Status must be ACTIVE or INACTIVE." });
+  next();
+}
+
+function validateCustomerTier(req, res, next) {
+  if (!req.body.status || !["ACTIVE", "INACTIVE"].includes(req.body.status)) return res.status(400).json({ success: false, message: "Status must be ACTIVE or INACTIVE." });
+  next();
+}
+
 module.exports = {
   validateEmployeeRegister,
   validateCustomerRegister,
@@ -315,6 +337,9 @@ module.exports = {
   CUSTOMER_TIERS,
   POLICY_CATEGORIES,
   validateWarehouseInventory,
+  validateBillingConfiguration,
+  validateSubscriptionPlan,
+  validateCustomerTier,
   ALLOWED_EMPLOYEE_ROLES,
   ALLOWED_DEPARTMENTS
 };
