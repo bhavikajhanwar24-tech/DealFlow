@@ -40,6 +40,7 @@ export default function ScrollVideoHero({ onNavigate }) {
 
   const targetFrameRef = useRef(0);
   const smoothFrameRef = useRef(0);
+  const lastScrollFrameRef = useRef(-1);
   const isAnimatingRef = useRef(false);
   const rafIdRef = useRef(null);
   const renderLoopRef = useRef(() => {});
@@ -128,6 +129,10 @@ export default function ScrollVideoHero({ onNavigate }) {
     progress = Math.max(0, Math.min(1, progress));
 
     targetFrameRef.current = progress * (TOTAL_FRAMES - 1);
+    if (Math.abs(targetFrameRef.current - lastScrollFrameRef.current) > 0.1) {
+      lastScrollFrameRef.current = targetFrameRef.current;
+      drawFrame(targetFrameRef.current);
+    }
 
     if (!isAnimatingRef.current) {
       isAnimatingRef.current = true;
@@ -152,6 +157,7 @@ export default function ScrollVideoHero({ onNavigate }) {
     }
 
     const handleFrameLoaded = () => {
+      handleScroll();
       drawFrame(smoothFrameRef.current);
     };
 
@@ -162,18 +168,27 @@ export default function ScrollVideoHero({ onNavigate }) {
     return () => {
       preloadCallbacks.delete(handleFrameLoaded);
     };
-  }, [drawFrame]);
+  }, [drawFrame, handleScroll]);
 
   // Attach scroll & resize event listeners
   useEffect(() => {
+    let scrollFrameId;
+
+    const sampleScroll = () => {
+      handleScroll();
+      scrollFrameId = requestAnimationFrame(sampleScroll);
+    };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize, { passive: true });
 
     handleScroll();
+    scrollFrameId = requestAnimationFrame(sampleScroll);
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(scrollFrameId);
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
