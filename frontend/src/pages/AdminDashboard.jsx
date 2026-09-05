@@ -116,11 +116,6 @@ export default function AdminDashboard({ onNavigate }) {
       </div>
 
       <section className="admin-action-grid">
-        <button className="admin-action-card" onClick={() => onNavigate("/admin/employee-approvals")}>
-          <span className="admin-action-kicker">Review queue</span>
-          <strong>Employee approvals</strong>
-          <span>Review legacy registration requests and access decisions.</span>
-        </button>
         <button className="admin-action-card" onClick={() => onNavigate("/admin/staff")}>
           <span className="admin-action-kicker">Access control</span>
           <strong>Manage staff</strong>

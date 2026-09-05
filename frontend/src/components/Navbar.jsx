@@ -362,12 +362,6 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               <LayoutDashboardIcon size={16} /> Dashboard
             </button>
             <button
-              className={`nav-link-btn ${currentRoute === "/admin/employee-approvals" ? "active" : ""}`}
-              onClick={() => setCurrentRoute("/admin/employee-approvals")}
-            >
-              <UserCheckIcon size={16} /> Approvals
-            </button>
-            <button
               className={`nav-link-btn ${currentRoute === "/admin/staff" ? "active" : ""}`}
               onClick={() => setCurrentRoute("/admin/staff")}
             >

@@ -4,7 +4,6 @@ import Navbar from "./components/Navbar";
 import ScrollVideoHero from "./components/ScrollVideoHero";
 import AuthPage from "./pages/AuthPage";
 import AdminDashboard from "./pages/AdminDashboard";
-import AdminApprovals from "./pages/AdminApprovals";
 import AdminStaff from "./pages/AdminStaff";
 import ProductManagement from "./pages/ProductManagement";
 import AdminWarehouses from "./pages/AdminWarehouses";
@@ -151,14 +150,7 @@ function AppContent() {
       return <AdminDashboard onNavigate={navigate} />;
     }
 
-    if (currentRoute === "/admin/employee-approvals") {
-      if (user.role !== "ADMIN") {
-        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
-      }
-      return <AdminApprovals />;
-    }
-
-    if (currentRoute === "/admin/staff") {
+    if (currentRoute === "/admin/staff" || currentRoute === "/admin/employee-approvals") {
       if (user.role !== "ADMIN") {
         return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
       }
