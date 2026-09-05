@@ -91,18 +91,44 @@ exports.getReports = async (req, res) => {
       WHERE ${timeFilter} AND ${repFilter}
     `);
 
-    // B. Sales Rep Performance
+    // B. Complete Staff Performance Across All Categories & Roles
+    let quoteTimeFilter = "1=1";
+    if (dateRange === '30') quoteTimeFilter = "q.created_at >= NOW() - INTERVAL '30 days'";
+    else if (dateRange === '90') quoteTimeFilter = "q.created_at >= NOW() - INTERVAL '90 days'";
+
     const repPerfRes = await pool.query(`
       SELECT 
+        u.id,
         u.full_name,
-        COUNT(q.id) as total_deals,
-        SUM(CASE WHEN q.status = 'CONFIRMED' THEN q.final_amount ELSE 0 END) as revenue,
-        SUM(q.discount_amount) as discount
-      FROM public.quotations q
-      JOIN public.users u ON q.sales_rep_id = u.id
-      WHERE ${timeFilter}
-      GROUP BY u.full_name
-      ORDER BY revenue DESC
+        u.email,
+        u.employee_id,
+        COALESCE(u.department, 'Sales') as department,
+        u.role,
+        u.status,
+        COUNT(q.id)::int as total_deals,
+        COUNT(CASE WHEN q.status = 'CONFIRMED' THEN 1 END)::int as won_deals,
+        COALESCE(SUM(CASE WHEN q.status = 'CONFIRMED' THEN q.final_amount ELSE 0 END), 0)::numeric as revenue,
+        COALESCE(SUM(q.final_amount), 0)::numeric as total_pipeline_value,
+        COALESCE(SUM(q.discount_amount), 0)::numeric as discount
+      FROM public.users u
+      LEFT JOIN public.quotations q ON q.sales_rep_id = u.id AND (${quoteTimeFilter})
+      WHERE u.role != 'CUSTOMER'
+      GROUP BY u.id, u.full_name, u.email, u.employee_id, u.department, u.role, u.status
+      ORDER BY revenue DESC, total_deals DESC, u.full_name ASC
+    `);
+
+    // Department Breakdown
+    const deptBreakdownRes = await pool.query(`
+      SELECT 
+        COALESCE(u.department, u.role) as name,
+        COUNT(DISTINCT u.id)::int as staff_count,
+        COUNT(q.id)::int as deals_count,
+        COALESCE(SUM(CASE WHEN q.status = 'CONFIRMED' THEN q.final_amount ELSE 0 END), 0)::numeric as revenue
+      FROM public.users u
+      LEFT JOIN public.quotations q ON q.sales_rep_id = u.id AND (${quoteTimeFilter})
+      WHERE u.role != 'CUSTOMER'
+      GROUP BY COALESCE(u.department, u.role)
+      ORDER BY staff_count DESC
     `);
 
     // C. Top Products
@@ -176,7 +202,8 @@ exports.getReports = async (req, res) => {
         approvals: approvalRes.rows[0],
         monthlyTrends: monthlyTrendRes.rows,
         pipelineFunnel: pipelineRes.rows,
-        categoryBreakdown: categoryRes.rows
+        categoryBreakdown: categoryRes.rows,
+        departmentBreakdown: deptBreakdownRes.rows
       }
     });
   } catch (error) {
