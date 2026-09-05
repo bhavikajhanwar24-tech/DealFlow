@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
+import ScrollVideoHero from "./components/ScrollVideoHero";
 import AuthPage from "./pages/AuthPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminApprovals from "./pages/AdminApprovals";
@@ -66,6 +67,7 @@ function AppContent() {
         navigate(dest);
       } else if (
         !user &&
+        currentRoute !== "/" &&
         currentRoute !== "/login" &&
         currentRoute !== "/signup"
       ) {
@@ -112,8 +114,12 @@ function AppContent() {
     );
   }
 
-  // If user is not authenticated or not active, render Auth Page
+  // Keep the public cinematic landing page at the root route.
   if (!user || user.status !== "ACTIVE") {
+    if (currentRoute === "/") {
+      return <ScrollVideoHero />;
+    }
+
     return (
       <AuthPage
         onLoginSuccess={(loggedInUser) => {
@@ -183,7 +189,6 @@ function AppContent() {
 
   const showNavbar =
     currentRoute === "/sales/dashboard" || currentRoute === "/approvals";
-
   return (
     <div className="app-layout">
       {showNavbar && (

@@ -9,4 +9,13 @@
   to {
     transform: rotate(360deg);
   }
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-primary);
+}
+
+main {
+  flex: 1;
 }

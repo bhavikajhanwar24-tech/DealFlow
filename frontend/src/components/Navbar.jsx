@@ -9,7 +9,7 @@ import {
   CheckCircle,
   LayoutDashboard,
   Truck,
-  DollarSign
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -120,8 +120,8 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
                 user.role === "ADMIN"
                   ? "badge-pending"
                   : user.role === "CUSTOMER"
-                  ? "badge-active"
-                  : "badge-suspended"
+                    ? "badge-active"
+                    : "badge-suspended"
               }`}
               style={{ fontSize: "0.6875rem", padding: "0.15rem 0.5rem" }}
             >
