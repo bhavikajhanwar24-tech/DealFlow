@@ -112,7 +112,7 @@ export default function ScrollVideoHero({ onNavigate }) {
 
   useEffect(() => {
     renderLoopRef.current = renderLoop;
-  }, [renderLoop]);
+  }, [drawFrame, renderLoop]);
 
   // Scroll listener to update target frame index
   const handleScroll = useCallback(() => {
