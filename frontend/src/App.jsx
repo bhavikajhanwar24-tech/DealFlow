@@ -59,9 +59,7 @@ function AppContent() {
     if (!loading) {
       if (
         user &&
-        (currentRoute === "/" ||
-          currentRoute === "/login" ||
-          currentRoute === "/signup")
+        (currentRoute === "/login" || currentRoute === "/signup")
       ) {
         const dest = getRoleDestination(user);
         navigate(dest);
@@ -115,11 +113,11 @@ function AppContent() {
   }
 
   // Keep the public cinematic landing page at the root route.
-  if (!user || user.status !== "ACTIVE") {
-    if (currentRoute === "/") {
-      return <ScrollVideoHero />;
-    }
+  if (currentRoute === "/") {
+    return <ScrollVideoHero onNavigateToLogin={() => navigate("/login")} />;
+  }
 
+  if (!user || user.status !== "ACTIVE") {
     return (
       <AuthPage
         onLoginSuccess={(loggedInUser) => {

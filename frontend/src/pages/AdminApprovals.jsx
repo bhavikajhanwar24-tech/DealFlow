@@ -1,24 +1,70 @@
 import React, { useState, useEffect } from "react";
-import {
-  UserCheck,
-  UserX,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
-  Search,
-  Filter,
-  RefreshCw,
-  X,
-  Shield,
-  FileCheck2,
-  Calendar,
-  Building,
-  Mail,
-  IdCard
-} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
+
+// Inline SVG Icon components for React 19 stability
+const UserCheckIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <polyline points="16 11 18 13 22 9" />
+  </svg>
+);
+
+const UserXIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <line x1="17" y1="8" x2="22" y2="13" />
+    <line x1="22" y1="8" x2="17" y2="13" />
+  </svg>
+);
+
+const ClockIcon = ({ size = 12 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+
+const CheckCircleIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
+
+const AlertTriangleIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+
+const SearchIcon = ({ size = 16, style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+    <circle cx="11" cy="11" r="8" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+);
+
+const RefreshCwIcon = ({ size = 15, className }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+    <path d="M21 3v5h-5" />
+    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+    <path d="M8 16H3v5" />
+  </svg>
+);
+
+const XIcon = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
 
 export default function AdminApprovals() {
   const { token } = useAuth();
@@ -172,21 +218,21 @@ export default function AdminApprovals() {
           onClick={fetchRegistrations}
           disabled={loading || actionLoading}
         >
-          <RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh
+          <RefreshCwIcon size={15} className={loading ? "spin" : ""} /> Refresh
         </button>
       </div>
 
       {/* Feedback Messages */}
       {successMsg && (
         <div className="alert alert-success">
-          <CheckCircle size={18} />
+          <CheckCircleIcon size={18} />
           <div>{successMsg}</div>
         </div>
       )}
 
       {error && (
         <div className="alert alert-danger">
-          <AlertTriangle size={18} />
+          <AlertTriangleIcon size={18} />
           <div>{error}</div>
         </div>
       )}
@@ -234,7 +280,7 @@ export default function AdminApprovals() {
         </div>
 
         <div style={{ position: "relative", minWidth: "260px" }}>
-          <Search size={16} style={{ position: "absolute", left: "10px", top: "10px", color: "#94a3b8" }} />
+          <SearchIcon size={16} style={{ position: "absolute", left: "10px", top: "10px", color: "#94a3b8" }} />
           <input
             type="text"
             className="form-input"
@@ -326,9 +372,9 @@ export default function AdminApprovals() {
                               : "badge-suspended"
                           }`}
                         >
-                          {isPending && <Clock size={12} />}
-                          {isActive && <CheckCircle size={12} />}
-                          {isRejected && <UserX size={12} />}
+                          {isPending && <ClockIcon size={12} />}
+                          {isActive && <CheckCircleIcon size={12} />}
+                          {isRejected && <UserXIcon size={12} />}
                           {emp.status}
                         </span>
                         {isRejected && emp.rejection_reason && (
@@ -342,19 +388,19 @@ export default function AdminApprovals() {
                           <div style={{ display: "inline-flex", gap: "0.5rem" }}>
                             <button
                               className="btn-success"
-                              style={{ padding: "0.4rem 0.75rem", fontSize: "0.8125rem" }}
+                              style={{ padding: "0.45rem 0.75rem", fontSize: "0.8125rem" }}
                               onClick={() => handleApprove(emp)}
                               disabled={actionLoading}
                             >
-                              <CheckCircle size={14} /> Approve
+                              <CheckCircleIcon size={14} /> Approve
                             </button>
                             <button
                               className="btn-danger"
-                              style={{ padding: "0.4rem 0.75rem", fontSize: "0.8125rem" }}
+                              style={{ padding: "0.45rem 0.75rem", fontSize: "0.8125rem" }}
                               onClick={() => openRejectModal(emp)}
                               disabled={actionLoading}
                             >
-                              <UserX size={14} /> Reject
+                              <UserXIcon size={14} /> Reject
                             </button>
                           </div>
                         ) : (
@@ -383,7 +429,7 @@ export default function AdminApprovals() {
                 onClick={() => setRejectModalOpen(false)}
                 style={{ color: "#64748b" }}
               >
-                <X size={20} />
+                <XIcon size={20} />
               </button>
             </div>
 

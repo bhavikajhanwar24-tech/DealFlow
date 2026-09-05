@@ -1,171 +1,146 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import './ScrollVideoHero.css';
 
-const TOTAL_FRAMES = 230;
-
-// Global image cache so images persist across React component re-renders
-const imageCache = [];
-let isPreloadingStarted = false;
-
-function preloadAllFrames(onFrameLoaded) {
-  if (isPreloadingStarted && imageCache.length === TOTAL_FRAMES) return;
-  isPreloadingStarted = true;
-
-  for (let i = 1; i <= TOTAL_FRAMES; i++) {
-    if (!imageCache[i - 1]) {
-      const img = new Image();
-      const paddedIndex = String(i).padStart(3, '0');
-      img.src = `/Create_a_premium_cinematic_pr_frames/frames/frame_${paddedIndex}.jpg`;
-      img.onload = () => {
-        if (onFrameLoaded) onFrameLoaded(i - 1);
-      };
-      imageCache[i - 1] = img;
-    }
-  }
-}
-
-export default function ScrollVideoHero() {
+export default function ScrollVideoHero({ onNavigateToLogin }) {
   const sectionRef = useRef(null);
-  const canvasRef = useRef(null);
-
-  const targetFrameRef = useRef(0);
-  const smoothFrameRef = useRef(0);
-  const isAnimatingRef = useRef(false);
+  const videoRef = useRef(null);
   const rafIdRef = useRef(null);
-  const [loadedCount, setLoadedCount] = useState(0);
+  const durationRef = useRef(0);
+  const isLoadedRef = useRef(false);
 
-  // Draw a frame onto the Canvas with aspect-ratio cover scaling
-  const drawFrame = useCallback((targetIndex) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
 
-    const clampedIndex = Math.min(TOTAL_FRAMES - 1, Math.max(0, Math.floor(targetIndex)));
-    
-    // Attempt to get requested frame image
-    let img = imageCache[clampedIndex];
+  // RAF scroll position calculator
+  const updateVideoProgress = useCallback(() => {
+    if (!sectionRef.current || !videoRef.current || !durationRef.current) return;
 
-    // Fallback: If requested frame isn't loaded yet, find nearest loaded frame
-    if (!img || !img.complete || img.naturalWidth === 0) {
-      for (let offset = 1; offset < TOTAL_FRAMES; offset++) {
-        const prev = imageCache[clampedIndex - offset];
-        if (prev && prev.complete && prev.naturalWidth > 0) {
-          img = prev;
-          break;
-        }
-        const next = imageCache[clampedIndex + offset];
-        if (next && next.complete && next.naturalWidth > 0) {
-          img = next;
-          break;
-        }
-      }
-    }
+    const docHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+    const winHeight = window.innerHeight || 1;
+    const maxScroll = Math.max(docHeight - winHeight, 1);
+    const currentScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
 
-    if (!img || !img.complete || img.naturalWidth === 0) return;
-
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
-    const imgWidth = img.naturalWidth;
-    const imgHeight = img.naturalHeight;
-
-    if (!canvasWidth || !canvasHeight || !imgWidth || !imgHeight) return;
-
-    // Calculate aspect-ratio cover dimensions
-    const scale = Math.max(canvasWidth / imgWidth, canvasHeight / imgHeight);
-    const drawWidth = imgWidth * scale;
-    const drawHeight = imgHeight * scale;
-    const x = (canvasWidth - drawWidth) / 2;
-    const y = (canvasHeight - drawHeight) / 2;
-
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    ctx.drawImage(img, x, y, drawWidth, drawHeight);
-  }, []);
-
-  // Smooth LERP render loop
-  const renderLoop = useCallback(() => {
-    const frameDiff = targetFrameRef.current - smoothFrameRef.current;
-
-    if (Math.abs(frameDiff) > 0.005) {
-      // 0.25 LERP factor for crisp, instantaneous response
-      smoothFrameRef.current += frameDiff * 0.25;
-      drawFrame(smoothFrameRef.current);
-      rafIdRef.current = requestAnimationFrame(renderLoop);
-    } else {
-      smoothFrameRef.current = targetFrameRef.current;
-      drawFrame(smoothFrameRef.current);
-      isAnimatingRef.current = false;
-      rafIdRef.current = null;
-    }
-  }, [drawFrame]);
-
-  // Scroll listener to update target frame index
-  const handleScroll = useCallback(() => {
-    if (!sectionRef.current) return;
-
-    const rect = sectionRef.current.getBoundingClientRect();
-    const windowHeight = window.innerHeight;
-    const scrollableDistance = rect.height - windowHeight;
-
-    if (scrollableDistance <= 0) return;
-
-    const currentScroll = -rect.top;
-    let progress = currentScroll / scrollableDistance;
+    let progress = currentScroll / maxScroll;
     progress = Math.max(0, Math.min(1, progress));
 
-    targetFrameRef.current = progress * (TOTAL_FRAMES - 1);
+    setScrollProgress(progress);
 
-    if (!isAnimatingRef.current) {
-      isAnimatingRef.current = true;
-      rafIdRef.current = requestAnimationFrame(renderLoop);
+    const targetTime = progress * durationRef.current;
+
+    // Safely update video currentTime
+    if (isFinite(targetTime) && videoRef.current.readyState >= 1) {
+      if (Math.abs(videoRef.current.currentTime - targetTime) > 0.001) {
+        videoRef.current.currentTime = targetTime;
+      }
     }
-  }, [renderLoop]);
+  }, []);
 
-  // Resize listener to adjust Canvas resolution
-  const handleResize = useCallback(() => {
-    if (canvasRef.current) {
-      canvasRef.current.width = window.innerWidth;
-      canvasRef.current.height = window.innerHeight;
-      drawFrame(smoothFrameRef.current);
-    }
-  }, [drawFrame]);
-
-  // Preload frames and bind onload events
+  // Handle scroll events with requestAnimationFrame
   useEffect(() => {
-    if (canvasRef.current) {
-      canvasRef.current.width = window.innerWidth;
-      canvasRef.current.height = window.innerHeight;
-    }
+    const handleScroll = () => {
+      if (!rafIdRef.current) {
+        rafIdRef.current = requestAnimationFrame(() => {
+          updateVideoProgress();
+          rafIdRef.current = null;
+        });
+      }
+    };
 
-    preloadAllFrames(() => {
-      setLoadedCount((prev) => prev + 1);
-      drawFrame(smoothFrameRef.current);
-    });
-
-    drawFrame(smoothFrameRef.current);
-  }, [drawFrame]);
-
-  // Attach scroll & resize event listeners
-  useEffect(() => {
     window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleResize, { passive: true });
+    window.addEventListener('resize', handleScroll, { passive: true });
 
     handleScroll();
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', handleScroll);
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
       }
     };
-  }, [handleScroll, handleResize]);
+  }, [updateVideoProgress]);
+
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      durationRef.current = videoRef.current.duration;
+      isLoadedRef.current = true;
+      setIsLoaded(true);
+      setHasError(false);
+      updateVideoProgress();
+    }
+  };
+
+  const handleVideoError = () => {
+    setHasError(true);
+    setIsLoaded(false);
+  };
+
+  // Section click handler to redirect to login
+  const handleSectionClick = () => {
+    if (scrollProgress >= 0.75 && onNavigateToLogin) {
+      onNavigateToLogin();
+    }
+  };
 
   return (
-    <section ref={sectionRef} className="scroll-canvas-section" aria-label="Cinematic Frame Scroll Sequence">
+    <section 
+      ref={sectionRef} 
+      className="scroll-canvas-section" 
+      aria-label="Interactive DealFlow360 Scroll Video Hero"
+      onClick={handleSectionClick}
+    >
       <div className="scroll-canvas-sticky">
-        <canvas ref={canvasRef} className="fullscreen-canvas" />
+        
+        {/* Loading Spinner */}
+        {!isLoaded && !hasError && (
+          <div className="fullscreen-loading">
+            <div className="spinner-large" />
+            <span>Loading interactive video experience...</span>
+          </div>
+        )}
+
+        {/* Error Fallback */}
+        {hasError && (
+          <div className="fullscreen-error">
+            <p>Interactive video preview currently unavailable.</p>
+          </div>
+        )}
+
+        {/* Full Viewport MP4 Video */}
+        <video
+          ref={videoRef}
+          className={`fullscreen-scroll-video ${isLoaded ? 'loaded' : ''}`}
+          muted
+          playsInline
+          preload="auto"
+          onLoadedMetadata={handleLoadedMetadata}
+          onError={handleVideoError}
+          aria-label="DealFlow360 interactive video demonstration"
+        >
+          <source src="/videos/dealflow-hero.mp4" type="video/mp4" />
+          Your browser does not support HTML5 video playback.
+        </video>
+
+        {/* End of Scroll Redirect Prompt Overlay */}
+        {scrollProgress >= 0.75 && (
+          <div 
+            className="scroll-end-overlay"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onNavigateToLogin) onNavigateToLogin();
+            }}
+          >
+            <button className="btn-enter-login" aria-label="Click to Log In">
+              <span>Click Anywhere to Log In</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        )}
+
       </div>
     </section>
   );

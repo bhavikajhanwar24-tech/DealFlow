@@ -1,18 +1,44 @@
 import React, { useState, useEffect } from "react";
-import {
-  FileText,
-  Building,
-  CheckCircle,
-  Download,
-  Calendar,
-  AlertCircle,
-  Eye,
-  ShieldCheck,
-  Lock
-} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = "http://localhost:5000/api";
+
+const CheckCircleIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
+
+const LockIcon = ({ size = 15 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+
+const AlertCircleIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="16" x2="12.01" y2="16" />
+  </svg>
+);
+
+const ShieldCheckIcon = ({ size = 20, color = "currentColor", style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <path d="m9 12 2 2 4-4" />
+  </svg>
+);
+
+const DownloadIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
 
 export default function CustomerPortal() {
   const { user, token } = useAuth();
@@ -65,7 +91,7 @@ export default function CustomerPortal() {
       >
         <div>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#dcfce7", color: "#166534", padding: "0.25rem 0.625rem", borderRadius: "9999px", fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-            <CheckCircle size={14} /> Verified Customer Account
+            <CheckCircleIcon size={14} /> Verified Customer Account
           </div>
           <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#0f172a" }}>
             {user?.company_name || "Enterprise Customer"} Quotation Portal
@@ -80,14 +106,14 @@ export default function CustomerPortal() {
             Access Isolation Policy
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#2563eb", fontSize: "0.875rem", fontWeight: 600, marginTop: "4px" }}>
-            <Lock size={15} /> Strict Single-Tenant Portal
+            <LockIcon size={15} /> Strict Single-Tenant Portal
           </div>
         </div>
       </div>
 
       {error && (
         <div className="alert alert-danger">
-          <AlertCircle size={18} />
+          <AlertCircleIcon size={18} />
           <div>{error}</div>
         </div>
       )}
@@ -107,7 +133,7 @@ export default function CustomerPortal() {
           color: "#1e40af"
         }}
       >
-        <ShieldCheck size={20} color="#2563eb" style={{ flexShrink: 0 }} />
+        <ShieldCheckIcon size={20} color="#2563eb" style={{ flexShrink: 0 }} />
         <div>
           <strong>Role Governance Active:</strong> As a verified customer, you are restricted to viewing only quotations authored for <strong>{user?.company_name || "your company"}</strong>. Internal sales margins, cost floors, and administrative tools are safeguarded.
         </div>
@@ -170,7 +196,7 @@ export default function CustomerPortal() {
                           style={{ padding: "0.4rem 0.75rem", fontSize: "0.8125rem" }}
                           onClick={() => alert(`Downloading signed quotation PDF for ${quote.id}...`)}
                         >
-                          <Download size={14} /> PDF
+                          <DownloadIcon size={14} /> PDF
                         </button>
                         {!isAccepted && (
                           <button
@@ -178,7 +204,7 @@ export default function CustomerPortal() {
                             style={{ width: "auto", padding: "0.4rem 0.85rem", fontSize: "0.8125rem" }}
                             onClick={() => handleAcceptQuote(quote.id)}
                           >
-                            <CheckCircle size={14} /> Accept Quote
+                            <CheckCircleIcon size={14} /> Accept Quote
                           </button>
                         )}
                       </div>
