@@ -53,11 +53,25 @@ async function createQuotation(req, res) {
   }
 }
 
+async function submitQuotation(req, res) {
+  try {
+    const quotation = await quotationService.submitQuotation(req.user, req.params.id);
+    return res.status(200).json({
+      success: true,
+      message: `Quotation ${quotation.quotationNumber} submitted for approval.`,
+      data: quotation,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+}
+
 module.exports = {
   getCustomers,
   getProducts,
   getDashboardSummary,
   listQuotations,
   getQuotation,
-  createQuotation
+  createQuotation,
+  submitQuotation
 };

@@ -159,6 +159,44 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
           </table>
         </div>
       </div>
+      {quotation.risk && (
+        <section
+          style={{
+            marginTop: "1.25rem",
+            background: "#fff",
+            border: "1px solid var(--border-light)",
+            borderRadius: "16px",
+            padding: "1.5rem",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ color: "#2563eb", fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Risk engine analysis</div>
+              <h2 style={{ fontSize: "1.2rem", marginTop: "0.35rem" }}>Submission governance</h2>
+            </div>
+            <span className={`badge ${quotation.risk.level === "CRITICAL" || quotation.risk.level === "HIGH" ? "badge-rejected" : quotation.risk.level === "MEDIUM" ? "badge-pending" : "badge-active"}`}>
+              {quotation.risk.level} · {quotation.risk.score.toFixed(1)}/100
+            </span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.85rem", marginTop: "1.25rem" }}>
+            <div><strong>Approval route</strong><br />{quotation.risk.approvalRoute}</div>
+            <div><strong>Analyzed at</strong><br />{new Date(quotation.risk.analyzedAt).toLocaleString("en-IN")}</div>
+          </div>
+          <div style={{ marginTop: "1.25rem" }}>
+            <strong>Risk factors</strong>
+            <div style={{ display: "grid", gap: "0.65rem", marginTop: "0.65rem" }}>
+              {quotation.risk.factors.map((factor) => (
+                <div key={factor.name} style={{ display: "grid", gridTemplateColumns: "minmax(150px, 0.7fr) minmax(0, 1.5fr) auto", gap: "0.75rem", alignItems: "center", padding: "0.75rem", borderRadius: "8px", background: "#f8fafc" }}>
+                  <strong>{factor.name.replaceAll("_", " ")}</strong>
+                  <span style={{ color: "#64748b", fontSize: "0.85rem" }}>{factor.reason}</span>
+                  <span style={{ fontWeight: 800, color: "#2563eb" }}>+{Number(factor.contribution).toFixed(1)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
       <div
         style={{
           display: "flex",

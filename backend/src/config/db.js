@@ -101,9 +101,25 @@ async function initDatabase() {
         subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
         discount_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
         final_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        risk_score NUMERIC(6, 3),
+        risk_level VARCHAR(20),
+        approval_route VARCHAR(40),
+        risk_factors JSONB,
+        risk_analysis JSONB,
+        risk_analyzed_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    await client.query(`
+      ALTER TABLE public.quotations
+      ADD COLUMN IF NOT EXISTS risk_score NUMERIC(6, 3),
+      ADD COLUMN IF NOT EXISTS risk_level VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS approval_route VARCHAR(40),
+      ADD COLUMN IF NOT EXISTS risk_factors JSONB,
+      ADD COLUMN IF NOT EXISTS risk_analysis JSONB,
+      ADD COLUMN IF NOT EXISTS risk_analyzed_at TIMESTAMPTZ
     `);
 
     await client.query(`

@@ -136,9 +136,15 @@ export default function CreateQuotation({ onNavigate }) {
         }),
       });
       const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.message || "Unable to save quotation.");
-      onNavigate("/sales/quotations");
+      if (!response.ok) throw new Error(data.message || "Unable to save quotation.");
+
+      const submitResponse = await fetch(`${API_BASE}/quotations/${data.data.id}/submit`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const submitData = await submitResponse.json();
+      if (!submitResponse.ok) throw new Error(submitData.message || "Risk analysis failed.");
+      onNavigate(`/sales/quotations/${data.data.id}`);
     } catch (saveError) {
       setError(saveError.message);
     } finally {
@@ -520,7 +526,7 @@ export default function CreateQuotation({ onNavigate }) {
                 "Saving..."
               ) : (
                 <>
-                  <Save size={16} /> Save Draft
+                  <Save size={16} /> Submit for Risk Analysis
                 </>
               )}
             </button>
