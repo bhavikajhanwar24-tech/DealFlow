@@ -46,6 +46,128 @@ async function getProducts() {
   }));
 }
 
+async function createCustomerQuoteRequest(customer, input) {
+  const items = Array.isArray(input.items) ? input.items : [];
+  if (!items.length) throw quotationError("Add at least one product to your request.");
+  if (new Set(items.map((item) => item.productId)).size !== items.length) {
+    throw quotationError("Each product can only be requested once.");
+  }
+
+  const deliveryDate = input.requestedDeliveryDate || null;
+  if (deliveryDate && Number.isNaN(Date.parse(deliveryDate))) {
+    throw quotationError("Requested delivery date is invalid.");
+  }
+
+  const client = await db.pool.connect();
+  try {
+    await client.query("BEGIN");
+    const productIds = items.map((item) => item.productId);
+    const products = await client.query(
+      "SELECT id FROM public.products WHERE id = ANY($1::uuid[]) AND is_active = TRUE",
+      [productIds],
+    );
+    if (products.rows.length !== productIds.length) {
+      throw quotationError("One or more selected products are unavailable.", 404);
+    }
+    for (const item of items) {
+      if (!Number.isInteger(Number(item.quantity)) || Number(item.quantity) <= 0) {
+        throw quotationError("Each quantity must be a positive whole number.");
+      }
+    }
+
+    const requestResult = await client.query(
+      `INSERT INTO public.customer_quote_requests
+       (customer_id, requested_delivery_date, customer_comment)
+       VALUES ($1, $2, $3) RETURNING id, status, created_at`,
+      [customer.id, deliveryDate, input.customerComment?.trim() || null],
+    );
+    for (const item of items) {
+      await client.query(
+        `INSERT INTO public.customer_quote_request_items (request_id, product_id, quantity)
+         VALUES ($1, $2, $3)`,
+        [requestResult.rows[0].id, item.productId, Number(item.quantity)],
+      );
+    }
+    await client.query("COMMIT");
+    return requestResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function listCustomerQuoteRequests(customer) {
+  const result = await db.query(
+    `SELECT r.id, r.status, r.requested_delivery_date, r.customer_comment,
+            r.quotation_id, r.created_at,
+            COALESCE(json_agg(json_build_object(
+              'productId', p.id, 'name', p.name, 'category', p.category, 'quantity', ri.quantity
+            ) ORDER BY p.name) FILTER (WHERE p.id IS NOT NULL), '[]') AS items
+     FROM public.customer_quote_requests r
+     LEFT JOIN public.customer_quote_request_items ri ON ri.request_id = r.id
+     LEFT JOIN public.products p ON p.id = ri.product_id
+     WHERE r.customer_id = $1
+     GROUP BY r.id
+     ORDER BY r.created_at DESC`,
+    [customer.id],
+  );
+  return result.rows;
+}
+
+async function listPendingCustomerQuoteRequests(user) {
+  if (!["SALES_REP", "SALES_MANAGER", "ADMIN"].includes(user.role)) {
+    throw quotationError("Only internal sales users can review customer quotation requests.", 403);
+  }
+  const result = await db.query(
+    `SELECT r.id, r.status, r.requested_delivery_date, r.customer_comment,
+            r.created_at, c.id AS customer_id, c.full_name AS customer_name,
+            c.company_name, c.email,
+            COALESCE(json_agg(json_build_object(
+              'productId', p.id, 'name', p.name, 'category', p.category, 'quantity', ri.quantity
+            ) ORDER BY p.name) FILTER (WHERE p.id IS NOT NULL), '[]') AS items
+     FROM public.customer_quote_requests r
+     JOIN public.users c ON c.id = r.customer_id
+     LEFT JOIN public.customer_quote_request_items ri ON ri.request_id = r.id
+     LEFT JOIN public.products p ON p.id = ri.product_id
+     WHERE r.status = 'PENDING'
+     GROUP BY r.id, c.id
+     ORDER BY r.created_at ASC`,
+  );
+  return result.rows;
+}
+
+async function convertCustomerQuoteRequest(requestId, user) {
+  if (!["SALES_REP", "SALES_MANAGER", "ADMIN"].includes(user.role)) {
+    throw quotationError("Only internal sales users can convert customer quotation requests.", 403);
+  }
+  const requestResult = await db.query(
+    `SELECT r.id, r.customer_id, r.status, r.requested_delivery_date,
+            COALESCE(json_agg(json_build_object('productId', ri.product_id, 'quantity', ri.quantity)) FILTER (WHERE ri.product_id IS NOT NULL), '[]') AS items
+     FROM public.customer_quote_requests r
+     LEFT JOIN public.customer_quote_request_items ri ON ri.request_id = r.id
+     WHERE r.id = $1
+     GROUP BY r.id`,
+    [requestId],
+  );
+  if (!requestResult.rows.length) throw quotationError("Customer quotation request not found.", 404);
+  const request = requestResult.rows[0];
+  if (request.status !== "PENDING") throw quotationError("This customer request has already been processed.");
+
+  const quotation = await createDraft(user, {
+    customerId: request.customer_id,
+    items: request.items.map((item) => ({ productId: item.productId, quantity: item.quantity, discountPercent: 0 })),
+  });
+  await db.query(
+    `UPDATE public.customer_quote_requests
+     SET status = 'CONVERTED', quotation_id = $2, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [requestId, quotation.id],
+  );
+  return quotation;
+}
+
 async function getDashboardSummary(user) {
   let repFilter = "";
   const params = [];
@@ -459,6 +581,10 @@ async function rejectCustomerQuotation(id, customer) {
 module.exports = {
   getCustomers,
   getProducts,
+  createCustomerQuoteRequest,
+  listCustomerQuoteRequests,
+  listPendingCustomerQuoteRequests,
+  convertCustomerQuoteRequest,
   getDashboardSummary,
   listQuotations,
   getQuotation,

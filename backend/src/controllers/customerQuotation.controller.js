@@ -54,4 +54,29 @@ async function reject(req, res) {
   }
 }
 
-module.exports = { list, detail, negotiate, confirm, reject };
+async function createRequest(req, res) {
+  try {
+    const request = await quotationService.createCustomerQuoteRequest(req.user, req.body || {});
+    return res.status(201).json({ success: true, message: "Quotation request sent to the sales team.", data: request });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+async function listRequests(req, res) {
+  try {
+    return res.json({ success: true, data: await quotationService.listCustomerQuoteRequests(req.user) });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+async function products(req, res) {
+  try {
+    return res.json({ success: true, data: await quotationService.getProducts() });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+module.exports = { list, detail, negotiate, confirm, reject, createRequest, listRequests, products };

@@ -142,6 +142,28 @@ async function initDatabase() {
     `);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS public.customer_quote_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        customer_id UUID NOT NULL REFERENCES public.users(id),
+        requested_delivery_date DATE,
+        customer_comment TEXT,
+        status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+        quotation_id UUID REFERENCES public.quotations(id),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.customer_quote_request_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        request_id UUID NOT NULL REFERENCES public.customer_quote_requests(id) ON DELETE CASCADE,
+        product_id UUID NOT NULL REFERENCES public.products(id),
+        quantity INTEGER NOT NULL CHECK (quantity > 0)
+      );
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS public.warehouses (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name VARCHAR(255) NOT NULL,
@@ -199,6 +221,9 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_quotation_items_quotation ON public.quotation_items(quotation_id);
       CREATE INDEX IF NOT EXISTS idx_negotiation_requests_quotation ON public.negotiation_requests(quotation_id);
       CREATE INDEX IF NOT EXISTS idx_negotiation_requests_customer ON public.negotiation_requests(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_customer_quote_requests_customer ON public.customer_quote_requests(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_customer_quote_requests_status ON public.customer_quote_requests(status);
+      CREATE INDEX IF NOT EXISTS idx_customer_quote_request_items_request ON public.customer_quote_request_items(request_id);
       CREATE INDEX IF NOT EXISTS idx_warehouses_active ON public.warehouses(is_active);
       CREATE INDEX IF NOT EXISTS idx_discount_policies_lookup ON public.discount_policies(customer_tier, product_category, status);
       CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_warehouse ON public.warehouse_inventory(warehouse_id);

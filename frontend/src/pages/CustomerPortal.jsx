@@ -7,6 +7,8 @@ import {
   Send,
   AlertCircle,
   XCircle,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -34,6 +36,14 @@ export default function CustomerPortal() {
   const [requestedDiscountPercent, setRequestedDiscountPercent] = useState("");
   const [requestedDeliveryDate, setRequestedDeliveryDate] = useState("");
   const [customerComment, setCustomerComment] = useState("");
+  const [products, setProducts] = useState([]);
+  const [requestItems, setRequestItems] = useState([]);
+  const [requestProductId, setRequestProductId] = useState("");
+  const [requestQuantity, setRequestQuantity] = useState(1);
+  const [requestDeliveryDate, setRequestDeliveryDate] = useState("");
+  const [requestComment, setRequestComment] = useState("");
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [customerRequests, setCustomerRequests] = useState([]);
 
   async function loadQuotations() {
     setLoading(true);
@@ -92,7 +102,94 @@ export default function CustomerPortal() {
 
   useEffect(() => {
     loadQuotations();
+    async function loadRequestData() {
+      try {
+        const headers = { Authorization: `Bearer ${token}` };
+        const [productsResponse, requestsResponse] = await Promise.all([
+          fetch(`${API_BASE}/customer/quotations/products`, { headers }),
+          fetch(`${API_BASE}/customer/quotations/requests`, { headers }),
+        ]);
+        const productsData = await productsResponse.json();
+        const requestsData = await requestsResponse.json();
+        if (!productsResponse.ok)
+          throw new Error(productsData.message || "Unable to load products.");
+        if (!requestsResponse.ok)
+          throw new Error(
+            requestsData.message || "Unable to load quotation requests.",
+          );
+        setProducts(productsData.data || []);
+        setCustomerRequests(requestsData.data || []);
+      } catch (requestError) {
+        setError(requestError.message);
+      }
+    }
+    loadRequestData();
   }, [token]);
+
+  function addRequestItem() {
+    const product = products.find((entry) => entry.id === requestProductId);
+    const safeQuantity = Number(requestQuantity);
+    if (!product) return setError("Select a product for your request.");
+    if (!Number.isInteger(safeQuantity) || safeQuantity <= 0)
+      return setError("Quantity must be a positive whole number.");
+    if (requestItems.some((item) => item.productId === product.id))
+      return setError("That product is already requested.");
+    setRequestItems((current) => [
+      ...current,
+      {
+        productId: product.id,
+        name: product.name,
+        category: product.category,
+        quantity: safeQuantity,
+      },
+    ]);
+    setRequestProductId("");
+    setRequestQuantity(1);
+    setError("");
+  }
+
+  async function submitQuoteRequest(event) {
+    event.preventDefault();
+    if (!requestItems.length)
+      return setError("Add at least one product to your request.");
+    setRequestLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`${API_BASE}/customer/quotations/requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          items: requestItems.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+          })),
+          requestedDeliveryDate: requestDeliveryDate,
+          customerComment: requestComment,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.message || "Unable to send quotation request.");
+      setSuccess(data.message);
+      setRequestItems([]);
+      setRequestDeliveryDate("");
+      setRequestComment("");
+      const requestsResponse = await fetch(
+        `${API_BASE}/customer/quotations/requests`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const requestsData = await requestsResponse.json();
+      if (requestsResponse.ok) setCustomerRequests(requestsData.data || []);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setRequestLoading(false);
+    }
+  }
 
   async function submitNegotiation(event) {
     event.preventDefault();
@@ -231,88 +328,288 @@ export default function CustomerPortal() {
       )}
 
       {!isDetail ? (
-        <div className="data-table-card">
-          <div className="customer-quotes-heading">
-            <h2>My Quotations</h2>
-            <div>
-              Only quotations prepared for your customer account are shown.
+        <>
+          <section
+            style={{
+              background: "#fff",
+              border: "1px solid var(--border-light)",
+              borderRadius: "16px",
+              padding: "1.5rem",
+              marginBottom: "1.25rem",
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 800 }}>
+              Request a New Quotation
+            </h2>
+            <p
+              style={{
+                color: "#64748b",
+                fontSize: "0.875rem",
+                margin: "0.35rem 0 1rem",
+              }}
+            >
+              Choose products and quantities. Your sales team will review the
+              request and prepare the quotation.
+            </p>
+            <form onSubmit={submitQuoteRequest}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(220px, 2fr) 120px auto",
+                  gap: "0.75rem",
+                  alignItems: "end",
+                }}
+              >
+                <label className="form-group">
+                  <span className="form-label">Product</span>
+                  <select
+                    className="form-input no-icon"
+                    value={requestProductId}
+                    onChange={(event) =>
+                      setRequestProductId(event.target.value)
+                    }
+                  >
+                    <option value="">
+                      {products.length
+                        ? "Select product"
+                        : "Loading products..."}
+                    </option>
+                    {products
+                      .filter(
+                        (product) =>
+                          !requestItems.some(
+                            (item) => item.productId === product.id,
+                          ),
+                      )
+                      .map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name} ({product.category})
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label className="form-group">
+                  <span className="form-label">Quantity</span>
+                  <input
+                    className="form-input no-icon"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={requestQuantity}
+                    onChange={(event) => setRequestQuantity(event.target.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={addRequestItem}
+                >
+                  <Plus size={16} /> Add
+                </button>
+              </div>
+              {requestItems.length > 0 && (
+                <div
+                  style={{ marginTop: "1rem", display: "grid", gap: "0.5rem" }}
+                >
+                  {requestItems.map((item) => (
+                    <div
+                      key={item.productId}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "0.75rem 1rem",
+                        background: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                      }}
+                    >
+                      <span>
+                        <strong>{item.name}</strong>{" "}
+                        <small style={{ color: "#64748b" }}>
+                          {item.category} · Qty {item.quantity}
+                        </small>
+                      </span>
+                      <button
+                        type="button"
+                        title="Remove product"
+                        onClick={() =>
+                          setRequestItems((current) =>
+                            current.filter(
+                              (entry) => entry.productId !== item.productId,
+                            ),
+                          )
+                        }
+                      >
+                        <Trash2 size={16} color="#ef4444" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+                  gap: "1rem",
+                  marginTop: "1rem",
+                }}
+              >
+                <label className="form-group">
+                  <span className="form-label">Requested Delivery Date</span>
+                  <input
+                    className="form-input no-icon"
+                    type="date"
+                    min={new Date().toISOString().slice(0, 10)}
+                    value={requestDeliveryDate}
+                    onChange={(event) =>
+                      setRequestDeliveryDate(event.target.value)
+                    }
+                  />
+                </label>
+                <label className="form-group">
+                  <span className="form-label">Comments for Sales</span>
+                  <textarea
+                    className="form-input no-icon"
+                    rows="2"
+                    value={requestComment}
+                    onChange={(event) => setRequestComment(event.target.value)}
+                    placeholder="Describe your requirements"
+                  />
+                </label>
+              </div>
+              <button
+                className="btn-primary"
+                type="submit"
+                style={{ width: "auto", marginTop: "1rem" }}
+                disabled={requestLoading}
+              >
+                {requestLoading ? "Sending request..." : "Request Quotation"}
+              </button>
+            </form>
+          </section>
+          {customerRequests.length > 0 && (
+            <section
+              style={{
+                background: "#fff",
+                border: "1px solid var(--border-light)",
+                borderRadius: "16px",
+                padding: "1.25rem 1.5rem",
+                marginBottom: "1.25rem",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <h2 style={{ fontSize: "1.05rem", fontWeight: 800 }}>
+                My Quotation Requests
+              </h2>
+              {customerRequests.map((request) => (
+                <div
+                  key={request.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "1rem",
+                    flexWrap: "wrap",
+                    padding: "0.75rem 0",
+                    borderBottom: "1px solid #eef2f7",
+                  }}
+                >
+                  <span>
+                    {request.items
+                      .map((item) => `${item.name} × ${item.quantity}`)
+                      .join(", ")}
+                  </span>
+                  <span className="badge badge-pending">{request.status}</span>
+                </div>
+              ))}
+            </section>
+          )}
+          <div className="data-table-card">
+            <div className="customer-quotes-heading">
+              <h2>My Quotations</h2>
+              <div>
+                Only quotations prepared for your customer account are shown.
+              </div>
             </div>
-          </div>
-          <div style={{ overflowX: "auto" }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Quotation Number</th>
-                  <th>Quotation Date</th>
-                  <th>Total Amount</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading && (
+            <div style={{ overflowX: "auto" }}>
+              <table className="data-table">
+                <thead>
                   <tr>
-                    <td
-                      colSpan="5"
-                      style={{
-                        textAlign: "center",
-                        padding: "3rem",
-                        color: "#64748b",
-                      }}
-                    >
-                      Loading your quotations...
-                    </td>
+                    <th>Quotation Number</th>
+                    <th>Quotation Date</th>
+                    <th>Total Amount</th>
+                    <th>Status</th>
+                    <th>Action</th>
                   </tr>
-                )}
-                {!loading && quotations.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan="5"
-                      style={{
-                        textAlign: "center",
-                        padding: "3rem",
-                        color: "#64748b",
-                      }}
-                    >
-                      <strong>No quotations available.</strong>
-                      <br />
-                      Your sales representative will share quotations with you
-                      here.
-                    </td>
-                  </tr>
-                )}
-                {!loading &&
-                  quotations.map((entry) => (
-                    <tr key={entry.id}>
-                      <td style={{ fontWeight: 800, color: "#1d4ed8" }}>
-                        {entry.quotationNumber}
-                      </td>
-                      <td>
-                        {new Date(entry.createdAt).toLocaleDateString("en-IN")}
-                      </td>
-                      <td style={{ fontWeight: 800 }}>
-                        {currency(entry.finalAmount)}
-                      </td>
-                      <td>
-                        <span className="badge badge-active">
-                          {statusLabel[entry.status] || entry.status}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          className="btn-secondary"
-                          style={{ padding: "0.4rem 0.75rem" }}
-                          onClick={() => openQuotation(entry.id)}
-                        >
-                          View Quotation
-                        </button>
+                </thead>
+                <tbody>
+                  {loading && (
+                    <tr>
+                      <td
+                        colSpan="5"
+                        style={{
+                          textAlign: "center",
+                          padding: "3rem",
+                          color: "#64748b",
+                        }}
+                      >
+                        Loading your quotations...
                       </td>
                     </tr>
-                  ))}
-              </tbody>
-            </table>
+                  )}
+                  {!loading && quotations.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan="5"
+                        style={{
+                          textAlign: "center",
+                          padding: "3rem",
+                          color: "#64748b",
+                        }}
+                      >
+                        <strong>No quotations available.</strong>
+                        <br />
+                        Your sales representative will share quotations with you
+                        here.
+                      </td>
+                    </tr>
+                  )}
+                  {!loading &&
+                    quotations.map((entry) => (
+                      <tr key={entry.id}>
+                        <td style={{ fontWeight: 800, color: "#1d4ed8" }}>
+                          {entry.quotationNumber}
+                        </td>
+                        <td>
+                          {new Date(entry.createdAt).toLocaleDateString(
+                            "en-IN",
+                          )}
+                        </td>
+                        <td style={{ fontWeight: 800 }}>
+                          {currency(entry.finalAmount)}
+                        </td>
+                        <td>
+                          <span className="badge badge-active">
+                            {statusLabel[entry.status] || entry.status}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="btn-secondary"
+                            style={{ padding: "0.4rem 0.75rem" }}
+                            onClick={() => openQuotation(entry.id)}
+                          >
+                            View Quotation
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        </>
       ) : detailLoading ? (
         <div style={{ color: "#64748b" }}>Loading quotation...</div>
       ) : quotation ? (

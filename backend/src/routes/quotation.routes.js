@@ -13,6 +13,8 @@ router.use(requireAuth, requireActiveUser);
 router.get("/customers", internalSales, quotationController.getCustomers);
 router.get("/products", internalSales, quotationController.getProducts);
 router.get("/dashboard-summary", internalSales, quotationController.getDashboardSummary);
+router.get("/customer-requests", internalSales, quotationController.listCustomerRequests);
+router.post("/customer-requests/:requestId/convert", internalSales, quotationController.convertCustomerRequest);
 router.get("/", internalSales, quotationController.listQuotations);
 router.get("/:id", internalSales, quotationController.getQuotation);
 router.post("/", salesCreators, quotationController.createQuotation);
