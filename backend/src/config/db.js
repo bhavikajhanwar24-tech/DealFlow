@@ -120,6 +120,34 @@ async function initDatabase() {
     `);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS public.product_pairings (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+        paired_product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+        pairing_type VARCHAR(20) NOT NULL DEFAULT 'CROSS_SELL' CHECK (pairing_type IN ('UPSELL', 'CROSS_SELL')),
+        priority INTEGER NOT NULL DEFAULT 0,
+        promotion_tag VARCHAR(100),
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        UNIQUE (product_id, paired_product_id),
+        CHECK (product_id <> paired_product_id)
+      );
+      ALTER TABLE public.product_pairings ADD COLUMN IF NOT EXISTS pairing_type VARCHAR(20) DEFAULT 'CROSS_SELL';
+
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.product_promotions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+        tag VARCHAR(100) NOT NULL,
+        priority INTEGER NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        starts_at TIMESTAMPTZ,
+        ends_at TIMESTAMPTZ
+      );
+    `);
+
+    await client.query(`
       ALTER TABLE public.products
       ADD COLUMN IF NOT EXISTS cost NUMERIC(14, 2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS inventory_reference VARCHAR(150)
@@ -355,6 +383,37 @@ async function initDatabase() {
     `);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS public.invoices (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        invoice_number VARCHAR(30) UNIQUE NOT NULL,
+        order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+        customer_id UUID NOT NULL REFERENCES public.users(id),
+        subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        tax NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        discount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        total NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        amount_paid NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+        due_date DATE,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.payments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        invoice_id UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+        amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
+        payment_method VARCHAR(50) NOT NULL,
+        reference VARCHAR(100),
+        payment_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        recorded_by UUID REFERENCES public.users(id),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
       ALTER TABLE public.quotation_messages
       ADD COLUMN IF NOT EXISTS recipient_role VARCHAR(50),
       ADD COLUMN IF NOT EXISTS recipient_id UUID REFERENCES public.users(id)
@@ -368,6 +427,8 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);
       CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON public.audit_logs(user_id);
       CREATE INDEX IF NOT EXISTS idx_products_active ON public.products(is_active);
+      CREATE INDEX IF NOT EXISTS idx_product_pairings_product ON public.product_pairings(product_id, is_active);
+      CREATE INDEX IF NOT EXISTS idx_product_promotions_product ON public.product_promotions(product_id, is_active);
       CREATE INDEX IF NOT EXISTS idx_quotations_customer ON public.quotations(customer_id);
       CREATE INDEX IF NOT EXISTS idx_quotations_sales_rep ON public.quotations(sales_rep_id);
       CREATE INDEX IF NOT EXISTS idx_quotation_messages_quotation ON public.quotation_messages(quotation_id);
@@ -403,12 +464,76 @@ async function initDatabase() {
     `);
 
     await client.query(`
-      INSERT INTO public.products (name, sku, category, description, unit_price)
+      INSERT INTO public.products (name, sku, category, description, unit_price, cost)
       VALUES
-        ('Laptop Pro', 'HW-LP-2025', 'HARDWARE', 'Enterprise mobile workstation', 85000),
-        ('Support Plan', 'SVC-SLA-5YR', 'SERVICE', '24/7 dedicated enterprise response SLA', 12000),
-        ('Cloud Pro', 'SUB-CLOUD-PRO', 'SUBSCRIPTION', 'Monthly cloud platform subscription', 5000)
-      ON CONFLICT (sku) DO NOTHING;
+        ('Laptop Pro', 'HW-LP-2025', 'HARDWARE', 'Enterprise mobile workstation', 85000, 55000),
+        ('Workstation Ultra', 'HW-WS-ULTRA', 'HARDWARE', 'High-performance AI & computing workstation with dual GPU', 135000, 90000),
+        ('Dock & Accessories Bundle', 'HW-ACC-DOCK', 'HARDWARE', 'Thunderbolt 4 dock with ergonomic wireless mouse and keyboard', 9500, 4500),
+        ('Support Plan', 'SVC-SLA-5YR', 'SERVICE', '24/7 dedicated enterprise response SLA with 1-hour resolution guarantee', 12000, 3500),
+        ('Onsite Deployment & Training', 'SVC-ONSITE-TRN', 'SERVICE', 'On-premises engineer setup and staff onboarding workshop', 25000, 9500),
+        ('Cloud Pro', 'SUB-CLOUD-PRO', 'SUBSCRIPTION', 'Monthly cloud platform subscription with multi-region backup', 5000, 1200),
+        ('Cloud Enterprise Security', 'SUB-SEC-ENT', 'SUBSCRIPTION', 'Advanced SOC2 compliance and automated threat protection', 8500, 2200)
+      ON CONFLICT (sku) DO UPDATE SET 
+        cost = CASE WHEN public.products.cost = 0 THEN EXCLUDED.cost ELSE public.products.cost END;
+    `);
+
+    // Ensure cost is updated if it was previously 0
+    await client.query(`
+      UPDATE public.products SET cost = 55000 WHERE sku = 'HW-LP-2025' AND (cost = 0 OR cost IS NULL);
+      UPDATE public.products SET cost = 3500 WHERE sku = 'SVC-SLA-5YR' AND (cost = 0 OR cost IS NULL);
+      UPDATE public.products SET cost = 1200 WHERE sku = 'SUB-CLOUD-PRO' AND (cost = 0 OR cost IS NULL);
+    `);
+
+    // Seed realistic product pairings (Upsell & Cross-Sell)
+    await client.query(`
+      INSERT INTO public.product_pairings (product_id, paired_product_id, pairing_type, priority, promotion_tag, is_active)
+      SELECT p1.id, p2.id, 'UPSELL', 90, '⭐ Enterprise Upgrade Offer', TRUE
+      FROM public.products p1, public.products p2
+      WHERE p1.sku = 'HW-LP-2025' AND p2.sku = 'HW-WS-ULTRA'
+      ON CONFLICT (product_id, paired_product_id) DO NOTHING;
+
+      INSERT INTO public.product_pairings (product_id, paired_product_id, pairing_type, priority, promotion_tag, is_active)
+      SELECT p1.id, p2.id, 'CROSS_SELL', 85, '🔥 10% Bundle Discount', TRUE
+      FROM public.products p1, public.products p2
+      WHERE p1.sku = 'HW-LP-2025' AND p2.sku = 'SVC-SLA-5YR'
+      ON CONFLICT (product_id, paired_product_id) DO NOTHING;
+
+      INSERT INTO public.product_pairings (product_id, paired_product_id, pairing_type, priority, promotion_tag, is_active)
+      SELECT p1.id, p2.id, 'CROSS_SELL', 80, '🎁 Free Accessory with Workstation', TRUE
+      FROM public.products p1, public.products p2
+      WHERE p1.sku = 'HW-LP-2025' AND p2.sku = 'HW-ACC-DOCK'
+      ON CONFLICT (product_id, paired_product_id) DO NOTHING;
+
+      INSERT INTO public.product_pairings (product_id, paired_product_id, pairing_type, priority, promotion_tag, is_active)
+      SELECT p1.id, p2.id, 'CROSS_SELL', 75, '💰 Save ₹2,000 on Cloud Combo', TRUE
+      FROM public.products p1, public.products p2
+      WHERE p1.sku = 'HW-LP-2025' AND p2.sku = 'SUB-CLOUD-PRO'
+      ON CONFLICT (product_id, paired_product_id) DO NOTHING;
+
+      INSERT INTO public.product_pairings (product_id, paired_product_id, pairing_type, priority, promotion_tag, is_active)
+      SELECT p1.id, p2.id, 'UPSELL', 88, '🛡️ Security Tier Upgrade', TRUE
+      FROM public.products p1, public.products p2
+      WHERE p1.sku = 'SUB-CLOUD-PRO' AND p2.sku = 'SUB-SEC-ENT'
+      ON CONFLICT (product_id, paired_product_id) DO NOTHING;
+
+      INSERT INTO public.product_pairings (product_id, paired_product_id, pairing_type, priority, promotion_tag, is_active)
+      SELECT p1.id, p2.id, 'CROSS_SELL', 70, NULL, TRUE
+      FROM public.products p1, public.products p2
+      WHERE p1.sku = 'SVC-SLA-5YR' AND p2.sku = 'SVC-ONSITE-TRN'
+      ON CONFLICT (product_id, paired_product_id) DO NOTHING;
+    `);
+
+    // Seed product promotions
+    await client.query(`
+      INSERT INTO public.product_promotions (product_id, tag, priority, is_active, starts_at, ends_at)
+      SELECT p.id, '🔥 10% Bundle Discount', 10, TRUE, CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '30 days'
+      FROM public.products p WHERE p.sku = 'SVC-SLA-5YR'
+      AND NOT EXISTS (SELECT 1 FROM public.product_promotions pp WHERE pp.product_id = p.id AND pp.tag = '🔥 10% Bundle Discount');
+
+      INSERT INTO public.product_promotions (product_id, tag, priority, is_active, starts_at, ends_at)
+      SELECT p.id, '🎁 Free Accessory Bundle', 8, TRUE, CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '15 days'
+      FROM public.products p WHERE p.sku = 'HW-ACC-DOCK'
+      AND NOT EXISTS (SELECT 1 FROM public.product_promotions pp WHERE pp.product_id = p.id AND pp.tag = '🎁 Free Accessory Bundle');
     `);
 
     // Seed default Admin if not exists

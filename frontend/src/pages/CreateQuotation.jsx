@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Plus, Trash2, Save, AlertTriangle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import UpsellCrossSellPanel from "../components/UpsellCrossSellPanel";
 
 const API_BASE = "http://localhost:5000/api";
 const currency = (value) =>
@@ -104,6 +105,24 @@ export default function CreateQuotation({ onNavigate }) {
     setProductId("");
     setQuantity(1);
     setDiscountPercent(0);
+    setError("");
+  }
+
+  function addRecommendedItem(recommendation) {
+    if (items.some((item) => item.productId === recommendation.id))
+      return setError("That product is already in the quotation.");
+    setItems((current) => [
+      ...current,
+      {
+        productId: recommendation.id,
+        name: recommendation.name,
+        category: recommendation.category,
+        unitPrice: recommendation.unitPrice,
+        costPrice: recommendation.cost,
+        quantity: 1,
+        discountPercent: 0,
+      },
+    ]);
     setError("");
   }
 
@@ -357,12 +376,12 @@ export default function CreateQuotation({ onNavigate }) {
           </div>
         </section>
 
-        <section
-          className="data-table-card"
-          style={{ marginBottom: "1.25rem" }}
-        >
-          <div style={{ overflowX: "auto" }}>
-            <table className="data-table">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 350px", gap: "1.25rem", marginBottom: "1.25rem" }}>
+          <section
+            className="data-table-card"
+          >
+            <div style={{ overflowX: "auto" }}>
+              <table className="data-table">
               <thead>
                 <tr>
                   <th>Product</th>
@@ -456,8 +475,11 @@ export default function CreateQuotation({ onNavigate }) {
                 )}
               </tbody>
             </table>
-          </div>
-        </section>
+            </div>
+          </section>
+
+          <UpsellCrossSellPanel items={items} customerId={customerId} onAddItem={addRecommendedItem} token={token} />
+        </div>
 
         <div
           style={{

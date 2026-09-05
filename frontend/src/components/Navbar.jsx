@@ -239,6 +239,33 @@ const SettingsGearIcon = ({ size = 16 }) => (
   </svg>
 );
 
+const ActivityIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  </svg>
+);
+
+const PieChartIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+    <path d="M22 12A10 10 0 0 0 12 2v10z" />
+  </svg>
+);
+
+const ClockIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+
+const CreditCardIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+    <line x1="1" y1="10" x2="23" y2="10" />
+  </svg>
+);
+
 export default function Navbar({ currentRoute, setCurrentRoute }) {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -277,6 +304,10 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
     "/admin/customer-tiers",
     "/admin/subscription-plans",
     "/admin/billing-configuration",
+    "/admin/invoices",
+    "/admin/reports",
+    "/admin/deal-health",
+    "/admin/activity-feed",
     "/finance/dashboard",
     "/operations/dashboard",
     "/sales/fulfillment",
@@ -488,6 +519,74 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
                           <span className="active-dot" />
                         )}
                       </button>
+                      <button
+                        className={`mega-item-card ${currentRoute === "/admin/invoices" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/admin/invoices");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon green">
+                          <CreditCardIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">
+                            Invoices & Payments
+                          </div>
+                          <div className="mega-item-desc">
+                            Manage generated invoices
+                          </div>
+                        </div>
+                        {currentRoute === "/admin/invoices" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/admin/reports" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/admin/reports");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon cyan">
+                          <PieChartIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">
+                            Business Reports
+                          </div>
+                          <div className="mega-item-desc">
+                            Sales & product analytics
+                          </div>
+                        </div>
+                        {currentRoute === "/admin/reports" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/admin/deal-health" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/admin/deal-health");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon orange">
+                          <ActivityIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">
+                            Deal Health Monitor
+                          </div>
+                          <div className="mega-item-desc">
+                            At-risk deals tracker
+                          </div>
+                        </div>
+                        {currentRoute === "/admin/deal-health" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
                     </div>
 
                     {/* Column 2: Governance & Config */}
@@ -578,6 +677,27 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
                           </div>
                         </div>
                         {currentRoute === "/admin/billing-configuration" && (
+                          <span className="active-dot" />
+                        )}
+                      </button>
+
+                      <button
+                        className={`mega-item-card ${currentRoute === "/admin/activity-feed" ? "active" : ""}`}
+                        onClick={() => {
+                          setCurrentRoute("/admin/activity-feed");
+                          setIsMoreOpen(false);
+                        }}
+                      >
+                        <div className="mega-item-icon rose">
+                          <ClockIcon size={18} />
+                        </div>
+                        <div className="mega-item-body">
+                          <div className="mega-item-title">Activity Feed</div>
+                          <div className="mega-item-desc">
+                            Real-time audit events
+                          </div>
+                        </div>
+                        {currentRoute === "/admin/activity-feed" && (
                           <span className="active-dot" />
                         )}
                       </button>
