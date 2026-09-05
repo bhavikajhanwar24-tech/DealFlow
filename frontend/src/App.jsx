@@ -113,9 +113,16 @@ function AppContent() {
   }
 
   // Keep the public cinematic landing page at the root route.
+<<<<<<< HEAD
   if (currentRoute === "/") {
     return <ScrollVideoHero onNavigateToLogin={() => navigate("/login")} />;
   }
+=======
+  if (!user || user.status !== "ACTIVE") {
+    if (currentRoute === "/") {
+      return <ScrollVideoHero onNavigate={navigate} />;
+    }
+>>>>>>> 2ca274a4a1f288334fa6ccd6f2926b3ef4865720
 
   if (!user || user.status !== "ACTIVE") {
     return (

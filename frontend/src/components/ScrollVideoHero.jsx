@@ -1,12 +1,56 @@
+<<<<<<< HEAD
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import './ScrollVideoHero.css';
 
 export default function ScrollVideoHero({ onNavigateToLogin }) {
+=======
+import { useRef, useEffect, useCallback } from 'react';
+import { ArrowRight } from 'lucide-react';
+import './ScrollVideoHero.css';
+
+const TOTAL_FRAMES = 230;
+
+// Global image cache so images persist across React component re-renders
+const imageCache = [];
+const loadedFrames = new Set();
+const preloadCallbacks = new Set();
+let isPreloadingStarted = false;
+
+function preloadAllFrames(onFrameLoaded) {
+  if (onFrameLoaded) preloadCallbacks.add(onFrameLoaded);
+
+  if (isPreloadingStarted) {
+    loadedFrames.forEach((frameIndex) => onFrameLoaded?.(frameIndex));
+    return;
+  }
+
+  isPreloadingStarted = true;
+
+  for (let i = 1; i <= TOTAL_FRAMES; i++) {
+    if (!imageCache[i - 1]) {
+      const img = new Image();
+      const paddedIndex = String(i).padStart(3, '0');
+      img.src = `/Create_a_premium_cinematic_pr_frames/frames/frame_${paddedIndex}.jpg`;
+      img.onload = () => {
+        loadedFrames.add(i - 1);
+        preloadCallbacks.forEach((callback) => callback(i - 1));
+      };
+      imageCache[i - 1] = img;
+    }
+  }
+}
+
+export default function ScrollVideoHero({ onNavigate }) {
+>>>>>>> 2ca274a4a1f288334fa6ccd6f2926b3ef4865720
   const sectionRef = useRef(null);
   const videoRef = useRef(null);
   const rafIdRef = useRef(null);
+<<<<<<< HEAD
   const durationRef = useRef(0);
   const isLoadedRef = useRef(false);
+=======
+  const renderLoopRef = useRef(() => {});
+>>>>>>> 2ca274a4a1f288334fa6ccd6f2926b3ef4865720
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -21,7 +65,63 @@ export default function ScrollVideoHero({ onNavigateToLogin }) {
     const maxScroll = Math.max(docHeight - winHeight, 1);
     const currentScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
 
+<<<<<<< HEAD
     let progress = currentScroll / maxScroll;
+=======
+    if (!img || !img.complete || img.naturalWidth === 0) return;
+
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    const imgWidth = img.naturalWidth;
+    const imgHeight = img.naturalHeight;
+
+    if (!canvasWidth || !canvasHeight || !imgWidth || !imgHeight) return;
+
+    // Calculate aspect-ratio cover dimensions
+    const scale = Math.max(canvasWidth / imgWidth, canvasHeight / imgHeight);
+    const drawWidth = imgWidth * scale;
+    const drawHeight = imgHeight * scale;
+    const x = (canvasWidth - drawWidth) / 2;
+    const y = (canvasHeight - drawHeight) / 2;
+
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    ctx.drawImage(img, x, y, drawWidth, drawHeight);
+  }, []);
+
+  // Smooth LERP render loop
+  const renderLoop = useCallback(() => {
+    const frameDiff = targetFrameRef.current - smoothFrameRef.current;
+
+    if (Math.abs(frameDiff) > 0.005) {
+      // 0.25 LERP factor for crisp, instantaneous response
+      smoothFrameRef.current += frameDiff * 0.25;
+      drawFrame(smoothFrameRef.current);
+      rafIdRef.current = requestAnimationFrame(() => renderLoopRef.current());
+    } else {
+      smoothFrameRef.current = targetFrameRef.current;
+      drawFrame(smoothFrameRef.current);
+      isAnimatingRef.current = false;
+      rafIdRef.current = null;
+    }
+  }, [drawFrame]);
+
+  useEffect(() => {
+    renderLoopRef.current = renderLoop;
+  }, [renderLoop]);
+
+  // Scroll listener to update target frame index
+  const handleScroll = useCallback(() => {
+    if (!sectionRef.current) return;
+
+    const rect = sectionRef.current.getBoundingClientRect();
+    const windowHeight = window.innerHeight;
+    const scrollableDistance = rect.height - windowHeight;
+
+    if (scrollableDistance <= 0) return;
+
+    const currentScroll = -rect.top;
+    let progress = currentScroll / scrollableDistance;
+>>>>>>> 2ca274a4a1f288334fa6ccd6f2926b3ef4865720
     progress = Math.max(0, Math.min(1, progress));
 
     setScrollProgress(progress);
@@ -47,6 +147,24 @@ export default function ScrollVideoHero({ onNavigateToLogin }) {
       }
     };
 
+<<<<<<< HEAD
+=======
+    const handleFrameLoaded = () => {
+      drawFrame(smoothFrameRef.current);
+    };
+
+    preloadAllFrames(handleFrameLoaded);
+
+    drawFrame(smoothFrameRef.current);
+
+    return () => {
+      preloadCallbacks.delete(handleFrameLoaded);
+    };
+  }, [drawFrame]);
+
+  // Attach scroll & resize event listeners
+  useEffect(() => {
+>>>>>>> 2ca274a4a1f288334fa6ccd6f2926b3ef4865720
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleScroll, { passive: true });
 
@@ -92,6 +210,7 @@ export default function ScrollVideoHero({ onNavigateToLogin }) {
       onClick={handleSectionClick}
     >
       <div className="scroll-canvas-sticky">
+<<<<<<< HEAD
         
         {/* Loading Spinner */}
         {!isLoaded && !hasError && (
@@ -141,6 +260,19 @@ export default function ScrollVideoHero({ onNavigateToLogin }) {
           </div>
         )}
 
+=======
+        <canvas ref={canvasRef} className="fullscreen-canvas" />
+        <div className="hero-cta-wrap">
+          <button
+            type="button"
+            className="hero-cta"
+            onClick={() => onNavigate?.('/login')}
+          >
+            Turn Opportunities into Outcomes
+            <ArrowRight size={18} aria-hidden="true" />
+          </button>
+        </div>
+>>>>>>> 2ca274a4a1f288334fa6ccd6f2926b3ef4865720
       </div>
     </section>
   );
