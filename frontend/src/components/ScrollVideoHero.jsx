@@ -1,14 +1,23 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
+import { ArrowRight } from 'lucide-react';
 import './ScrollVideoHero.css';
 
 const TOTAL_FRAMES = 230;
 
 // Global image cache so images persist across React component re-renders
 const imageCache = [];
+const loadedFrames = new Set();
+const preloadCallbacks = new Set();
 let isPreloadingStarted = false;
 
 function preloadAllFrames(onFrameLoaded) {
-  if (isPreloadingStarted && imageCache.length === TOTAL_FRAMES) return;
+  if (onFrameLoaded) preloadCallbacks.add(onFrameLoaded);
+
+  if (isPreloadingStarted) {
+    loadedFrames.forEach((frameIndex) => onFrameLoaded?.(frameIndex));
+    return;
+  }
+
   isPreloadingStarted = true;
 
   for (let i = 1; i <= TOTAL_FRAMES; i++) {
@@ -17,14 +26,15 @@ function preloadAllFrames(onFrameLoaded) {
       const paddedIndex = String(i).padStart(3, '0');
       img.src = `/Create_a_premium_cinematic_pr_frames/frames/frame_${paddedIndex}.jpg`;
       img.onload = () => {
-        if (onFrameLoaded) onFrameLoaded(i - 1);
+        loadedFrames.add(i - 1);
+        preloadCallbacks.forEach((callback) => callback(i - 1));
       };
       imageCache[i - 1] = img;
     }
   }
 }
 
-export default function ScrollVideoHero() {
+export default function ScrollVideoHero({ onNavigate }) {
   const sectionRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -32,7 +42,7 @@ export default function ScrollVideoHero() {
   const smoothFrameRef = useRef(0);
   const isAnimatingRef = useRef(false);
   const rafIdRef = useRef(null);
-  const [loadedCount, setLoadedCount] = useState(0);
+  const renderLoopRef = useRef(() => {});
 
   // Draw a frame onto the Canvas with aspect-ratio cover scaling
   const drawFrame = useCallback((targetIndex) => {
@@ -90,7 +100,7 @@ export default function ScrollVideoHero() {
       // 0.25 LERP factor for crisp, instantaneous response
       smoothFrameRef.current += frameDiff * 0.25;
       drawFrame(smoothFrameRef.current);
-      rafIdRef.current = requestAnimationFrame(renderLoop);
+      rafIdRef.current = requestAnimationFrame(() => renderLoopRef.current());
     } else {
       smoothFrameRef.current = targetFrameRef.current;
       drawFrame(smoothFrameRef.current);
@@ -98,6 +108,10 @@ export default function ScrollVideoHero() {
       rafIdRef.current = null;
     }
   }, [drawFrame]);
+
+  useEffect(() => {
+    renderLoopRef.current = renderLoop;
+  }, [renderLoop]);
 
   // Scroll listener to update target frame index
   const handleScroll = useCallback(() => {
@@ -137,12 +151,17 @@ export default function ScrollVideoHero() {
       canvasRef.current.height = window.innerHeight;
     }
 
-    preloadAllFrames(() => {
-      setLoadedCount((prev) => prev + 1);
+    const handleFrameLoaded = () => {
       drawFrame(smoothFrameRef.current);
-    });
+    };
+
+    preloadAllFrames(handleFrameLoaded);
 
     drawFrame(smoothFrameRef.current);
+
+    return () => {
+      preloadCallbacks.delete(handleFrameLoaded);
+    };
   }, [drawFrame]);
 
   // Attach scroll & resize event listeners
@@ -166,6 +185,16 @@ export default function ScrollVideoHero() {
     <section ref={sectionRef} className="scroll-canvas-section" aria-label="Cinematic Frame Scroll Sequence">
       <div className="scroll-canvas-sticky">
         <canvas ref={canvasRef} className="fullscreen-canvas" />
+        <div className="hero-cta-wrap">
+          <button
+            type="button"
+            className="hero-cta"
+            onClick={() => onNavigate?.('/login')}
+          >
+            Turn Opportunities into Outcomes
+            <ArrowRight size={18} aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </section>
   );
