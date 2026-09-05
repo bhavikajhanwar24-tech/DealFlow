@@ -10,49 +10,44 @@ app.use(cors());
 app.use(express.json());
 
 const pool = new Pool({
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT),
-    database: process.env.DB_NAME,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-
-    ssl: {
-        rejectUnauthorized: false
-    }
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
 });
 
-// Test Express
-app.get("/", (req, res) => {
-    res.json({
-        message: "DealFlow360 API is running"
-    });
+pool.query("SELECT NOW()", (err, result) => {
+  if (err) {
+    console.error("DATABASE ERROR:", err);
+  } else {
+    console.log("PostgreSQL connected successfully!");
+    console.log("Database time:", result.rows[0].now);
+  }
 });
 
-// Test PostgreSQL
 app.get("/api/health", async (req, res) => {
-    try {
-        const result = await pool.query("SELECT NOW()");
+  try {
+    const result = await pool.query("SELECT NOW()");
 
-        res.json({
-            success: true,
-            message: "Supabase PostgreSQL connected!",
-            databaseTime: result.rows[0].now
-        });
+    res.json({
+      success: true,
+      message: "PostgreSQL connected!",
+      databaseTime: result.rows[0].now,
+    });
+  } catch (error) {
+    console.error("DATABASE ERROR:", error);
 
-    } catch (error) {
-        console.error("DATABASE ERROR:");
-        console.error(error);
-
-        res.status(500).json({
-            success: false,
-            message: "Database connection failed",
-            error: error.message
-        });
-    }
+    res.status(500).json({
+      success: false,
+      message: "Database connection failed",
+      error: error.message,
+    });
+  }
 });
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-    console.log(`DealFlow360 API running on port ${PORT}`);
+  console.log(`DealFlow360 API running on port ${PORT}`);
 });
