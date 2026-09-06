@@ -640,12 +640,13 @@ async function createDraft(user, input) {
       );
     }
 
-    await client.query("COMMIT");
-    return getQuotation(quotationId, user);
-  } catch (error) {
-    await client.query("ROLLBACK");
-    if (error.code === "23505") throw quotationError("A quotation number conflict occurred. Please try again.", 409);
-    throw error;
+      await client.query("COMMIT");
+      await calculateAndPersistRisk(quotationId);
+      return getQuotation(quotationId, user);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      if (error.code === "23505") throw quotationError("A quotation number conflict occurred. Please try again.", 409);
+      throw error;
   } finally {
     client.release();
   }
@@ -757,6 +758,7 @@ async function updateQuotation(user, quotationId, input) {
     }
 
     await client.query("COMMIT");
+    await calculateAndPersistRisk(quotationId);
     return getQuotation(quotationId, user);
   } catch (error) {
     await client.query("ROLLBACK");
@@ -764,6 +766,69 @@ async function updateQuotation(user, quotationId, input) {
   } finally {
     client.release();
   }
+}
+
+async function calculateAndPersistRisk(quotationId) {
+  try {
+    const quoteRes = await db.query(
+      `SELECT id, subtotal, discount_amount, final_amount, margin_percentage FROM public.quotations WHERE id = $1`,
+      [quotationId]
+    );
+    if (quoteRes.rows.length === 0) return null;
+    const q = quoteRes.rows[0];
+
+    const itemsRes = await db.query(
+      `SELECT qi.*, p.sku, p.category, p.unit_price, p.cost
+       FROM public.quotation_items qi
+       JOIN public.products p ON p.id = qi.product_id
+       WHERE qi.quotation_id = $1`,
+      [quotationId]
+    );
+
+    const grossValue = Number(q.subtotal) || 0;
+    const netValue = Number(q.final_amount) || 0;
+    const totalCost = itemsRes.rows.reduce((sum, item) => sum + Number(item.cost || 0) * Number(item.quantity || 1), 0);
+    const marginDeal = netValue > 0 ? Math.max(0, Math.min(1, (netValue - totalCost) / netValue)) : 0;
+    const dealAverageDiscount = grossValue > 0 ? Number(q.discount_amount || 0) / grossValue : 0;
+
+    const payload = {
+      dealId: q.id,
+      customerTier: "STANDARD",
+      repAverageDiscount: 0,
+      dealAverageDiscount,
+      marginDeal,
+      lines: itemsRes.rows.map((item) => ({
+        productId: item.sku || item.product_id,
+        category: item.category || "HARDWARE",
+        discount: Number(item.discount_percent || 0) / 100,
+        grossValue: Number(item.unit_price || 0) * Number(item.quantity || 1),
+        categoryCeiling: CATEGORY_CEILINGS[item.category] || 0.10,
+        tierCeiling: 0.10,
+        unitPrice: Number(item.unit_price || 0),
+        quantity: Number(item.quantity || 1),
+      })),
+    };
+
+    const resp = await fetch(`${RISK_ENGINE_URL}/api/ai/risk/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      await db.query(
+        `UPDATE public.quotations
+         SET risk_score = $1, risk_level = $2, approval_route = $3, risk_factors = $4, risk_analyzed_at = CURRENT_TIMESTAMP
+         WHERE id = $5`,
+        [Number(data.riskScore), data.riskLevel, data.governanceRoute, JSON.stringify(data.factors || []), quotationId]
+      );
+      return data;
+    }
+  } catch (err) {
+    console.warn("Risk evaluation background notice:", err.message);
+  }
+  return null;
 }
 
 async function previewQuotationRisk(user, input) {
