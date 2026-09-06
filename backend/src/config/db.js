@@ -630,6 +630,16 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_staff_complaints_customer ON public.staff_complaints(customer_id);
       CREATE INDEX IF NOT EXISTS idx_staff_complaints_staff ON public.staff_complaints(staff_id);
       CREATE INDEX IF NOT EXISTS idx_staff_complaints_status ON public.staff_complaints(status);
+
+      ALTER TABLE public.staff_complaints ADD COLUMN IF NOT EXISTS ai_evaluated BOOLEAN DEFAULT FALSE;
+      ALTER TABLE public.staff_complaints ADD COLUMN IF NOT EXISTS ai_is_relevant BOOLEAN;
+      ALTER TABLE public.staff_complaints ADD COLUMN IF NOT EXISTS ai_relevance_score NUMERIC(5, 2);
+      ALTER TABLE public.staff_complaints ADD COLUMN IF NOT EXISTS ai_classification VARCHAR(50);
+      ALTER TABLE public.staff_complaints ADD COLUMN IF NOT EXISTS ai_reason TEXT;
+      ALTER TABLE public.staff_complaints ADD COLUMN IF NOT EXISTS ai_suggested_priority VARCHAR(20);
+      ALTER TABLE public.staff_complaints ADD COLUMN IF NOT EXISTS ai_suggested_action TEXT;
+      ALTER TABLE public.staff_complaints ADD COLUMN IF NOT EXISTS auto_rejected_by_ai BOOLEAN DEFAULT FALSE;
+      ALTER TABLE public.staff_complaints ADD COLUMN IF NOT EXISTS ai_analyzed_at TIMESTAMPTZ;
     `);
 
     // Seed default Admin if not exists

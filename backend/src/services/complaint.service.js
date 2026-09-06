@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const aiService = require("./ai.service");
 
 /**
  * Service handling Staff Complaints submitted by Customers to Admin
@@ -36,9 +37,16 @@ async function createComplaint(customerId, data, ipAddress = null) {
     throw error;
   }
 
+  // Fetch customer details
+  const custCheck = await db.query(
+    `SELECT id, full_name, email, company_name FROM public.users WHERE id = $1`,
+    [customerId]
+  );
+  const customer = custCheck.rows[0] || { full_name: "Customer" };
+
   // Verify staff exists and is active internal user
   const staffCheck = await db.query(
-    `SELECT id, full_name, email, role FROM public.users WHERE id = $1`,
+    `SELECT id, full_name, email, role, department FROM public.users WHERE id = $1`,
     [staff_id]
   );
   if (staffCheck.rows.length === 0) {
@@ -51,22 +59,57 @@ async function createComplaint(customerId, data, ipAddress = null) {
 
   // If quotation_id provided, verify it belongs to this customer
   let validQuotationId = null;
+  let quotationNumber = null;
   if (quotation_id) {
     const quoteCheck = await db.query(
-      `SELECT id FROM public.quotations WHERE id = $1 AND customer_id = $2`,
+      `SELECT id, quotation_number FROM public.quotations WHERE id = $1 AND customer_id = $2`,
       [quotation_id, customerId]
     );
     if (quoteCheck.rows.length > 0) {
       validQuotationId = quoteCheck.rows[0].id;
+      quotationNumber = quoteCheck.rows[0].quotation_number;
     }
   }
 
   const cleanCategory = (category || "GENERAL").trim().toUpperCase();
 
+  // Run AI Grievance & Compliance Screener
+  let aiResult = {
+    is_relevant: true,
+    confidence_score: 80.0,
+    classification: "GENUINE_COMPLAINT",
+    reason: "Submitted for manual administrative review.",
+    suggested_priority: "MEDIUM",
+    suggested_action: "Review customer grievance and staff response.",
+  };
+
+  try {
+    aiResult = await aiService.evaluateComplaint({
+      customer,
+      staff,
+      category: cleanCategory,
+      subject: subject.trim(),
+      description: description.trim(),
+      quotationNumber,
+    });
+  } catch (aiErr) {
+    console.warn("[Complaint AI Screener] Non-fatal AI evaluation error:", aiErr?.message);
+  }
+
+  const isAutoRejected = !aiResult.is_relevant;
+  const initialStatus = isAutoRejected ? "REJECTED" : "PENDING";
+  const adminNotes = isAutoRejected
+    ? `[AI Auto-Rejected] ${aiResult.reason || "Submission identified as irrelevant / non-business timepass without legitimate staff grievance."}`
+    : null;
+  const resolvedAt = isAutoRejected ? new Date() : null;
+
   const insertResult = await db.query(
     `INSERT INTO public.staff_complaints
-      (customer_id, staff_id, quotation_id, category, subject, description, status)
-     VALUES ($1, $2, $3, $4, $5, $6, 'PENDING')
+      (customer_id, staff_id, quotation_id, category, subject, description, status,
+       admin_notes, resolved_at, ai_evaluated, ai_is_relevant, ai_relevance_score,
+       ai_classification, ai_reason, ai_suggested_priority, ai_suggested_action,
+       auto_rejected_by_ai, ai_analyzed_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP)
      RETURNING *`,
     [
       customerId,
@@ -75,6 +118,17 @@ async function createComplaint(customerId, data, ipAddress = null) {
       cleanCategory,
       subject.trim(),
       description.trim(),
+      initialStatus,
+      adminNotes,
+      resolvedAt,
+      true, // ai_evaluated
+      aiResult.is_relevant,
+      aiResult.confidence_score,
+      aiResult.classification,
+      aiResult.reason,
+      aiResult.suggested_priority,
+      aiResult.suggested_action,
+      isAutoRejected,
     ]
   );
 
@@ -86,19 +140,26 @@ async function createComplaint(customerId, data, ipAddress = null) {
      VALUES ($1, $2, $3, $4)`,
     [
       customerId,
-      "STAFF_COMPLAINT_LODGED",
+      isAutoRejected ? "STAFF_COMPLAINT_AUTO_REJECTED_BY_AI" : "STAFF_COMPLAINT_LODGED_AI_VERIFIED",
       JSON.stringify({
         complaintId: created.id,
         staffId: staff.id,
         staffName: staff.full_name,
         category: cleanCategory,
         subject: created.subject,
+        aiClassification: aiResult.classification,
+        aiRelevant: aiResult.is_relevant,
+        status: initialStatus,
       }),
       ipAddress,
     ]
   );
 
-  return created;
+  return {
+    ...created,
+    is_auto_rejected: isAutoRejected,
+    ai_result: aiResult,
+  };
 }
 
 async function getCustomerComplaints(customerId) {
@@ -114,6 +175,15 @@ async function getCustomerComplaints(customerId) {
        c.created_at,
        c.updated_at,
        c.quotation_id,
+       c.ai_evaluated,
+       c.ai_is_relevant,
+       c.ai_relevance_score,
+       c.ai_classification,
+       c.ai_reason,
+       c.ai_suggested_priority,
+       c.ai_suggested_action,
+       c.auto_rejected_by_ai,
+       c.ai_analyzed_at,
        s.id AS staff_id,
        s.full_name AS staff_name,
        s.email AS staff_email,
@@ -148,6 +218,15 @@ async function getAdminComplaints(filters = {}) {
       c.created_at,
       c.updated_at,
       c.quotation_id,
+      c.ai_evaluated,
+      c.ai_is_relevant,
+      c.ai_relevance_score,
+      c.ai_classification,
+      c.ai_reason,
+      c.ai_suggested_priority,
+      c.ai_suggested_action,
+      c.auto_rejected_by_ai,
+      c.ai_analyzed_at,
       cust.id AS customer_id,
       cust.full_name AS customer_name,
       cust.email AS customer_email,
@@ -183,6 +262,7 @@ async function getAdminComplaints(filters = {}) {
       cust.company_name ILIKE $${idx} OR
       s.full_name ILIKE $${idx} OR
       c.subject ILIKE $${idx} OR
+      c.ai_reason ILIKE $${idx} OR
       q.quotation_number ILIKE $${idx}
     )`;
   }
@@ -199,11 +279,12 @@ async function getAdminComplaintStats() {
       COUNT(*)::int AS total,
       COUNT(*) FILTER (WHERE status = 'PENDING')::int AS pending,
       COUNT(*) FILTER (WHERE status = 'ACTION_TAKEN')::int AS action_taken,
-      COUNT(*) FILTER (WHERE status = 'REJECTED')::int AS rejected
+      COUNT(*) FILTER (WHERE status = 'REJECTED')::int AS rejected,
+      COUNT(*) FILTER (WHERE auto_rejected_by_ai = TRUE)::int AS auto_rejected_ai
     FROM public.staff_complaints
   `);
 
-  return result.rows[0] || { total: 0, pending: 0, action_taken: 0, rejected: 0 };
+  return result.rows[0] || { total: 0, pending: 0, action_taken: 0, rejected: 0, auto_rejected_ai: 0 };
 }
 
 async function takeActionOnComplaint(complaintId, adminId, adminNotes, ipAddress = null) {

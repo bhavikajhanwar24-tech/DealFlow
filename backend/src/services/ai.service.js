@@ -304,9 +304,104 @@ Request: "${userPrompt}"`;
       strategy: fallbackStrategy,
       reply: `📋 Context Analysis:\n${fallbackSummary}\n\n💡 Recommended Strategy:\n${fallbackStrategy}\n\n🛡️ Margin Health:\n${fallbackHealth}`,
       suggestedDraft: fallbackDraft,
-           quoteUpdate: { shouldRecreate: false, rationale: "No structured quotation change recommended.", items: [] },
+      quoteUpdate: { shouldRecreate: false, rationale: "No structured quotation change recommended.", items: [] },
       margin: `${currentMargin}%`,
       finalAmount: q.final_amount,
+    };
+  }
+
+  // AI Compliance Screener for Customer Complaints
+  async evaluateComplaint({ customer, staff, category, subject, description, quotationNumber }) {
+    const text = `${subject || ""} ${description || ""}`.trim();
+    const cleanLetters = text.replace(/[^a-zA-Z0-9]/g, "");
+
+    // Immediate heuristic screener for obvious gibberish or spam tests
+    const isObviousGibberish =
+      cleanLetters.length < 6 ||
+      /^(asdf|qwerty|test|testing|hello|1234|abc|xyz|blah|lol|timepass|fake)+$/i.test(cleanLetters) ||
+      /(.)\1{5,}/.test(text);
+
+    if (isObviousGibberish) {
+      return {
+        is_relevant: false,
+        confidence_score: 95.0,
+        classification: "SPAM_OR_UNRELATED",
+        reason: "Submission identified as random gibberish or test text with no genuine staff or business grievance.",
+        suggested_priority: "LOW",
+        suggested_action: "Auto-rejected by AI as non-actionable spam.",
+      };
+    }
+
+    const systemPrompt = `You are the Lead AI Compliance & Grievance Auditor for DealFlow 360 CRM.
+Your job is to screen customer complaints filed against company staff and distinguish between:
+1. "GENUINE_COMPLAINT" (is_relevant: true) -> Real grievances related to staff behavior, communication delays, unresponsiveness, pricing disputes, quote errors, delivery failures, billing mismatches, unprofessional conduct, or service failures. These must go for manual review by the Human Administrator.
+2. "SPAM_OR_UNRELATED" (is_relevant: false) -> "Timepass", memes, jokes, unrelated questions (e.g. weather, movies, sports, personal gossip), random phrases, greetings without complaint, testing messages, or nonsensical gibberish that has nothing to do with staff, orders, quotes, or services. These MUST be auto-rejected.
+
+You MUST respond ONLY with valid JSON in this exact structure:
+{
+  "is_relevant": true,
+  "confidence_score": 88.0,
+  "classification": "GENUINE_COMPLAINT",
+  "reason": "Clear concise 1-2 sentence explanation of your classification.",
+  "suggested_priority": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
+  "suggested_action": "Recommended next step for the human administrator."
+}`;
+
+    const userMessage = `COMPLAINT DETAILS TO AUDIT:
+Customer Name: ${customer?.full_name || "Customer"} (${customer?.company_name || "N/A"})
+Staff Accused: ${staff?.full_name || "Staff"} (${staff?.role || "Staff"} - ${staff?.department || "General"})
+Quotation Ref: ${quotationNumber || "N/A"}
+Category: ${category}
+Subject: "${subject}"
+Description:
+"""
+${description}
+"""
+
+Evaluate if this is a genuine relevant complaint or spam/timepass/unrelated. Return valid JSON only.`;
+
+    const groqResponse = await callGroqChat(
+      [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      0.1
+    );
+
+    if (groqResponse) {
+      try {
+        const jsonMatch = groqResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          return {
+            is_relevant: Boolean(parsed.is_relevant),
+            confidence_score: Number(parsed.confidence_score) || (parsed.is_relevant ? 88.0 : 92.0),
+            classification: parsed.classification || (parsed.is_relevant ? "GENUINE_COMPLAINT" : "SPAM_OR_UNRELATED"),
+            reason: parsed.reason || (parsed.is_relevant ? "Complaint contains actionable staff or service grievances." : "Complaint classified as unrelated or non-business submission."),
+            suggested_priority: parsed.suggested_priority || "MEDIUM",
+            suggested_action: parsed.suggested_action || (parsed.is_relevant ? "Investigate staff communication and transaction history." : "Auto-rejected by compliance engine."),
+          };
+        }
+      } catch (e) {
+        console.warn("[DealFlow AI] Failed to parse complaint evaluation JSON:", e?.message);
+      }
+    }
+
+    // Heuristic fallback if AI model is unreachable:
+    const grievanceKeywords = /(unresponsive|delay|rude|price|discount|quote|quotation|invoice|delivery|behavior|behave|money|scam|wrong|error|broken|refund|order|staff|manager|representative|promise|fake|fraud|call|email|reply|cheat|bad|worst|cancel|dispute|service|complaint)/i;
+    const isGrievance = grievanceKeywords.test(text);
+
+    return {
+      is_relevant: isGrievance,
+      confidence_score: isGrievance ? 78.0 : 85.0,
+      classification: isGrievance ? "GENUINE_COMPLAINT" : "SPAM_OR_UNRELATED",
+      reason: isGrievance
+        ? "Contains business transaction / staff performance grievance indicators."
+        : "Submission lacks specific business grievance or staff conduct details.",
+      suggested_priority: isGrievance ? "MEDIUM" : "LOW",
+      suggested_action: isGrievance
+        ? "Manual review by administrator recommended."
+        : "Auto-rejected as non-actionable submission.",
     };
   }
 }

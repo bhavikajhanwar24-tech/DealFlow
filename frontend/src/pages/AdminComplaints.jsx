@@ -16,6 +16,9 @@ import {
   ChevronRight,
   ShieldCheck,
   AlertTriangle,
+  Sparkles,
+  Bot,
+  Brain,
 } from "lucide-react";
 
 const API_BASE = "http://localhost:5000/api";
@@ -182,7 +185,27 @@ export default function AdminComplaints() {
     });
   };
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, comp = {}) => {
+    if (status === "REJECTED" && comp.auto_rejected_by_ai) {
+      return (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.35rem",
+            background: "#fff1f2",
+            color: "#be123c",
+            border: "1px solid #fecdd3",
+            padding: "0.25rem 0.65rem",
+            borderRadius: "9999px",
+            fontSize: "0.75rem",
+            fontWeight: 800,
+          }}
+        >
+          <Bot size={13} color="#e11d48" /> Auto-Rejected by AI
+        </span>
+      );
+    }
     switch (status) {
       case "ACTION_TAKEN":
         return (
@@ -219,7 +242,7 @@ export default function AdminComplaints() {
               fontWeight: 700,
             }}
           >
-            <XCircle size={13} color="#dc2626" /> Rejected
+            <XCircle size={13} color="#dc2626" /> Rejected by Admin
           </span>
         );
       default:
@@ -238,7 +261,7 @@ export default function AdminComplaints() {
               fontWeight: 700,
             }}
           >
-            <Clock size={13} color="#d97706" /> Pending Action
+            <Clock size={13} color="#d97706" /> Pending Admin Check
           </span>
         );
     }
@@ -466,8 +489,83 @@ export default function AdminComplaints() {
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    {getStatusBadge(comp.status)}
+                    {getStatusBadge(comp.status, comp)}
                   </div>
+                </div>
+
+                {/* AI Compliance Screening Assessment Box */}
+                <div
+                  style={{
+                    background: comp.auto_rejected_by_ai
+                      ? "linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)"
+                      : "linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)",
+                    border: comp.auto_rejected_by_ai
+                      ? "1px solid #fecdd3"
+                      : "1px solid #ddd6fe",
+                    borderRadius: "10px",
+                    padding: "0.85rem 1.15rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.45rem",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      <Sparkles size={16} color={comp.auto_rejected_by_ai ? "#e11d48" : "#7c3aed"} />
+                      <strong style={{ fontSize: "0.85rem", color: comp.auto_rejected_by_ai ? "#9f1239" : "#5b21b6" }}>
+                        {comp.auto_rejected_by_ai ? "AI Compliance Auto-Rejection (Spam/Irrelevant)" : "AI Grievance Audit: Verified Genuine"}
+                      </strong>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                      <span
+                        style={{
+                          fontSize: "0.7rem",
+                          fontWeight: 700,
+                          padding: "0.15rem 0.45rem",
+                          borderRadius: "4px",
+                          background: comp.auto_rejected_by_ai ? "#ffe4e6" : "#e0e7ff",
+                          color: comp.auto_rejected_by_ai ? "#be123c" : "#3730a3",
+                        }}
+                      >
+                        Confidence: {Math.round(Number(comp.ai_relevance_score || (comp.auto_rejected_by_ai ? 95 : 85)))}%
+                      </span>
+                      {comp.ai_suggested_priority && (
+                        <span
+                          style={{
+                            fontSize: "0.7rem",
+                            fontWeight: 700,
+                            padding: "0.15rem 0.45rem",
+                            borderRadius: "4px",
+                            background:
+                              comp.ai_suggested_priority === "CRITICAL"
+                                ? "#fee2e2"
+                                : comp.ai_suggested_priority === "HIGH"
+                                ? "#ffedd5"
+                                : "#ecfdf5",
+                            color:
+                              comp.ai_suggested_priority === "CRITICAL"
+                                ? "#b91c1c"
+                                : comp.ai_suggested_priority === "HIGH"
+                                ? "#c2410c"
+                                : "#047857",
+                          }}
+                        >
+                          Priority: {comp.ai_suggested_priority}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: "0.825rem", color: comp.auto_rejected_by_ai ? "#881337" : "#4c1d95", lineHeight: "1.4" }}>
+                    <strong>AI Finding: </strong>
+                    {comp.ai_reason || (comp.auto_rejected_by_ai ? "Submission lacked genuine business/staff performance grievance." : "Complaint contains actionable staff conduct grievance.")}
+                  </div>
+
+                  {comp.ai_suggested_action && !comp.auto_rejected_by_ai && (
+                    <div style={{ fontSize: "0.775rem", color: "#6b21a8", marginTop: "0.15rem" }}>
+                      💡 <strong>Suggested Admin Next Step: </strong> {comp.ai_suggested_action}
+                    </div>
+                  )}
                 </div>
 
                 {/* Parties Involved Row */}

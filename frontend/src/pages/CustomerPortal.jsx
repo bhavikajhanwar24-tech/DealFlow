@@ -18,6 +18,8 @@ import {
   Package,
   ShieldAlert,
   User,
+  Bot,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -162,7 +164,15 @@ export default function CustomerPortal({ onNavigate }) {
         throw new Error(data.message || "Failed to submit complaint.");
       }
 
-      setSuccess("Complaint lodged successfully and sent directly to System Administrator. You can track progress below.");
+      if (data.data?.is_auto_rejected || data.data?.auto_rejected_by_ai) {
+        setSuccess(
+          `⚠️ AI Screener Notice: Submission was evaluated as unrelated/timepass and auto-rejected: "${data.data?.ai_reason || data.data?.admin_notes || "Irrelevant submission"}"`
+        );
+      } else {
+        setSuccess(
+          "✓ Complaint verified by AI as genuine business grievance and sent to System Administrator for manual check."
+        );
+      }
       setComplaintStaffId("");
       setComplaintQuotationId("");
       setComplaintCategory("COMMUNICATION");
@@ -1106,14 +1116,19 @@ async function loadRequestData() {
                               <CheckCircle size={13} color="#059669" /> Action Taken by Admin
                             </span>
                           )}
-                          {isRejected && (
+                          {isRejected && comp.auto_rejected_by_ai && (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", background: "#fff1f2", color: "#9f1239", border: "1px solid #fecdd3", padding: "0.25rem 0.65rem", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 700 }}>
+                              <Bot size={13} color="#e11d48" /> Auto-Rejected by AI (Irrelevant/Timepass)
+                            </span>
+                          )}
+                          {isRejected && !comp.auto_rejected_by_ai && (
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca", padding: "0.25rem 0.65rem", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 700 }}>
                               <XCircle size={13} color="#dc2626" /> Rejected by Admin
                             </span>
                           )}
                           {isPending && (
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", padding: "0.25rem 0.65rem", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 700 }}>
-                              <Clock size={13} color="#d97706" /> Pending Admin Review
+                              <Clock size={13} color="#d97706" /> Pending Admin Review (AI Verified)
                             </span>
                           )}
                         </div>
@@ -1145,7 +1160,21 @@ async function loadRequestData() {
                         </div>
                       )}
 
-                      {isRejected && (
+                      {isRejected && comp.auto_rejected_by_ai && (
+                        <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: "10px", padding: "0.9rem 1.15rem" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "#9f1239", fontWeight: 700, fontSize: "0.875rem", marginBottom: "0.35rem" }}>
+                            <Bot size={15} color="#e11d48" /> AI Compliance Screener (Auto-Rejected):
+                          </div>
+                          <div style={{ fontSize: "0.875rem", color: "#881337", lineHeight: "1.45" }}>
+                            {comp.admin_notes || comp.ai_reason || "Submission identified as unrelated or non-business inquiry without a genuine staff grievance."}
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "#be123c", marginTop: "0.4rem" }}>
+                            Auto-evaluated by AI Screener on {new Date(comp.resolved_at || comp.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </div>
+                        </div>
+                      )}
+
+                      {isRejected && !comp.auto_rejected_by_ai && (
                         <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "10px", padding: "0.9rem 1.15rem" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "#991b1b", fontWeight: 700, fontSize: "0.875rem", marginBottom: "0.35rem" }}>
                             <XCircle size={15} color="#dc2626" /> Administrator Explanation (Complaint Not Upheld):
@@ -1162,7 +1191,7 @@ async function loadRequestData() {
                       {isPending && (
                         <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "8px", padding: "0.75rem 1rem", fontSize: "0.825rem", color: "#92400e", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                           <Clock size={15} color="#d97706" />
-                          <span>Your complaint is currently in the Administrator's review queue. Corrective action or explanation will be posted here once resolved.</span>
+                          <span>AI verified as genuine grievance. Your complaint is currently with the Administrator for manual check and action.</span>
                         </div>
                       )}
                     </div>

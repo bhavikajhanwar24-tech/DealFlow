@@ -21,9 +21,13 @@ async function createComplaint(req, res) {
   try {
     const ip = req.ip || req.headers["x-forwarded-for"] || req.socket?.remoteAddress;
     const complaint = await complaintService.createComplaint(req.user.id, req.body, ip);
+    const isAutoRejected = complaint.is_auto_rejected || complaint.status === "REJECTED";
+    const message = isAutoRejected
+      ? `AI Compliance Screening: Complaint auto-rejected (${complaint.ai_result?.reason || "unrelated/non-business submission"}).`
+      : "AI Compliance Screening: Complaint verified as genuine and forwarded to Executive Administrator for manual review.";
     return res.status(201).json({
       success: true,
-      message: "Complaint lodged successfully. It has been routed directly to the System Administrator for review.",
+      message,
       data: complaint,
     });
   } catch (error) {
