@@ -58,7 +58,20 @@ async function updateQuotation(req, res) {
     const quotation = await quotationService.updateQuotation(req.user, req.params.id, req.body);
     return res.status(200).json({
       success: true,
-      message: `Quotation ${quotation.quotationNumber} updated and reset to DRAFT for re-submission.`,
+      message: `Quotation ${quotation.quotationNumber} updated successfully.`,
+      data: quotation,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  }
+}
+
+async function addItemToQuotation(req, res) {
+  try {
+    const quotation = await quotationService.addItemToQuotation(req.user, req.params.id, req.body || {});
+    return res.status(200).json({
+      success: true,
+      message: `Item added to quotation ${quotation.quotationNumber}.`,
       data: quotation,
     });
   } catch (error) {
@@ -117,9 +130,11 @@ async function listCustomerRequests(req, res) {
 
 async function convertCustomerRequest(req, res) {
   try {
+    const { additionalItems } = req.body || {};
     const quotation = await quotationService.convertCustomerQuoteRequest(
       req.params.requestId,
       req.user,
+      additionalItems,
     );
     return res.status(201).json({
       success: true,
@@ -171,6 +186,7 @@ module.exports = {
   getQuotation,
   createQuotation,
   updateQuotation,
+  addItemToQuotation,
   submitQuotation,
   previewQuotationRisk,
   applyNegotiationSuggestion,
