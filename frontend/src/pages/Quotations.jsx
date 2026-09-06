@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   FilePlus2,
   ArrowRight,
@@ -7,9 +7,13 @@ import {
   Search,
   Filter,
   Calendar,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { exportToCSV, printOrExportPDF } from "../utils/exportUtils";
+import CustomerRequestAiRecommendations from "../components/CustomerRequestAiRecommendations";
 
 const API_BASE = "http://localhost:5000/api";
 const currency = (value) =>
@@ -22,6 +26,7 @@ export default function Quotations({ onNavigate }) {
   const [error, setError] = useState("");
   const [customerRequests, setCustomerRequests] = useState([]);
   const [requestActionLoading, setRequestActionLoading] = useState(null);
+  const [expandedRecId, setExpandedRecId] = useState(null);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -65,13 +70,34 @@ export default function Quotations({ onNavigate }) {
     }
   }
 
-  async function convertRequest(requestId) {
+  const activeCustomerRequests = useMemo(() => {
+    return customerRequests.filter((r) => {
+      if (r.status === "CONFIRMED" || r.status === "REJECTED") return false;
+      if (
+        r.quotation_status === "CONFIRMED" ||
+        r.quotation_status === "FINALIZED" ||
+        r.quotation_status === "REJECTED"
+      )
+        return false;
+      return true;
+    });
+  }, [customerRequests]);
+
+  async function convertRequest(requestId, recItem = null) {
     setRequestActionLoading(requestId);
     setError("");
     try {
+      const body = recItem ? { additionalItems: [recItem] } : {};
       const response = await fetch(
         `${API_BASE}/quotations/customer-requests/${requestId}/convert`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        },
       );
       const data = await response.json();
       if (!response.ok)
@@ -79,9 +105,23 @@ export default function Quotations({ onNavigate }) {
           data.message || "Unable to create quotation from request.",
         );
       setCustomerRequests((current) =>
-        current.filter((request) => request.id !== requestId),
+        current.map((request) =>
+          request.id === requestId
+            ? {
+                ...request,
+                status: "CONVERTED",
+                quotation_id: data.data.id,
+                quotation_number: data.data.quotationNumber,
+                quotation_status: data.data.status,
+              }
+            : request
+        ),
       );
-      setQuotations((current) => [data.data, ...current]);
+      setQuotations((current) => {
+        const filtered = current.filter((q) => q.id !== data.data.id);
+        return [data.data, ...filtered];
+      });
+      loadQuotations();
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -264,7 +304,7 @@ export default function Quotations({ onNavigate }) {
       {error && <div className="alert alert-danger" style={{ marginBottom: "1rem" }}>{error}</div>}
 
       {/* Customer Inbound Requests (if any) */}
-      {customerRequests.length > 0 && (
+      {activeCustomerRequests.length > 0 && (
         <section
           style={{
             background: "#fff",
@@ -284,64 +324,121 @@ export default function Quotations({ onNavigate }) {
           >
             Customer Quotation Requests
           </h2>
-          {customerRequests.map((request) => (
-            <div
-              key={request.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "1rem",
-                flexWrap: "wrap",
-                padding: "0.85rem 0",
-                borderBottom: "1px solid #eef2f7",
-              }}
-            >
-              <div>
-                <strong>{request.company_name || request.customer_name}</strong>
+          {activeCustomerRequests.map((request) => {
+            const isExpanded = expandedRecId === request.id;
+            return (
+              <div
+                key={request.id}
+                style={{
+                  padding: "0.85rem 0",
+                  borderBottom: "1px solid #eef2f7",
+                }}
+              >
                 <div
                   style={{
-                    color: "#64748b",
-                    fontSize: "0.8rem",
-                    marginTop: "0.25rem",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "1rem",
+                    flexWrap: "wrap",
                   }}
                 >
-                  {request.items
-                    .map((item) => `${item.name} × ${item.quantity}`)
-                    .join(", ")}
-                  {request.requested_delivery_date &&
-                    ` · Delivery by ${request.requested_delivery_date}`}
-                </div>
-                {request.customer_comment && (
-                  <div
-                    style={{
-                      color: "#475569",
-                      fontSize: "0.8rem",
-                      marginTop: "0.25rem",
-                    }}
-                  >
-                    “{request.customer_comment}”
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+                      <strong>{request.company_name || request.customer_name}</strong>
+                      {request.status === "AUTO_APPROVED" && (
+                        <span style={{ fontSize: "0.7rem", background: "#ecfdf5", color: "#047857", padding: "0.15rem 0.45rem", borderRadius: "4px", fontWeight: 700 }}>
+                          ✓ Auto-Approved
+                        </span>
+                      )}
+                      {request.status === "PENDING" && (
+                        <span style={{ fontSize: "0.7rem", background: "#fef3c7", color: "#b45309", padding: "0.15rem 0.45rem", borderRadius: "4px", fontWeight: 700 }}>
+                          ⏳ Pending Review
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        color: "#64748b",
+                        fontSize: "0.8rem",
+                        marginTop: "0.25rem",
+                      }}
+                    >
+                      {request.items
+                        .map((item) => `${item.name} × ${item.quantity}`)
+                        .join(", ")}
+                      {request.requested_delivery_date &&
+                        ` · Delivery by ${request.requested_delivery_date}`}
+                    </div>
+                    {request.customer_comment && (
+                      <div
+                        style={{
+                          color: "#475569",
+                          fontSize: "0.8rem",
+                          marginTop: "0.25rem",
+                        }}
+                      >
+                        “{request.customer_comment}”
+                      </div>
+                    )}
                   </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setExpandedRecId(isExpanded ? null : request.id)}
+                      style={{
+                        padding: "0.35rem 0.65rem",
+                        fontSize: "0.78rem",
+                        background: isExpanded ? "#ede9fe" : "#f5f3ff",
+                        color: "#6d28d9",
+                        borderColor: "#c4b5fd",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.3rem",
+                        fontWeight: 700,
+                      }}
+                    >
+                      <Sparkles size={14} color="#7c3aed" />
+                      {isExpanded ? "Hide AI Suggestions" : "✨ AI Recommendations"}
+                      {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    </button>
+
+                    {(user?.role === "SALES_REP" ||
+                      user?.role === "SALES_MANAGER" ||
+                      user?.role === "ADMIN") &&
+                    request.status === "PENDING" ? (
+                      <button
+                        className="btn-primary"
+                        style={{ width: "auto", fontSize: "0.78rem", padding: "0.35rem 0.75rem" }}
+                        onClick={() => convertRequest(request.id)}
+                        disabled={requestActionLoading === request.id}
+                      >
+                        {requestActionLoading === request.id
+                          ? "Creating..."
+                          : "Create Quotation"}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <CustomerRequestAiRecommendations
+                    request={request}
+                    token={token}
+                    onApproveWithItem={(id, rec) => convertRequest(id, rec)}
+                    onQuotationUpdated={(updatedQuote) => {
+                      setQuotations((current) =>
+                        current.map((q) => (q.id === updatedQuote.id ? updatedQuote : q))
+                      );
+                      loadQuotations();
+                    }}
+                    onNavigate={onNavigate}
+                  />
                 )}
               </div>
-              {user?.role === "SALES_REP" ||
-              user?.role === "SALES_MANAGER" ||
-              user?.role === "ADMIN" ? (
-                <button
-                  className="btn-primary"
-                  style={{ width: "auto" }}
-                  onClick={() => convertRequest(request.id)}
-                  disabled={requestActionLoading === request.id}
-                >
-                  {requestActionLoading === request.id
-                    ? "Creating..."
-                    : "Create Quotation"}
-                </button>
-              ) : (
-                <span className="badge badge-pending">Ready for review</span>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </section>
       )}
 

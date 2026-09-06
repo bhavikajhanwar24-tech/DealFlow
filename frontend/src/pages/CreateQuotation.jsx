@@ -129,16 +129,20 @@ export default function CreateQuotation({ onNavigate }) {
   }
 
   function addRecommendedItem(recommendation) {
-    if (items.some((item) => item.productId === recommendation.id))
-      return setError("That product is already in the quotation.");
+    const pId = recommendation.productId || recommendation.id;
+    if (!pId) return;
+    if (items.some((item) => item.productId === pId)) {
+      setError(`"${recommendation.name}" is already in the quotation.`);
+      return;
+    }
     setItems((current) => [
       ...current,
       {
-        productId: recommendation.id,
+        productId: pId,
         name: recommendation.name,
-        category: recommendation.category,
+        category: recommendation.category || "Add-on",
         unitPrice: Math.max(0, Number(recommendation.unitPrice ?? recommendation.unit_price) || 0),
-        costPrice: Math.max(0, Number(recommendation.cost ?? recommendation.costPrice) || 0),
+        costPrice: Math.max(0, Number(recommendation.costPrice ?? recommendation.cost) || 0),
         quantity: 1,
         discountPercent: 0,
       },

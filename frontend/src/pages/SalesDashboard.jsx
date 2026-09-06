@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   ArrowRight,
   FilePlus2,
@@ -13,9 +13,13 @@ import {
   Search,
   TrendingUp,
   Settings2,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import RevenueMarginChart from "../components/RevenueMarginChart";
+import CustomerRequestAiRecommendations from "../components/CustomerRequestAiRecommendations";
 import { exportToCSV, printOrExportPDF, resetExportPreferences, promptExportDialog } from "../utils/exportUtils";
 
 const API_BASE = "http://localhost:5000/api";
@@ -28,6 +32,8 @@ export default function SalesDashboard({ onNavigate }) {
   const [quotations, setQuotations] = useState([]);
   const [customerRequests, setCustomerRequests] = useState([]);
   const [convertingId, setConvertingId] = useState(null);
+  const [expandedRecId, setExpandedRecId] = useState(null);
+  const [requestFilter, setRequestFilter] = useState("ALL"); // ALL, PENDING, AUTO_APPROVED
   const [actionSuccess, setActionSuccess] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -74,28 +80,62 @@ export default function SalesDashboard({ onNavigate }) {
     loadData();
   }, [token]);
 
-  async function handleConvertRequest(requestId) {
+  // Filter out customer requests whose deal is already confirmed/finalized by the customer
+  const activeCustomerRequests = useMemo(() => {
+    return customerRequests.filter((r) => {
+      if (r.status === "CONFIRMED" || r.status === "REJECTED") return false;
+      if (
+        r.quotation_status === "CONFIRMED" ||
+        r.quotation_status === "FINALIZED" ||
+        r.quotation_status === "REJECTED"
+      )
+        return false;
+      return true;
+    });
+  }, [customerRequests]);
+
+  async function handleConvertRequest(requestId, recItem = null) {
     setConvertingId(requestId);
     setError("");
     setActionSuccess("");
     try {
+      const body = recItem ? { additionalItems: [recItem] } : {};
       const response = await fetch(`${API_BASE}/quotations/customer-requests/${requestId}/convert`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Failed to convert customer request into quotation.");
 
-      setCustomerRequests((current) => current.filter((req) => req.id !== requestId));
-      setQuotations((current) => [data.data, ...current]);
-      setActionSuccess(`⚡ Success: Quotation ${data.data.quotationNumber} has been generated and added to active deals!`);
-      
-      // Refresh summary
-      fetch(`${API_BASE}/quotations/dashboard-summary`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then(r => r.json()).then(res => {
-        if (res.data) setSummary(res.data);
-      }).catch(() => {});
+      setCustomerRequests((current) =>
+        current.map((req) =>
+          req.id === requestId
+            ? {
+                ...req,
+                status: "CONVERTED",
+                quotation_id: data.data.id,
+                quotation_number: data.data.quotationNumber,
+                quotation_status: data.data.status,
+              }
+            : req
+        )
+      );
+      setQuotations((current) => {
+        const filtered = current.filter((q) => q.id !== data.data.id);
+        return [data.data, ...filtered];
+      });
+      setActionSuccess(
+        `⚡ Success: Quotation ${data.data.quotationNumber} has been generated${
+          recItem ? ` including recommended add-on "${recItem.name}"` : ""
+        } and added to Quotation & Deal Export Reports table below!`
+      );
+
+      // Refresh summary and data
+      loadData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -334,7 +374,7 @@ export default function SalesDashboard({ onNavigate }) {
         ))}
       </div>
 
-      {/* INBOUND CUSTOMER QUOTATION REQUESTS (MANUAL STAFF REVIEW QUEUE) */}
+      {/* INBOUND CUSTOMER QUOTATION REQUESTS & AI RECOMMENDATIONS HUB */}
       <section
         style={{
           background: "#ffffff",
@@ -363,19 +403,58 @@ export default function SalesDashboard({ onNavigate }) {
               <h2 style={{ fontSize: "1.2rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>
                 Inbound Customer Quotation Requests
               </h2>
-              {customerRequests.length > 0 && (
+              {activeCustomerRequests.length > 0 && (
                 <span className="badge badge-pending" style={{ background: "#f5f3ff", color: "#7c3aed", border: "1px solid #ddd6fe", fontWeight: 800 }}>
-                  {customerRequests.length} Pending Review
+                  {activeCustomerRequests.length} Active Request{activeCustomerRequests.length === 1 ? "" : "s"}
                 </span>
               )}
             </div>
             <p style={{ color: "#64748b", fontSize: "0.825rem", margin: "0.25rem 0 0" }}>
-              Requests submitted by customers via portal requiring sales review or custom pricing. Click "Approve & Convert" to instantly create a quotation deal.
+              Customer quotation inquiries received from the portal. AI generates real-time recommendations. Once approved and confirmed by the customer, deals automatically graduate to the Quotation & Deal Export Reports ledger below.
             </p>
           </div>
+
+          {/* Request Status Tabs */}
+          {activeCustomerRequests.length > 0 && (
+            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+              {[
+                { key: "ALL", label: `All Active (${activeCustomerRequests.length})` },
+                {
+                  key: "PENDING",
+                  label: `Pending Review (${activeCustomerRequests.filter((r) => r.status === "PENDING").length})`,
+                },
+                {
+                  key: "AUTO_APPROVED",
+                  label: `Auto-Approved / Converting (${
+                    activeCustomerRequests.filter((r) => r.status === "AUTO_APPROVED" || r.status === "CONVERTED").length
+                  })`,
+                },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setRequestFilter(tab.key)}
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    borderRadius: "8px",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    border: "1px solid",
+                    borderColor: requestFilter === tab.key ? "#7c3aed" : "#e2e8f0",
+                    background: requestFilter === tab.key ? "#f5f3ff" : "#ffffff",
+                    color: requestFilter === tab.key ? "#7c3aed" : "#64748b",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {customerRequests.length === 0 ? (
+        {activeCustomerRequests.length === 0 ? (
           <div
             style={{
               padding: "2rem",
@@ -387,10 +466,10 @@ export default function SalesDashboard({ onNavigate }) {
             }}
           >
             <div style={{ fontWeight: 700, color: "#334155", marginBottom: "0.25rem" }}>
-              ✨ All customer quotation requests are up to date!
+              ✨ All customer quotation requests are processed!
             </div>
             <div style={{ fontSize: "0.825rem" }}>
-              When customers submit quotation inquiries from the customer portal, they will appear here for immediate staff approval and quote generation.
+              All customer requests have been approved, converted, or confirmed into active deals in the Quotation & Deal Export Reports table below.
             </div>
           </div>
         ) : (
@@ -399,83 +478,224 @@ export default function SalesDashboard({ onNavigate }) {
               <thead>
                 <tr>
                   <th>Date & Customer</th>
+                  <th>Status</th>
                   <th>Requested Items</th>
                   <th>Est. Value</th>
-                  <th>Target Delivery</th>
-                  <th>Customer Notes</th>
-                  <th style={{ textAlign: "right" }}>Staff Action</th>
+                  <th>Target Delivery & Notes</th>
+                  <th style={{ textAlign: "right" }}>AI Suggestions & Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {customerRequests.map((req) => (
-                  <tr key={req.id} style={{ background: "rgba(245, 243, 255, 0.4)" }}>
-                    <td>
-                      <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                        {req.customer_name || req.company_name || "Customer"}
-                      </div>
-                      <div style={{ color: "#64748b", fontSize: "0.75rem" }}>
-                        {req.company_name && req.company_name !== req.customer_name ? `${req.company_name} · ` : ""}
-                        {req.email}
-                      </div>
-                      <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
-                        Received: {new Date(req.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                        {(req.items || []).map((item, idx) => (
-                          <span
-                            key={idx}
-                            style={{
-                              fontSize: "0.78rem",
-                              background: "#ffffff",
-                              padding: "0.2rem 0.5rem",
-                              borderRadius: "6px",
-                              border: "1px solid #e2e8f0",
-                              display: "inline-flex",
-                              gap: "0.4rem",
-                              alignItems: "center",
-                            }}
-                          >
-                            <strong>{item.name}</strong>
-                            <span style={{ color: "#7c3aed", fontWeight: 700 }}>×{item.quantity}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td style={{ fontWeight: 800, color: "#166534", fontSize: "0.9rem" }}>
-                      {currency(req.estimatedTotal)}
-                    </td>
-                    <td style={{ fontSize: "0.8rem", color: "#475569" }}>
-                      {req.requested_delivery_date
-                        ? new Date(req.requested_delivery_date).toLocaleDateString("en-IN")
-                        : "Standard"}
-                    </td>
-                    <td style={{ fontSize: "0.78rem", color: "#64748b", maxWidth: "220px" }}>
-                      {req.customer_comment || <span style={{ color: "#94a3b8" }}>—</span>}
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", gap: "0.4rem", justifyContent: "flex-end" }}>
-                        <button
-                          className="btn-primary"
-                          style={{
-                            padding: "0.35rem 0.75rem",
-                            fontSize: "0.78rem",
-                            background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
-                            border: "none",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "0.3rem",
-                          }}
-                          disabled={convertingId === req.id}
-                          onClick={() => handleConvertRequest(req.id)}
-                        >
-                          {convertingId === req.id ? "Converting..." : "⚡ Approve & Create Quote"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {activeCustomerRequests
+                  .filter((req) => {
+                    if (requestFilter === "PENDING") return req.status === "PENDING";
+                    if (requestFilter === "AUTO_APPROVED")
+                      return req.status === "AUTO_APPROVED" || req.status === "CONVERTED";
+                    return true;
+                  })
+                  .map((req) => {
+                    const isExpanded = expandedRecId === req.id;
+                    const isPending = req.status === "PENDING";
+                    const isAutoApproved = req.status === "AUTO_APPROVED";
+                    const isConverted = req.status === "CONVERTED";
+
+                    return (
+                      <React.Fragment key={req.id}>
+                        <tr style={{ background: isExpanded ? "#faf5ff" : "rgba(245, 243, 255, 0.4)" }}>
+                          <td>
+                            <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                              {req.customer_name || req.company_name || "Customer"}
+                            </div>
+                            <div style={{ color: "#64748b", fontSize: "0.75rem" }}>
+                              {req.company_name && req.company_name !== req.customer_name ? `${req.company_name} · ` : ""}
+                              {req.email}
+                            </div>
+                            <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
+                              Received:{" "}
+                              {new Date(req.created_at).toLocaleDateString("en-IN", {
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </div>
+                          </td>
+                          <td>
+                            {isPending && (
+                              <span
+                                style={{
+                                  fontSize: "0.75rem",
+                                  background: "#fef3c7",
+                                  color: "#b45309",
+                                  border: "1px solid #fde68a",
+                                  padding: "0.2rem 0.55rem",
+                                  borderRadius: "6px",
+                                  fontWeight: 700,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                ⏳ Pending Review
+                              </span>
+                            )}
+                            {isAutoApproved && (
+                              <span
+                                style={{
+                                  fontSize: "0.75rem",
+                                  background: "#ecfdf5",
+                                  color: "#047857",
+                                  border: "1px solid #a7f3d0",
+                                  padding: "0.2rem 0.55rem",
+                                  borderRadius: "6px",
+                                  fontWeight: 700,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                ✓ Auto-Approved
+                              </span>
+                            )}
+                            {isConverted && (
+                              <span
+                                style={{
+                                  fontSize: "0.75rem",
+                                  background: "#eff6ff",
+                                  color: "#1d4ed8",
+                                  border: "1px solid #bfdbfe",
+                                  padding: "0.2rem 0.55rem",
+                                  borderRadius: "6px",
+                                  fontWeight: 700,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                ✓ Converted
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                              {(req.items || []).map((item, idx) => (
+                                <span
+                                  key={idx}
+                                  style={{
+                                    fontSize: "0.78rem",
+                                    background: "#ffffff",
+                                    padding: "0.2rem 0.5rem",
+                                    borderRadius: "6px",
+                                    border: "1px solid #e2e8f0",
+                                    display: "inline-flex",
+                                    gap: "0.4rem",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <strong>{item.name}</strong>
+                                  <span style={{ color: "#7c3aed", fontWeight: 700 }}>×{item.quantity}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td style={{ fontWeight: 800, color: "#166534", fontSize: "0.9rem" }}>
+                            {currency(req.estimatedTotal)}
+                          </td>
+                          <td style={{ fontSize: "0.8rem", color: "#475569" }}>
+                            <div>
+                              <strong>Delivery: </strong>
+                              {req.requested_delivery_date
+                                ? new Date(req.requested_delivery_date).toLocaleDateString("en-IN")
+                                : "Standard"}
+                            </div>
+                            {req.customer_comment && (
+                              <div style={{ fontSize: "0.76rem", color: "#64748b", marginTop: "0.2rem" }}>
+                                “{req.customer_comment}”
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            <div style={{ display: "inline-flex", gap: "0.4rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => setExpandedRecId(isExpanded ? null : req.id)}
+                                style={{
+                                  padding: "0.35rem 0.65rem",
+                                  fontSize: "0.78rem",
+                                  background: isExpanded ? "#ede9fe" : "#f5f3ff",
+                                  color: "#6d28d9",
+                                  borderColor: "#c4b5fd",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.3rem",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                <Sparkles size={14} color="#7c3aed" />
+                                {isExpanded ? "Hide AI Suggestions" : "✨ AI Recommendations"}
+                                {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                              </button>
+
+                              {isPending && (
+                                <button
+                                  className="btn-primary"
+                                  style={{
+                                    padding: "0.35rem 0.75rem",
+                                    fontSize: "0.78rem",
+                                    background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
+                                    border: "none",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.3rem",
+                                  }}
+                                  disabled={convertingId === req.id}
+                                  onClick={() => handleConvertRequest(req.id)}
+                                >
+                                  {convertingId === req.id ? "Converting..." : "⚡ Approve & Quote"}
+                                </button>
+                              )}
+
+                              {(isAutoApproved || isConverted) && req.quotation_number && (
+                                <button
+                                  type="button"
+                                  className="btn-secondary"
+                                  onClick={() => onNavigate("/sales/quotations")}
+                                  style={{
+                                    padding: "0.35rem 0.65rem",
+                                    fontSize: "0.78rem",
+                                    background: "#ecfdf5",
+                                    color: "#065f46",
+                                    borderColor: "#a7f3d0",
+                                    fontWeight: 700,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.25rem",
+                                  }}
+                                >
+                                  {req.quotation_number} <ArrowRight size={13} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Expandable AI Recommendations Panel */}
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan="6" style={{ padding: "0 0.5rem 1rem", background: "#faf5ff", borderTop: "none" }}>
+                              <CustomerRequestAiRecommendations
+                                request={req}
+                                token={token}
+                                onApproveWithItem={(id, rec) => handleConvertRequest(id, rec)}
+                                onQuotationUpdated={(updatedQuote) => {
+                                  setQuotations((current) =>
+                                    current.map((q) => (q.id === updatedQuote.id ? updatedQuote : q))
+                                  );
+                                  loadData();
+                                }}
+                                onNavigate={onNavigate}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
               </tbody>
             </table>
           </div>

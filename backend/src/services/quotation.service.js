@@ -214,17 +214,20 @@ async function listPendingCustomerQuoteRequests(user) {
   }
   const result = await db.query(
     `SELECT r.id, r.status, r.requested_delivery_date, r.customer_comment,
-            r.created_at, c.id AS customer_id, c.full_name AS customer_name,
+            r.quotation_id, r.created_at, c.id AS customer_id, c.full_name AS customer_name,
             c.company_name, c.email,
+            q.quotation_number, q.status AS quotation_status,
             COALESCE(json_agg(json_build_object(
-              'productId', p.id, 'name', p.name, 'sku', p.sku, 'category', p.category, 'unitPrice', p.unit_price, 'quantity', ri.quantity
+              'productId', p.id, 'name', p.name, 'sku', p.sku, 'category', p.category, 'unitPrice', p.unit_price, 'cost', p.cost, 'quantity', ri.quantity
             ) ORDER BY p.name) FILTER (WHERE p.id IS NOT NULL), '[]') AS items
      FROM public.customer_quote_requests r
      JOIN public.users c ON c.id = r.customer_id
      LEFT JOIN public.customer_quote_request_items ri ON ri.request_id = r.id
      LEFT JOIN public.products p ON p.id = ri.product_id
-     WHERE r.status = 'PENDING'
-     GROUP BY r.id, c.id
+     LEFT JOIN public.quotations q ON q.id = r.quotation_id
+     WHERE (q.status IS NULL OR q.status NOT IN ('CONFIRMED', 'FINALIZED', 'REJECTED'))
+       AND r.status NOT IN ('CONFIRMED', 'REJECTED')
+     GROUP BY r.id, c.id, q.quotation_number, q.status
      ORDER BY r.created_at DESC`,
   );
   return result.rows.map((row) => {
@@ -239,7 +242,7 @@ async function listPendingCustomerQuoteRequests(user) {
   });
 }
 
-async function convertCustomerQuoteRequest(requestId, user) {
+async function convertCustomerQuoteRequest(requestId, user, additionalItems = []) {
   if (!["SALES_REP", "SALES_MANAGER", "ADMIN"].includes(user.role)) {
     throw quotationError("Only internal sales users can convert customer quotation requests.", 403);
   }
@@ -256,9 +259,28 @@ async function convertCustomerQuoteRequest(requestId, user) {
   const request = requestResult.rows[0];
   if (request.status !== "PENDING") throw quotationError("This customer request has already been processed.");
 
+  const allItems = [
+    ...request.items.map((item) => ({ productId: item.productId, quantity: item.quantity, discountPercent: 0 })),
+    ...(Array.isArray(additionalItems) ? additionalItems.map((item) => ({
+      productId: item.productId || item.id,
+      quantity: Number(item.quantity || 1),
+      discountPercent: Number(item.discountPercent || 0)
+    })) : [])
+  ];
+
+  // Deduplicate products
+  const uniqueItemsMap = new Map();
+  for (const item of allItems) {
+    if (uniqueItemsMap.has(item.productId)) {
+      uniqueItemsMap.get(item.productId).quantity += Number(item.quantity || 1);
+    } else {
+      uniqueItemsMap.set(item.productId, { ...item });
+    }
+  }
+
   const quotation = await createDraft(user, {
     customerId: request.customer_id,
-    items: request.items.map((item) => ({ productId: item.productId, quantity: item.quantity, discountPercent: 0 })),
+    items: Array.from(uniqueItemsMap.values()),
   });
   await db.query(
     `UPDATE public.customer_quote_requests
@@ -489,11 +511,11 @@ const quotationSelect = `
 async function listQuotations(user) {
   const params = [];
   let filter = "";
-  if (user.role === "ADMIN") {
-    // Admin sees all quotations
+  if (user.role === "ADMIN" || user.role === "SALES_MANAGER") {
+    // Admin & Sales Manager see all quotations system-wide
   } else if (SALES_ROLES.includes(user.role)) {
     params.push(user.id);
-    filter = ` WHERE q.sales_rep_id = $${params.length}`;
+    filter = ` WHERE (q.sales_rep_id = $${params.length} OR q.sales_rep_id IS NULL)`;
   } else if (user.role === "CUSTOMER") {
     params.push(user.id);
     filter = ` WHERE q.customer_id = $${params.length}`;
@@ -686,11 +708,11 @@ async function updateQuotation(user, quotationId, input) {
   const existing = await getQuotation(quotationId, user);
   if (!existing) throw quotationError("Quotation not found.", 404);
 
-  // Only allow editing DRAFT or PENDING_APPROVAL quotations (not finalized/confirmed)
-  const editableStatuses = ["DRAFT", "PENDING_APPROVAL", "NEGOTIATION"];
+  // Only allow editing active quotations (not finalized/confirmed/cancelled)
+  const editableStatuses = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION"];
   if (!editableStatuses.includes(existing.status)) {
     throw quotationError(
-      `Only quotations in DRAFT, PENDING_APPROVAL, or NEGOTIATION status can be edited. Current status: ${existing.status}.`
+      `Only active quotations (DRAFT, PENDING_APPROVAL, APPROVED, or NEGOTIATION) can be edited. Current status: ${existing.status}.`
     );
   }
 
@@ -749,25 +771,20 @@ async function updateQuotation(user, quotationId, input) {
     const grossMargin = money(finalAmount - totalCost);
     const marginPercentage = finalAmount === 0 ? 0 : money((grossMargin / finalAmount) * 100);
 
-    // Update the quotation header & reset to DRAFT (risk data cleared for re-submission)
+    const targetStatus = (input.keepStatus && existing.status === 'APPROVED') ? 'APPROVED' : (existing.status === 'NEGOTIATION' ? 'NEGOTIATION' : 'DRAFT');
+    // Update the quotation header
     await client.query(
       `UPDATE public.quotations
-       SET status = 'DRAFT',
-           subtotal = $1,
-           discount_amount = $2,
-           final_amount = $3,
-           total_cost = $4,
-           gross_margin = $5,
-           margin_percentage = $6,
-           risk_score = NULL,
-           risk_level = NULL,
-           approval_route = NULL,
-           risk_factors = NULL,
-           risk_analysis = NULL,
-           risk_analyzed_at = NULL,
+       SET status = $1,
+           subtotal = $2,
+           discount_amount = $3,
+           final_amount = $4,
+           total_cost = $5,
+           gross_margin = $6,
+           margin_percentage = $7,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7`,
-      [subtotal, discountAmount, finalAmount, totalCost, grossMargin, marginPercentage, quotationId]
+       WHERE id = $8`,
+      [targetStatus, subtotal, discountAmount, finalAmount, totalCost, grossMargin, marginPercentage, quotationId]
     );
 
     // Delete all old items and re-insert new ones
@@ -791,6 +808,52 @@ async function updateQuotation(user, quotationId, input) {
   } finally {
     client.release();
   }
+}
+
+async function addItemToQuotation(user, quotationId, itemInput) {
+  if (!SALES_ROLES.includes(user.role) && user.role !== "ADMIN") {
+    throw quotationError("Only Sales Representatives and Sales Managers can edit quotations.", 403);
+  }
+
+  const existing = await getQuotation(quotationId, user);
+  if (!existing) throw quotationError("Quotation not found.", 404);
+
+  const editableStatuses = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION", "AUTO_APPROVED"];
+  if (!editableStatuses.includes(existing.status)) {
+    throw quotationError(
+      `Cannot add items to quotation with status ${existing.status}.`
+    );
+  }
+
+  const targetProductId = itemInput.productId || itemInput.id;
+  if (!targetProductId) throw quotationError("Product ID is required.");
+
+  const existingItems = (existing.items || []).map((i) => ({
+    productId: i.productId,
+    quantity: Number(i.quantity || 1),
+    discountPercent: Number(i.discountPercent || 0),
+    unitPrice: Number(i.unitPrice),
+  }));
+
+  const existingIdx = existingItems.findIndex((i) => i.productId === targetProductId);
+  const qtyToAdd = Math.max(1, Math.floor(Number(itemInput.quantity) || 1));
+  const discountToAdd = Math.min(100, Math.max(0, Number(itemInput.discountPercent || 0)));
+
+  if (existingIdx >= 0) {
+    existingItems[existingIdx].quantity += qtyToAdd;
+  } else {
+    existingItems.push({
+      productId: targetProductId,
+      quantity: qtyToAdd,
+      discountPercent: discountToAdd,
+      unitPrice: itemInput.unitPrice !== undefined ? Number(itemInput.unitPrice) : undefined,
+    });
+  }
+
+  return updateQuotation(user, quotationId, {
+    items: existingItems,
+    keepStatus: ["APPROVED", "AUTO_APPROVED"].includes(existing.status),
+  });
 }
 
 async function calculateAndPersistRisk(quotationId) {
@@ -1313,18 +1376,27 @@ async function respondToNegotiationRequest(user, quotationId, negotiationId, inp
 
 async function confirmCustomerQuotation(id, customer) {
   const quotation = await getCustomerQuotation(id, customer);
-  if (!["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION"].includes(quotation.status)) {
-    if (quotation.status === "CONFIRMED") throw quotationError("This quotation has already been confirmed.");
+  if (!["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION", "CONFIRMED"].includes(quotation.status)) {
+    if (quotation.status === "FINALIZED") throw quotationError("This quotation has already been finalized.");
     throw quotationError("This quotation is not currently available for confirmation.");
   }
 
   const result = await db.query(
     `UPDATE public.quotations
-     SET status = 'CONFIRMED', confirmed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     SET status = 'FINALIZED', confirmed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
      WHERE id = $1 AND (customer_id = $2 OR $3 = 'ADMIN')
      RETURNING id, quotation_number, status, confirmed_at`,
     [id, customer.id, customer.role],
   );
+
+  // Sync any associated inbound customer request to FINALIZED
+  await db.query(
+    `UPDATE public.customer_quote_requests
+     SET status = 'FINALIZED', updated_at = CURRENT_TIMESTAMP
+     WHERE quotation_id = $1`,
+    [id]
+  );
+
   const order = await fulfillmentService.createOrderForQuotation(id);
   return { ...result.rows[0], orderId: order.id, orderNumber: order.order_number };
 }
@@ -1344,6 +1416,15 @@ async function rejectCustomerQuotation(id, customer) {
      RETURNING id, quotation_number, status`,
     [id, customer.id],
   );
+
+  // Sync any associated inbound customer request to REJECTED
+  await db.query(
+    `UPDATE public.customer_quote_requests
+     SET status = 'REJECTED', updated_at = CURRENT_TIMESTAMP
+     WHERE quotation_id = $1`,
+    [id]
+  );
+
   return result.rows[0];
 }
 
@@ -1364,6 +1445,14 @@ async function finalizeQuotation(quotationId, user) {
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1
      RETURNING id, quotation_number, status, confirmed_at`,
+    [quotationId]
+  );
+
+  // Sync any associated inbound customer request to CONFIRMED
+  await db.query(
+    `UPDATE public.customer_quote_requests
+     SET status = 'CONFIRMED', updated_at = CURRENT_TIMESTAMP
+     WHERE quotation_id = $1`,
     [quotationId]
   );
 
@@ -1485,6 +1574,7 @@ module.exports = {
   getQuotation,
   createDraft,
   updateQuotation,
+  addItemToQuotation,
   submitQuotation,
     previewQuotationRisk,
     applyNegotiationSuggestion,

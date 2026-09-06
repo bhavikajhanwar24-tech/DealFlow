@@ -19,6 +19,7 @@ router.get("/", internalSales, quotationController.listQuotations);
 router.get("/:id", internalSales, quotationController.getQuotation);
 router.post("/", salesCreators, quotationController.createQuotation);
 router.put("/:id", salesCreators, quotationController.updateQuotation);
+router.post("/:id/add-item", salesCreators, quotationController.addItemToQuotation);
 router.post("/risk-preview", salesCreators, quotationController.previewQuotationRisk);
 router.post("/:id/apply-negotiation-suggestion", salesCreators, quotationController.applyNegotiationSuggestion);
 router.post("/:id/recreate-from-ai", salesCreators, quotationController.applyAiQuoteUpdate);
