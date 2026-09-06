@@ -18,6 +18,8 @@ import {
   Navigation,
   Info,
   MapPin,
+  Package,
+  Clock,
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
@@ -421,21 +423,29 @@ export default function OperationsDashboard({ onNavigate }) {
       label: "Total Orders",
       value: filteredOrders.length,
       color: "#2563eb",
+      icon: <Package size={17} />,
+      helper: "Active orders in system",
     },
     {
       label: "Pending Orders",
       value: summary.pending,
       color: "#f59e0b",
+      icon: <Clock size={17} />,
+      helper: "Awaiting dispatch review",
     },
     {
       label: "Backorders",
       value: summary.backordered,
       color: "#ef4444",
+      icon: <AlertTriangle size={17} />,
+      helper: "Stock deficit / delayed",
     },
     {
       label: "Fulfilled Orders",
       value: summary.fulfilled,
       color: "#10b981",
+      icon: <CheckCircle size={17} />,
+      helper: "Delivered & confirmed",
     },
   ];
 
@@ -917,60 +927,100 @@ export default function OperationsDashboard({ onNavigate }) {
         ================================================= */}
 
         <div
-          className="metric-grid"
           style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: "1.25rem",
             marginBottom: "2rem",
           }}
         >
-          {summaryCards.map(
-            ({
-              label,
-              value,
-              color,
-            }) => (
+          {summaryCards.map(({ label, value, color, icon, helper }) => (
+            <div
+              key={label}
+              style={{
+                background: "#ffffff",
+                borderRadius: "16px",
+                padding: "1.2rem 1.35rem",
+                border: "1px solid rgba(226, 232, 240, 0.9)",
+                borderTop: `4px solid ${color}`,
+                boxShadow: "0 4px 16px rgba(15, 23, 42, 0.04)",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                position: "relative",
+                transition: "all 0.2s ease",
+              }}
+            >
               <div
-                className="metric-card"
-                key={label}
                 style={{
-                  borderTop:
-                    `3px solid ${color}`,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "0.5rem",
                 }}
               >
-                <div className="metric-label">
+                <span
+                  style={{
+                    fontSize: "0.82rem",
+                    fontWeight: 700,
+                    color: "#64748b",
+                    letterSpacing: "0.01em",
+                  }}
+                >
                   {label}
-                </div>
-
-                <div className="metric-value">
-                  {loading
-                    ? "..."
-                    : value}
-                </div>
+                </span>
 
                 <div
                   style={{
-                    color: "#94a3b8",
-                    fontSize: "0.75rem",
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "8px",
+                    background: `${color}15`,
+                    color: color,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  Live database count
+                  {icon}
                 </div>
               </div>
-            ),
-          )}
 
-          <button
-            className="btn-secondary"
-            onClick={() =>
-              onNavigate(
-                "/sales/fulfillment",
-              )
-            }
-            style={{
-              height: "46px",
-            }}
-          >
-            Fulfillment Queue
-          </button>
+              <div
+                style={{
+                  fontSize: "1.85rem",
+                  fontWeight: 800,
+                  color: "#0f172a",
+                  lineHeight: 1.1,
+                  marginBottom: "0.35rem",
+                }}
+              >
+                {loading ? "..." : value}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  fontSize: "0.75rem",
+                  color: "#94a3b8",
+                  fontWeight: 500,
+                }}
+              >
+                <span
+                  style={{
+                    width: "6px",
+                    height: "6px",
+                    borderRadius: "50%",
+                    background: color,
+                    display: "inline-block",
+                  }}
+                />
+                {helper || "Live database count"}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* =================================================

@@ -617,7 +617,7 @@ export default function QuotationMessages({ onNavigate }) {
                       transition: "all 0.2s ease"
                     }}
                   >
-                    <Sparkles size={16} /> AI Negotiator Assistant
+                    <Sparkles size={16} /> AI Assistant
                   </button>}
 
                   <strong style={{ fontSize: "1.05rem", color: "#1e40af" }}>
@@ -1061,7 +1061,7 @@ export default function QuotationMessages({ onNavigate }) {
                 <Sparkles size={22} color="#fde047" />
                 <div>
                   <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800 }}>
-                    DealFlow AI Negotiator & Strategy Assistant
+                    DealFlow AI Assistant
                   </h3>
                   <div style={{ fontSize: "0.8rem", opacity: 0.9 }}>
                     Active Quote: {activeQuotation?.quotation_number} · Client: {activeQuotation?.customer_name}

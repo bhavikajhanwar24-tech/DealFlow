@@ -734,9 +734,26 @@ export default function AdminComplaints() {
             </div>
 
             <div>
-              <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.5rem" }}>
-                Resolution Message to Customer <span style={{ color: "#ef4444" }}>*</span>
-              </label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+                <label style={{ fontSize: "0.875rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
+                  Resolution Reason / Action Message <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setAdminNoteInput("")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#2563eb",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  Clear / Custom Reason
+                </button>
+              </div>
               <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.5rem" }}>
                 This response will be sent to <strong>{selectedComplaint.customer_name}</strong> explaining what action has been taken to resolve their grievance.
               </p>
@@ -751,22 +768,23 @@ export default function AdminComplaints() {
                   outline: "none",
                   fontFamily: "inherit",
                 }}
-                placeholder="e.g., We investigated the incident and reprimanded the staff member. A revised quotation with an approved 10% discount has been expedited to your account..."
+                placeholder="Type your manual reason here (e.g. Reason: Investigated the issue and approved a 10% corrective discount...) or click any preset below..."
                 value={adminNoteInput}
                 onChange={(e) => setAdminNoteInput(e.target.value)}
               />
             </div>
 
-            {/* Quick Templates */}
+            {/* Quick Templates & Manual Option */}
             <div>
               <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-                Quick Responses:
+                Quick Responses & Preset Reasons:
               </span>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.35rem" }}>
                 {[
                   "Reprimanded staff member and re-routed quotation for immediate approval.",
                   "Reassigned customer account to senior sales manager for dedicated service.",
                   "Issue verified and corrected. Delivery priority expedited at zero surcharge.",
+                  "Staff received formal counseling; customer provided compensatory rebate voucher.",
                 ].map((template, idx) => (
                   <button
                     key={idx}
@@ -774,17 +792,36 @@ export default function AdminComplaints() {
                     onClick={() => setAdminNoteInput(template)}
                     style={{
                       fontSize: "0.75rem",
-                      background: "#f1f5f9",
-                      border: "1px solid #e2e8f0",
+                      background: adminNoteInput === template ? "#dcfce7" : "#f1f5f9",
+                      color: adminNoteInput === template ? "#166534" : "#334155",
+                      border: "1px solid",
+                      borderColor: adminNoteInput === template ? "#86efac" : "#e2e8f0",
                       borderRadius: "6px",
-                      padding: "0.3rem 0.6rem",
+                      padding: "0.35rem 0.65rem",
                       cursor: "pointer",
                       textAlign: "left",
+                      fontWeight: adminNoteInput === template ? 700 : 500,
                     }}
                   >
                     {template}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => setAdminNoteInput("Reason: ")}
+                  style={{
+                    fontSize: "0.75rem",
+                    background: "#eff6ff",
+                    color: "#1d4ed8",
+                    border: "1px dashed #93c5fd",
+                    borderRadius: "6px",
+                    padding: "0.35rem 0.65rem",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  ✍️ Manual Reason
+                </button>
               </div>
             </div>
 
@@ -875,9 +912,26 @@ export default function AdminComplaints() {
             </div>
 
             <div>
-              <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.5rem" }}>
-                Reason for Rejection <span style={{ color: "#ef4444" }}>*</span>
-              </label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+                <label style={{ fontSize: "0.875rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
+                  Reason for Rejection <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setAdminNoteInput("")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#dc2626",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  Clear / Custom Reason
+                </button>
+              </div>
               <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.5rem" }}>
                 Explain why this complaint is not upheld. This explanation will be visible to <strong>{selectedComplaint.customer_name}</strong>.
               </p>
@@ -892,22 +946,23 @@ export default function AdminComplaints() {
                   outline: "none",
                   fontFamily: "inherit",
                 }}
-                placeholder="e.g., Investigation showed the staff member acted strictly within company pricing and compliance regulations. The requested 45% discount exceeds authorized limits..."
+                placeholder="Type your manual reason here (e.g. Reason: Staff member acted strictly within authorized policy...) or click any preset below..."
                 value={adminNoteInput}
                 onChange={(e) => setAdminNoteInput(e.target.value)}
               />
             </div>
 
-            {/* Quick Templates */}
+            {/* Quick Templates & Manual Option */}
             <div>
               <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-                Quick Rejection Reasons:
+                Quick Rejection Reasons & Presets:
               </span>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.35rem" }}>
                 {[
                   "Staff member acted strictly in compliance with established company discount policies.",
                   "Communication was delayed due to public warehouse holiday, not negligence.",
                   "Insufficient evidence provided regarding the alleged miscommunication.",
+                  "Requested terms fall outside authorized operational and contractual guidelines.",
                 ].map((template, idx) => (
                   <button
                     key={idx}
@@ -915,17 +970,36 @@ export default function AdminComplaints() {
                     onClick={() => setAdminNoteInput(template)}
                     style={{
                       fontSize: "0.75rem",
-                      background: "#f1f5f9",
-                      border: "1px solid #e2e8f0",
+                      background: adminNoteInput === template ? "#fee2e2" : "#f1f5f9",
+                      color: adminNoteInput === template ? "#991b1b" : "#334155",
+                      border: "1px solid",
+                      borderColor: adminNoteInput === template ? "#fca5a5" : "#e2e8f0",
                       borderRadius: "6px",
-                      padding: "0.3rem 0.6rem",
+                      padding: "0.35rem 0.65rem",
                       cursor: "pointer",
                       textAlign: "left",
+                      fontWeight: adminNoteInput === template ? 700 : 500,
                     }}
                   >
                     {template}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => setAdminNoteInput("Reason: ")}
+                  style={{
+                    fontSize: "0.75rem",
+                    background: "#fef2f2",
+                    color: "#dc2626",
+                    border: "1px dashed #fca5a5",
+                    borderRadius: "6px",
+                    padding: "0.35rem 0.65rem",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  ✍️ Manual Reason
+                </button>
               </div>
             </div>
 
