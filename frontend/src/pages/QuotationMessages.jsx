@@ -189,9 +189,31 @@ export default function QuotationMessages({ onNavigate }) {
     loadQuotations(false);
   }, [token]);
 
+  // Periodic polling for quotations list to keep sidebar synchronized across users
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(() => {
+      loadQuotations(true);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  // Track message count to smoothly scroll when new incoming messages arrive
+  const prevMsgCountRef = useRef(0);
+  useEffect(() => {
+    if (messages.length > prevMsgCountRef.current) {
+      setTimeout(scrollToBottom, 50);
+    }
+    prevMsgCountRef.current = messages.length;
+  }, [messages.length]);
+
   useEffect(() => {
     if (selectedQuotationId) {
       setRecipientRole("");
+      setAiResponse(null);
+      setCopilotResult(null);
+      setAiPrompt("");
+      setAiError("");
       loadMessages(selectedQuotationId, "").then(() => {
         setTimeout(scrollToBottom, 100);
       });
@@ -202,7 +224,7 @@ export default function QuotationMessages({ onNavigate }) {
     if (!selectedQuotationId) return;
     const interval = setInterval(() => {
       loadMessages(selectedQuotationId, recipientRoleRef.current, true);
-    }, 3500);
+    }, 3000);
     return () => clearInterval(interval);
   }, [selectedQuotationId, loadMessages]);
 
@@ -241,8 +263,27 @@ export default function QuotationMessages({ onNavigate }) {
   };
 
   const handleConsultAi = async (customPrompt = "") => {
-    const query = customPrompt || aiPrompt;
-    if (!query.trim()) return;
+    const activeTarget = recipientRoleRef.current || recipientRole || "CUSTOMER";
+    const lastCust = [...messages].reverse().find((m) => m.sender_role === "CUSTOMER");
+    const lastAdmin = [...messages].reverse().find((m) => m.sender_role === "ADMIN");
+
+    let defaultPrompt = "";
+    if (activeTarget === "ADMIN") {
+      defaultPrompt = lastAdmin
+        ? `The Admin stated: "${lastAdmin.message}". Provide an internal financial summary of this quotation, analyze margin viability, and draft a concise internal response to Admin.`
+        : "Analyze the commercial metrics and margin viability of this quotation, and draft a structured internal escalation/briefing for the Admin.";
+    } else if (activeTarget === "SALES_REP") {
+      defaultPrompt = "Analyze the quotation and provide tactical negotiation instructions for the Sales Rep.";
+    } else {
+      defaultPrompt = lastCust
+        ? `The customer (${lastCust.sender_name}) just stated: "${lastCust.message}". Analyze their latest message, identify any discount requests, check margin headroom, and recommend the best tactical negotiation strategy and draft reply.`
+        : "Analyze this quotation, review recent conversation history, check margin headroom, and recommend the best negotiation strategy and reply draft.";
+    }
+
+    const query =
+      (customPrompt && customPrompt.trim()) ||
+      (aiPrompt && aiPrompt.trim()) ||
+      defaultPrompt;
 
     setAiLoading(true);
     setAiError("");
@@ -254,7 +295,7 @@ export default function QuotationMessages({ onNavigate }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ prompt: query }),
+        body: JSON.stringify({ prompt: query, recipientRole: activeTarget }),
       });
       if (res && res.data) {
         setAiResponse(res.data);
@@ -325,33 +366,36 @@ export default function QuotationMessages({ onNavigate }) {
     setCopilotLoading(true);
     setError("");
     try {
-      const discAmt = Number(activeQuotation.discount_amount || 0);
-      const subTot = Number(activeQuotation.subtotal || activeQuotation.final_amount || 1);
-      const discountPct = subTot > 0 ? Math.round((discAmt / subTot) * 100) : 0;
-      const marginPct = Number(activeQuotation.margin_percentage || 20);
+      // Build a context-aware prompt from the latest messages in view
+      const lastCustomerMsg = [...messages].reverse().find(m => m.sender_role === "CUSTOMER");
+      const prompt = lastCustomerMsg
+        ? `The customer just said: "${lastCustomerMsg.message}". Based on the full conversation history, current deal financials, and their past deals, what is the best negotiation response I should send? Draft a professional reply.`
+        : "Analyze the current state of this quotation deal. Review all conversation history, the financials, and suggest a proactive message to move the deal forward.";
 
-      const response = await fetch(`${API_BASE}/ai/negotiation-copilot`, {
+      const res = await safeFetchJson(`${API_BASE}/messages/quotations/${selectedQuotationId}/ai-consult`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          currentDiscount: discountPct,
-          allowedDiscount: 15,
-          currentMargin: marginPct,
-          messages: messages || []
-        })
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ prompt }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Failed to run Copilot");
-      setCopilotResult(data.data);
+      if (res?.data) {
+        // Map ai-consult response to copilotResult shape
+        setCopilotResult({
+          detectedRequest: res.data.summary || "",
+          requestedValue: "",
+          riskLevel: res.data.dealHealth?.toLowerCase().includes("risk") ? "High" : "Low",
+          estimatedMargin: res.data.margin || "",
+          suggestedAction: res.data.strategy || "",
+          suggestedReply: res.data.suggestedDraft || res.data.reply || "",
+          _context: res.data._context,
+        });
+      }
     } catch (err) {
       setError(err.message);
     } finally {
       setCopilotLoading(false);
     }
   };
+
 
   const handleApplyNegotiationSuggestion = async () => {
     if (!selectedQuotationId || !copilotResult || agentApplying) return;
@@ -499,9 +543,27 @@ export default function QuotationMessages({ onNavigate }) {
                       <span style={{ fontWeight: 800, fontSize: "0.93rem", color: isSelected ? "#1d4ed8" : "#0f172a" }}>
                         {q.quotation_number}
                       </span>
-                      <span className={`badge ${statusBadgeClass(q.status)}`} style={{ fontSize: "0.7rem", padding: "0.2rem 0.5rem" }}>
-                        {q.status}
-                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                        {Number(q.unread_count) > 0 && (
+                          <span
+                            style={{
+                              background: "#ef4444",
+                              color: "#ffffff",
+                              fontSize: "0.68rem",
+                              fontWeight: 700,
+                              borderRadius: "9999px",
+                              padding: "0.08rem 0.42rem",
+                              lineHeight: 1.2,
+                              boxShadow: "0 1px 3px rgba(239, 68, 68, 0.3)",
+                            }}
+                          >
+                            {q.unread_count} new
+                          </span>
+                        )}
+                        <span className={`badge ${statusBadgeClass(q.status)}`} style={{ fontSize: "0.7rem", padding: "0.2rem 0.5rem" }}>
+                          {q.status}
+                        </span>
+                      </div>
                     </div>
 
                     <div style={{ fontSize: "0.825rem", fontWeight: 600, color: "#334155", display: "flex", alignItems: "center", gap: "0.3rem" }}>
@@ -597,9 +659,7 @@ export default function QuotationMessages({ onNavigate }) {
                     type="button"
                     onClick={() => {
                       setAiModalOpen(true);
-                      if (!aiResponse) {
-                        handleConsultAi("Review this deal, check margin headroom, and recommend best negotiation strategy.");
-                      }
+                      handleConsultAi();
                     }}
                     style={{
                       display: "flex",
@@ -1049,7 +1109,7 @@ export default function QuotationMessages({ onNavigate }) {
             {/* Modal Header */}
             <div
               style={{
-                padding: "1.25rem 1.5rem",
+                padding: "1.1rem 1.5rem",
                 background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
                 color: "#ffffff",
                 display: "flex",
@@ -1089,60 +1149,228 @@ export default function QuotationMessages({ onNavigate }) {
             </div>
 
             {/* Modal Body */}
-            <div style={{ padding: "1.5rem", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {/* Quick AI Action Buttons */}
+            <div style={{ padding: "1.25rem 1.5rem", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+              {/* Context Summary Banner */}
+              {(() => {
+                const lastCust = [...messages].reverse().find((m) => m.sender_role === "CUSTOMER");
+                const totalMsgs = messages.length;
+                return (
+                  <div
+                    style={{
+                      background: "#eff6ff",
+                      border: "1px solid #bfdbfe",
+                      borderRadius: "10px",
+                      padding: "0.6rem 0.85rem",
+                      fontSize: "0.8rem",
+                      color: "#1e40af",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: "0.5rem"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      <Bot size={15} color="#2563eb" />
+                      <span>
+                        <strong>Latest Active Context:</strong>{" "}
+                        {lastCust
+                          ? `Client (${lastCust.sender_name}): "${lastCust.message.length > 75 ? lastCust.message.slice(0, 75) + "..." : lastCust.message}"`
+                          : "No client messages yet in this channel."}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "0.74rem", background: "#dbeafe", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 700 }}>
+                      {totalMsgs} msg{totalMsgs === 1 ? "" : "s"} analyzed
+                    </span>
+                  </div>
+                );
+              })()}
+
+              {/* Quick AI Action Buttons - Dynamic based on Recipient Role */}
               <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={() => handleConsultAi("Check current gross margin and tell me maximum safe discount I can offer.")}
-                  disabled={aiLoading}
-                  style={{
-                    padding: "0.4rem 0.8rem",
-                    borderRadius: "8px",
-                    background: "#f1f5f9",
-                    border: "1px solid #cbd5e1",
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
-                    color: "#334155",
-                    cursor: "pointer"
-                  }}
-                >
-                  📊 Check Margin Headroom
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleConsultAi("Write a friendly negotiation counter-offer preserving our price and bundling support.")}
-                  disabled={aiLoading}
-                  style={{
-                    padding: "0.4rem 0.8rem",
-                    borderRadius: "8px",
-                    background: "#f1f5f9",
-                    border: "1px solid #cbd5e1",
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
-                    color: "#334155",
-                    cursor: "pointer"
-                  }}
-                >
-                  ✍️ Draft Counter-Offer Message
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleConsultAi("The customer wants a 15% discount. Analyze impact and draft a smart compromise.")}
-                  disabled={aiLoading}
-                  style={{
-                    padding: "0.4rem 0.8rem",
-                    borderRadius: "8px",
-                    background: "#f1f5f9",
-                    border: "1px solid #cbd5e1",
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
-                    color: "#334155",
-                    cursor: "pointer"
-                  }}
-                >
-                  💡 Counter 15% Discount Request
-                </button>
+                {recipientRole === "ADMIN" ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleConsultAi(
+                          "The customer requested a discount. Brief the Admin with exact margin metrics and request commercial approval or guidance."
+                        )
+                      }
+                      disabled={aiLoading}
+                      style={{
+                        padding: "0.4rem 0.8rem",
+                        borderRadius: "8px",
+                        background: "#f1f5f9",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        color: "#334155",
+                        cursor: "pointer"
+                      }}
+                    >
+                      👑 Request Admin Approval / Guidance
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleConsultAi(
+                          "Explain why we recommend rejecting the customer discount request to preserve our 18% floor and request Admin concurrence."
+                        )
+                      }
+                      disabled={aiLoading}
+                      style={{
+                        padding: "0.4rem 0.8rem",
+                        borderRadius: "8px",
+                        background: "#f1f5f9",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        color: "#334155",
+                        cursor: "pointer"
+                      }}
+                    >
+                      🛡️ Brief Admin on Rejection & Floor Protection
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleConsultAi(
+                          "Provide a comprehensive internal deal update to the Admin regarding this quotation."
+                        )
+                      }
+                      disabled={aiLoading}
+                      style={{
+                        padding: "0.4rem 0.8rem",
+                        borderRadius: "8px",
+                        background: "#f1f5f9",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        color: "#334155",
+                        cursor: "pointer"
+                      }}
+                    >
+                      📊 Send Financial Briefing to Admin
+                    </button>
+                  </>
+                ) : recipientRole === "SALES_REP" ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleConsultAi(
+                          "Provide directive instructions to the Sales Rep on how to negotiate this quote and protect our margin floor."
+                        )
+                      }
+                      disabled={aiLoading}
+                      style={{
+                        padding: "0.4rem 0.8rem",
+                        borderRadius: "8px",
+                        background: "#f1f5f9",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        color: "#334155",
+                        cursor: "pointer"
+                      }}
+                    >
+                      💼 Instruct Sales Rep on Negotiation
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleConsultAi(
+                          "Check current gross margin and tell me maximum safe discount I can offer based on our latest chat."
+                        )
+                      }
+                      disabled={aiLoading}
+                      style={{
+                        padding: "0.4rem 0.8rem",
+                        borderRadius: "8px",
+                        background: "#f1f5f9",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        color: "#334155",
+                        cursor: "pointer"
+                      }}
+                    >
+                      📊 Check Margin Headroom
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const lastCust = [...messages]
+                          .reverse()
+                          .find((m) => m.sender_role === "CUSTOMER");
+                        handleConsultAi(
+                          lastCust
+                            ? `The customer stated: "${lastCust.message}". Draft a polite, high-converting commercial reply directly answering their note.`
+                            : "Draft a friendly, professional negotiation follow-up message."
+                        );
+                      }}
+                      disabled={aiLoading}
+                      style={{
+                        padding: "0.4rem 0.8rem",
+                        borderRadius: "8px",
+                        background: "#f1f5f9",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        color: "#334155",
+                        cursor: "pointer"
+                      }}
+                    >
+                      ✍️ Respond to Latest Client Note
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleConsultAi(
+                          "The customer requested terms modification or discount. Analyze financial feasibility and draft a smart compromise preserving our price."
+                        )
+                      }
+                      disabled={aiLoading}
+                      style={{
+                        padding: "0.4rem 0.8rem",
+                        borderRadius: "8px",
+                        background: "#f1f5f9",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        color: "#334155",
+                        cursor: "pointer"
+                      }}
+                    >
+                      💡 Counter Discount Request
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleConsultAi(
+                          "The customer demanded an unfair discount. Formulate a polite, firm refusal defending our premium value, warranty, and ROI without lowering price."
+                        )
+                      }
+                      disabled={aiLoading}
+                      style={{
+                        padding: "0.4rem 0.8rem",
+                        borderRadius: "8px",
+                        background: "#f1f5f9",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        color: "#334155",
+                        cursor: "pointer"
+                      }}
+                    >
+                      🚫 Stand Firm / Reject Discount
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* AI Response Card */}
@@ -1173,7 +1401,7 @@ export default function QuotationMessages({ onNavigate }) {
                   </p>
                   <button
                     type="button"
-                    onClick={() => handleConsultAi("Review this deal, check margin headroom, and recommend best negotiation strategy.")}
+                    onClick={() => handleConsultAi()}
                     style={{
                       padding: "0.4rem 0.9rem",
                       borderRadius: "8px",
@@ -1190,86 +1418,151 @@ export default function QuotationMessages({ onNavigate }) {
                 </div>
               ) : aiResponse ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
-                  {/* Structured Analysis Grid */}
-                  {aiResponse.summary ? (
+                  {/* Commercial Decision Verdict Banner */}
+                  {aiResponse.decision && (
                     <div
                       style={{
-                        background: "#f8fafc",
-                        border: "1px solid #e2e8f0",
+                        padding: "0.75rem 1rem",
                         borderRadius: "12px",
-                        padding: "1rem 1.15rem",
                         display: "flex",
-                        flexDirection: "column",
-                        gap: "0.65rem",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        flexWrap: "wrap",
+                        gap: "0.5rem",
+                        background:
+                          aiResponse.decision === "REJECT"
+                            ? "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)"
+                            : aiResponse.decision === "COUNTER"
+                            ? "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)"
+                            : "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
+                        border:
+                          aiResponse.decision === "REJECT"
+                            ? "1.5px solid #f87171"
+                            : aiResponse.decision === "COUNTER"
+                            ? "1.5px solid #fcd34d"
+                            : "1.5px solid #86efac",
                       }}
                     >
-                      <div>
-                        <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.2rem" }}>
-                          📋 Negotiation Context Analysis
-                        </div>
-                        <p style={{ margin: 0, fontSize: "0.875rem", color: "#1e293b", lineHeight: "1.4" }}>
-                          {aiResponse.summary}
-                        </p>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span
+                          style={{
+                            padding: "0.25rem 0.65rem",
+                            borderRadius: "6px",
+                            fontWeight: 800,
+                            fontSize: "0.78rem",
+                            letterSpacing: "0.04em",
+                            background:
+                              aiResponse.decision === "REJECT"
+                                ? "#dc2626"
+                                : aiResponse.decision === "COUNTER"
+                                ? "#d97706"
+                                : "#16a34a",
+                            color: "#ffffff",
+                          }}
+                        >
+                          VERDICT: {aiResponse.decision}
+                        </span>
+                        <span style={{ fontSize: "0.84rem", fontWeight: 700, color: "#0f172a" }}>
+                          {aiResponse.decision === "REJECT"
+                            ? "Reject Unfair Terms / Discount (Below Margin Floor)"
+                            : aiResponse.decision === "COUNTER"
+                            ? "Counter-Offer Recommended (Protect Profit Margin)"
+                            : "Commercially Viable Deal Terms"}
+                        </span>
                       </div>
-
-                      {aiResponse.strategy && (
-                        <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.5rem" }}>
-                          <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#4f46e5", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.2rem" }}>
-                            💡 Recommended Tactical Strategy
-                          </div>
-                          <p style={{ margin: 0, fontSize: "0.875rem", color: "#1e293b", lineHeight: "1.4" }}>
-                            {aiResponse.strategy}
-                          </p>
-                        </div>
-                      )}
-
-                      {aiResponse.dealHealth && (
-                        <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
-                          <div style={{ fontSize: "0.825rem", color: "#334155" }}>
-                            <strong style={{ color: "#0f172a" }}>🛡️ Margin Health:</strong> {aiResponse.dealHealth}
-                          </div>
-                          <span style={{ fontSize: "0.75rem", fontWeight: 700, padding: "0.2rem 0.6rem", borderRadius: "6px", background: "#ecfdf5", color: "#059669", border: "1px solid #a7f3d0" }}>
-                            Margin: {aiResponse.margin || "20%"} (Floor: 18%)
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        background: "#f8fafc",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "12px",
-                        padding: "1rem 1.25rem",
-                        fontSize: "0.9rem",
-                        lineHeight: "1.5",
-                        color: "#1e293b",
-                        whiteSpace: "pre-wrap"
-                      }}
-                    >
-                      {aiResponse.reply}
+                      <div style={{ fontSize: "0.8rem", color: "#475569" }}>
+                        <strong>Projected Margin:</strong>{" "}
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color:
+                              aiResponse.decision === "REJECT"
+                                ? "#dc2626"
+                                : aiResponse.decision === "COUNTER"
+                                ? "#b45309"
+                                : "#15803d",
+                          }}
+                        >
+                          {aiResponse.projectedMargin || "N/A"}
+                        </span>
+                        {aiResponse.projectedProfit ? ` · Est. Profit: ${aiResponse.projectedProfit}` : ""}
+                      </div>
                     </div>
                   )}
+
+                  {/* Financial & Context Analysis Grid */}
+                  <div
+                    style={{
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "12px",
+                      padding: "1rem 1.15rem",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.65rem",
+                    }}
+                  >
+                    {aiResponse.requestedTerms && (
+                      <div style={{ fontSize: "0.825rem", color: "#334155" }}>
+                        <strong style={{ color: "#0f172a" }}>🔍 Client Request Detected:</strong> {aiResponse.requestedTerms}
+                      </div>
+                    )}
+
+                    <div>
+                      <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.2rem" }}>
+                        📋 Negotiation Context Analysis
+                      </div>
+                      <p style={{ margin: 0, fontSize: "0.875rem", color: "#1e293b", lineHeight: "1.4" }}>
+                        {aiResponse.summary}
+                      </p>
+                    </div>
+
+                    {aiResponse.strategy && (
+                      <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.5rem" }}>
+                        <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#4f46e5", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.2rem" }}>
+                          💡 Recommended Tactical Strategy
+                        </div>
+                        <p style={{ margin: 0, fontSize: "0.875rem", color: "#1e293b", lineHeight: "1.4" }}>
+                          {aiResponse.strategy}
+                        </p>
+                      </div>
+                    )}
+
+                    {aiResponse.dealHealth && (
+                      <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+                        <div style={{ fontSize: "0.825rem", color: "#334155" }}>
+                          <strong style={{ color: "#0f172a" }}>🛡️ Commercial Assessment:</strong> {aiResponse.dealHealth}
+                        </div>
+                        <span style={{ fontSize: "0.75rem", fontWeight: 700, padding: "0.2rem 0.6rem", borderRadius: "6px", background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1" }}>
+                          Floor: 18.0%
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
                   {aiResponse.suggestedDraft && (
                     <div
                       style={{
-                        background: "#f0fdf4",
-                        border: "1.5px solid #86efac",
+                        background: aiResponse.decision === "REJECT" ? "#fff7ed" : "#f0fdf4",
+                        border: aiResponse.decision === "REJECT" ? "1.5px solid #fdba74" : "1.5px solid #86efac",
                         borderRadius: "12px",
                         padding: "1rem 1.25rem",
-                        boxShadow: "0 2px 8px rgba(34, 197, 94, 0.08)"
+                        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)"
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                        <strong style={{ fontSize: "0.85rem", color: "#166534" }}>
-                          Suggested Message (Ready to Send on Your Behalf):
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.35rem" }}>
+                        <strong style={{ fontSize: "0.85rem", color: aiResponse.decision === "REJECT" ? "#9a3412" : "#166534" }}>
+                          {recipientRole === "ADMIN"
+                            ? "Suggested Internal Briefing for Admin (Financial Breakdown):"
+                            : recipientRole === "SALES_REP"
+                            ? "Suggested Directive for Sales Rep:"
+                            : `Suggested Client Reply (${aiResponse.decision === "REJECT" ? "Diplomatic Rejection of Discount" : "Ready to Send"} · Margins Protected):`}
                         </strong>
-                        <span style={{ fontSize: "0.75rem", color: "#15803d", fontWeight: 600 }}>
-                          Target: {currentRecipient?.label || "Customer"}
+                        <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+                          Target: {currentRecipient?.label || recipientRole}
                         </span>
                       </div>
-                      <p style={{ margin: 0, fontSize: "0.9rem", color: "#14532d", fontStyle: "italic", lineHeight: "1.45" }}>
+                      <p style={{ margin: 0, fontSize: "0.9rem", color: "#0f172a", fontStyle: "italic", lineHeight: "1.45" }}>
                         "{aiResponse.suggestedDraft}"
                       </p>
 
@@ -1300,13 +1593,13 @@ export default function QuotationMessages({ onNavigate }) {
                           style={{
                             padding: "0.45rem 1.25rem",
                             borderRadius: "8px",
-                            background: "#16a34a",
+                            background: aiResponse.decision === "REJECT" ? "#ea580c" : "#16a34a",
                             border: "none",
                             color: "#ffffff",
                             fontSize: "0.825rem",
                             fontWeight: 700,
                             cursor: sending ? "not-allowed" : "pointer",
-                            boxShadow: "0 2px 8px rgba(22, 163, 74, 0.3)"
+                            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)"
                           }}
                         >
                           🚀 Send on My Behalf Now

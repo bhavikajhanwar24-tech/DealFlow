@@ -454,7 +454,20 @@ async function initDatabase() {
       ADD COLUMN IF NOT EXISTS recipient_id UUID REFERENCES public.users(id)
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.message_read_status (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        quotation_id UUID NOT NULL REFERENCES public.quotations(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+        last_read_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT uq_quotation_user_read UNIQUE (quotation_id, user_id)
+      );
+    `);
+
     // Create indexes for performance if not exist
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_msg_read_status ON public.message_read_status(quotation_id, user_id);`);
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
       CREATE INDEX IF NOT EXISTS idx_users_employee_id ON public.users(employee_id);

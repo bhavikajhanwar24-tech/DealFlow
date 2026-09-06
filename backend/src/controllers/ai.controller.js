@@ -14,7 +14,7 @@ const generateJsonResponse = async (prompt) => {
   
   try {
     const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-120b",
       messages: [
         { 
           role: "system", 
@@ -24,10 +24,7 @@ const generateJsonResponse = async (prompt) => {
       ],
       temperature: 0.7,
       max_tokens: 2048,
-      top_p: 1,
-      stream: false,
       response_format: { type: "json_object" },
-      stop: null
     });
 
     let content = response.choices[0]?.message?.content || "";
@@ -249,7 +246,7 @@ exports.testConnection = async (req, res) => {
     const { Groq } = require("groq-sdk");
     const groq = new Groq({ apiKey });
     const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-120b",
       messages: [{ role: "user", content: 'Return JSON only: {"status":"ok"}' }],
       response_format: { type: "json_object" },
       max_tokens: 64,

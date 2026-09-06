@@ -7,29 +7,82 @@ function messageError(message, statusCode = 400) {
 }
 
 class MessageService {
+  async markAsRead(quotationId, userId) {
+    if (!quotationId || !userId) return;
+    try {
+      await pool.query(`
+        INSERT INTO public.message_read_status (quotation_id, user_id, last_read_at, updated_at)
+        VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (quotation_id, user_id)
+        DO UPDATE SET last_read_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      `, [quotationId, userId]);
+    } catch (err) {
+      console.warn("Could not mark messages as read:", err.message);
+    }
+  }
+
   async getQuotationsForUser(user) {
     let ownership = "";
-    const params = [];
+    const params = [user.id];
     if (user.role === "CUSTOMER") {
       ownership = "WHERE q.customer_id = $1";
-      params.push(user.id);
-    } else if (user.role === "SALES_REP") {
+    } else if (user.role === "SALES_REP" || user.role === "SALES_MANAGER") {
       ownership = "WHERE q.sales_rep_id = $1";
-      params.push(user.id);
     }
+    // ADMIN sees all quotations (no filter)
+
+    // Ensure message_read_status table exists safely
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS public.message_read_status (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          quotation_id UUID NOT NULL REFERENCES public.quotations(id) ON DELETE CASCADE,
+          user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+          last_read_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT uq_quotation_user_read UNIQUE (quotation_id, user_id)
+        )
+      `);
+    } catch (ignored) {}
+
     const { rows } = await pool.query(`
       SELECT q.id, q.quotation_number, q.status, q.final_amount, q.created_at, q.updated_at,
              COALESCE(c.full_name, 'Valued Customer') AS customer_name,
              c.company_name AS customer_company,
              COALESCE(sr.full_name, 'Sales Representative') AS sales_rep_name,
-             (SELECT JSON_BUILD_OBJECT('message', m.message, 'sender_name', m.sender_name,
-                     'sender_role', m.sender_role, 'created_at', m.created_at)
+             (SELECT JSON_BUILD_OBJECT(
+                       'message', m.message,
+                       'sender_name', m.sender_name,
+                       'sender_role', m.sender_role,
+                       'created_at', m.created_at
+                     )
               FROM public.quotation_messages m
               WHERE m.quotation_id = q.id
-                AND (${user.role === "CUSTOMER"
-                  ? "m.sender_role != 'AI_BOT' AND (m.recipient_role = 'CUSTOMER' OR m.sender_role = 'CUSTOMER' OR m.recipient_role IS NULL)"
-                  : "1=1"})
-              ORDER BY m.created_at DESC LIMIT 1) AS latest_message
+                AND m.sender_role != 'AI_BOT'
+                AND (${ user.role === "CUSTOMER"
+                  ? "(m.recipient_role = 'CUSTOMER' OR m.sender_role = 'CUSTOMER' OR m.recipient_role IS NULL)"
+                  : user.role === "ADMIN"
+                  ? "1=1"
+                  : "(m.recipient_role IN ('SALES_REP', 'SALES_MANAGER') OR m.sender_role IN ('SALES_REP', 'SALES_MANAGER') OR m.recipient_role IS NULL)"})
+              ORDER BY m.created_at DESC LIMIT 1) AS latest_message,
+             (
+               SELECT COUNT(*)::int
+               FROM public.quotation_messages m2
+               WHERE m2.quotation_id = q.id
+                 AND m2.sender_role != 'AI_BOT'
+                 AND m2.sender_id != $1
+                 AND (${ user.role === "CUSTOMER"
+                   ? "(m2.recipient_role = 'CUSTOMER' OR m2.sender_role = 'CUSTOMER' OR m2.recipient_role IS NULL)"
+                   : user.role === "ADMIN"
+                   ? "1=1"
+                   : "(m2.recipient_role IN ('SALES_REP', 'SALES_MANAGER') OR m2.sender_role IN ('SALES_REP', 'SALES_MANAGER') OR m2.recipient_role IS NULL)"})
+                 AND m2.created_at > COALESCE(
+                   (SELECT last_read_at FROM public.message_read_status mrs
+                    WHERE mrs.quotation_id = q.id AND mrs.user_id = $1),
+                   '1970-01-01'::timestamptz
+                 )
+             ) AS unread_count
       FROM public.quotations q
       LEFT JOIN public.users c ON q.customer_id = c.id
       LEFT JOIN public.users sr ON q.sales_rep_id = sr.id
@@ -223,6 +276,9 @@ class MessageService {
         AND (${filterClause})
       ORDER BY created_at ASC
     `, params);
+
+    // Mark as read asynchronously for the active user
+    await this.markAsRead(quotationId, user.id);
 
     return {
       quotation,
