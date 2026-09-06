@@ -466,6 +466,7 @@ export default function QuotationMessages({ onNavigate }) {
 
       {/* Expanded Split Pane Chat Container */}
       <div
+        className="quotation-messages-container"
         style={{
           display: "flex",
           height: "calc(100vh - 135px)",
@@ -482,6 +483,7 @@ export default function QuotationMessages({ onNavigate }) {
       >
         {/* LEFT PANEL: Quotation List */}
         <div
+          className="quotation-messages-sidebar"
           style={{
             width: "370px",
             minWidth: "330px",
@@ -597,6 +599,7 @@ export default function QuotationMessages({ onNavigate }) {
 
         {/* RIGHT PANEL: Chat Interface */}
         <div
+          className="quotation-messages-chat-pane"
           style={{
             flex: 1,
             display: "flex",

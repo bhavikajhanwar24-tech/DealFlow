@@ -435,6 +435,7 @@ export default function CreateQuotation({ onNavigate }) {
             <h2 style={{ fontSize: "1.1rem", fontWeight: 800 }}>Products</h2>
           </div>
           <div
+            className="create-quotation-product-row"
             style={{
               display: "grid",
               gridTemplateColumns: "minmax(240px, 1fr) 130px 140px auto",

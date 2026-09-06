@@ -2256,6 +2256,75 @@ input[type="number"] {
   border-top: 9px solid var(--primary);
 }
 
+/* ==========================================================================
+   Comprehensive Global Responsive Design & Breakpoints
+   ========================================================================== */
+
+/* Universal table responsiveness wrapper */
+.data-table-wrapper,
+.table-responsive,
+.data-table-card,
+.table-container,
+.product-table-wrapper,
+div:has(> table),
+section:has(> table) {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  max-width: 100% !important;
+  scrollbar-width: thin;
+}
+
+/* Base fluid adjustments */
+.main-content,
+.admin-page,
+.customer-portal,
+.sales-page {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* Quotation Messages responsive chat pane */
+@media (max-width: 960px) {
+  .quotation-messages-container {
+    flex-direction: column !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: auto !important;
+  }
+  .quotation-messages-sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-height: 280px !important;
+    border-right: none !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+  .quotation-messages-chat-pane {
+    width: 100% !important;
+    min-height: 520px !important;
+  }
+}
+
+/* Tablet & Large Mobile (<= 1024px) */
+@media (max-width: 1024px) {
+  .main-content,
+  .admin-page,
+  .customer-portal,
+  .sales-page {
+    padding: 1.25rem 1rem !important;
+  }
+
+  .more-mega-menu {
+    width: 580px !important;
+    max-width: calc(100vw - 2rem) !important;
+  }
+  .mega-menu-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+/* Medium Tablets & Phablets (<= 850px) */
 @media (max-width: 850px) {
   .staff-layout,
   .product-layout,
@@ -2263,39 +2332,189 @@ input[type="number"] {
   .warehouse-analytics-grid,
   .inventory-form,
   .admin-action-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 
   .product-search {
-    min-width: 0;
-    width: 100%;
+    min-width: 0 !important;
+    width: 100% !important;
   }
 
   .discount-policy-actions {
-    width: 100%;
+    width: 100% !important;
   }
 
   .inventory-save-button {
-    width: 100%;
+    width: 100% !important;
   }
 
   .warehouse-chart-wide {
-    grid-column: auto;
+    grid-column: auto !important;
   }
 
   .selected-warehouse-chart {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 
   .topbar {
-    flex-wrap: wrap;
-    gap: 0.75rem;
+    flex-wrap: wrap !important;
+    gap: 0.65rem !important;
+    padding: 0.65rem 1rem !important;
   }
 
   .topbar-nav {
-    order: 3;
-    width: 100%;
-    overflow-x: auto;
+    order: 3 !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    white-space: nowrap !important;
+    display: flex !important;
+    gap: 0.4rem !important;
+    padding-bottom: 0.25rem !important;
+    scrollbar-width: none !important;
+  }
+  .topbar-nav::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .nav-link-btn {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* Standard Mobile Devices (<= 768px) */
+@media (max-width: 768px) {
+  .main-content,
+  .admin-page,
+  .customer-portal,
+  .sales-page {
+    padding: 0.85rem 0.65rem !important;
+  }
+
+  .page-heading-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+    margin-bottom: 1.25rem !important;
+  }
+
+  .page-heading-row h1,
+  h1 {
+    font-size: clamp(1.4rem, 5vw, 1.85rem) !important;
+  }
+
+  .page-subtitle {
+    font-size: 0.85rem !important;
+  }
+
+  /* Fixed mega menu modal style on mobile */
+  .more-mega-menu {
+    position: fixed !important;
+    top: var(--topbar-height, 4rem) !important;
+    left: 0.5rem !important;
+    right: 0.5rem !important;
+    width: auto !important;
+    max-width: calc(100vw - 1rem) !important;
+    max-height: calc(100vh - 5rem) !important;
+    overflow-y: auto !important;
+    border-radius: 16px !important;
+    padding: 1rem !important;
+    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25) !important;
+  }
+
+  .mega-menu-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+  }
+
+  /* Create quotation product row grid */
+  .create-quotation-product-row {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.65rem !important;
+  }
+
+  /* Data tables font and padding on mobile */
+  .data-table th, .data-table td,
+  .product-table th, .product-table td,
+  .staff-table th, .staff-table td,
+  table th, table td {
+    padding: 0.55rem 0.65rem !important;
+    font-size: 0.8125rem !important;
+  }
+
+  /* Metric cards grid */
+  .metric-grid,
+  .summary-grid,
+  .kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+    gap: 0.65rem !important;
+  }
+
+  .metric-card {
+    padding: 0.85rem 1rem !important;
+  }
+
+  .metric-value {
+    font-size: 1.35rem !important;
+  }
+
+  /* Universal modal styling for mobile */
+  div[style*="position: fixed"][style*="inset: 0"],
+  div[style*="position: fixed"][style*="top: 0"] {
+    padding: 0.65rem !important;
+  }
+
+  div[style*="position: fixed"] > div[style*="background: #fff"],
+  div[style*="position: fixed"] > div[style*="background: white"],
+  div[style*="position: fixed"] > div[style*="background: rgb(255"] {
+    max-width: min(96vw, 680px) !important;
+    max-height: 92vh !important;
+    overflow-y: auto !important;
+    border-radius: 14px !important;
+    padding: 1.15rem !important;
+  }
+}
+
+/* Small Mobile Devices (<= 480px) */
+@media (max-width: 480px) {
+  .main-content,
+  .admin-page,
+  .customer-portal,
+  .sales-page {
+    padding: 0.65rem 0.5rem !important;
+  }
+
+  .create-quotation-product-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .metric-grid,
+  .summary-grid,
+  .kpi-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.55rem !important;
+  }
+
+  .user-dropdown-menu {
+    right: 0 !important;
+    left: auto !important;
+    width: min(280px, calc(100vw - 1rem)) !important;
+  }
+
+  .topbar-brand {
+    gap: 0.5rem !important;
+  }
+
+  .topbar-title {
+    font-size: 1rem !important;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-success {
+    font-size: 0.8125rem !important;
+    padding: 0.45rem 0.8rem !important;
   }
 }
 
