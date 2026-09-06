@@ -5,7 +5,6 @@ const { Groq } = require("groq-sdk");
 // LLM Configuration
 const GROQ_API_KEY = process.env.GROQ_API_KEY || null;
 const PRIMARY_MODEL = "openai/gpt-oss-120b";
-const FALLBACK_MODEL = "llama-3.3-70b-versatile";
 
 // Fast In-Memory Cache (TTL: 2 minutes)
 const recommendationCache = new Map();
@@ -331,31 +330,13 @@ CRITICAL RULES:
   let rawContent = "";
 
   try {
-    try {
-      const stream = await groq.chat.completions.create({
-        model: PRIMARY_MODEL,
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.3,
-        max_completion_tokens: 2048,
-        top_p: 0.95,
-        stream: true,
-        reasoning_effort: "medium",
-        stop: null,
-      });
-
-      for await (const chunk of stream) {
-        rawContent += chunk.choices[0]?.delta?.content || "";
-      }
-    } catch (primaryErr) {
-      console.warn(`[Recommendation Service] Primary model ${PRIMARY_MODEL} failed: ${primaryErr.message}. Trying fallback ${FALLBACK_MODEL}...`);
-      const fallbackResponse = await groq.chat.completions.create({
-        model: FALLBACK_MODEL,
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.3,
-        max_tokens: 2048,
-      });
-      rawContent = fallbackResponse.choices[0]?.message?.content || "";
-    }
+    const response = await groq.chat.completions.create({
+      model: PRIMARY_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      max_tokens: 2048,
+    });
+    rawContent = response.choices[0]?.message?.content || "";
 
     // Clean any <think> tags or code blocks
     let cleanText = String(rawContent).replace(/<think>[\s\S]*?<\/think>/gi, "").trim();

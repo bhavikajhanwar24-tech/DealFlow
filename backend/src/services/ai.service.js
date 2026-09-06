@@ -3,74 +3,79 @@ const { Groq } = require("groq-sdk");
 
 const MODEL = "openai/gpt-oss-120b";
 
-// Helper to strip any reasoning or think tags from model outputs
-function cleanModelOutput(rawText) {
-  if (!rawText) return "";
-  let text = String(rawText);
-  // Remove <think>...</think> or reasoning tags
-  text = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
-  // Remove standalone ```json or ``` fences if wrapping whole text
-  text = text.trim();
-  return text;
-}
-
-// Collect streaming Groq response into clean string
-async function callGroqChat(messages, temperature = 0.3) {
+// ─── Groq Call (non-streaming, robust) ────────────────────────────────────────
+async function callGroqChat(messages, temperature = 0.6) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    console.warn("[DealFlow AI] GROQ_API_KEY is not set in environment.");
+    console.warn("[DealFlow AI] GROQ_API_KEY is not set.");
     return null;
   }
 
   const groq = new Groq({ apiKey });
 
+  // Attempt with json_object response_format
   try {
-    const stream = await groq.chat.completions.create({
+    const response = await groq.chat.completions.create({
       model: MODEL,
       messages,
-      temperature, // Lower temperature avoids gibberish and hallucination
-      max_completion_tokens: 1500,
-      top_p: 0.9,
-      stream: true,
-      reasoning_effort: "medium",
-      stop: null,
+      temperature,
+      max_tokens: 2048,
+      response_format: { type: "json_object" },
     });
-
-    let content = "";
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content || "";
-      content += delta;
-    }
-
-    const cleaned = cleanModelOutput(content);
-    if (cleaned) return cleaned;
+    const content = response.choices[0]?.message?.content || "";
+    if (content.trim()) return content.trim();
   } catch (err) {
-    console.error(`[DealFlow AI] Primary model ${MODEL} call failed:`, err?.message || err);
+    console.warn(`[DealFlow AI] JSON format call failed, retrying standard mode:`, err?.error?.message || err?.message || err);
+    try {
+      const fallbackRes = await groq.chat.completions.create({
+        model: MODEL,
+        messages,
+        temperature,
+        max_tokens: 2048,
+      });
+      const content = fallbackRes.choices[0]?.message?.content || "";
+      if (content.trim()) return content.trim();
+    } catch (err2) {
+      console.error(`[DealFlow AI] Primary model (${MODEL}) call failed:`, err2?.error?.message || err2?.message || err2);
+    }
   }
 
-  // Fallback to fast reliable model if primary encounters issues
-  try {
-    const fallbackResponse = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages,
-      temperature: 0.3,
-      max_tokens: 1500,
-    });
-    return cleanModelOutput(fallbackResponse.choices[0]?.message?.content || "");
-  } catch (fallbackErr) {
-    console.error("[DealFlow AI] Fallback model failed:", fallbackErr?.message || fallbackErr);
-    return null;
+  return null;
+}
+
+// ─── Strip thinking tags and markdown fences ───────────────────────────────────
+function cleanContent(raw) {
+  if (!raw) return "";
+  return raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+}
+
+// ─── Extract first valid JSON object from text ────────────────────────────────
+function extractJSON(text) {
+  if (!text) return null;
+  const cleaned = cleanContent(text);
+  // Try direct parse first
+  try { return JSON.parse(cleaned); } catch (_) {}
+  // Try extracting first {...} block
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (match) {
+    try { return JSON.parse(match[0]); } catch (_) {}
   }
+  return null;
 }
 
 class AiService {
-  // Collect full DB quotation context + past negotiations + customer history
+  // ─── Fetch rich quotation context from DB ───────────────────────────────────
   async getQuotationContext(quotationId) {
     const quoteRes = await pool.query(
       `SELECT q.id, q.quotation_number, q.status, q.subtotal, q.discount_amount, q.final_amount,
               q.total_cost, q.gross_margin, q.margin_percentage, q.risk_score, q.risk_level,
-              q.customer_id, q.sales_rep_id,
-              c.full_name AS customer_name, c.email AS customer_email, c.company_name, c.customer_tier,
+              q.customer_id, q.sales_rep_id, q.created_at, q.updated_at,
+              c.full_name AS customer_name, c.email AS customer_email,
+              c.company_name, c.customer_tier,
               s.full_name AS sales_rep_name, s.email AS sales_rep_email
        FROM public.quotations q
        LEFT JOIN public.users c ON q.customer_id = c.id
@@ -78,55 +83,60 @@ class AiService {
        WHERE q.id = $1`,
       [quotationId]
     );
-
-    if (quoteRes.rows.length === 0) return null;
+    if (!quoteRes.rows.length) return null;
     const q = quoteRes.rows[0];
 
-    // Current line items
+    // Line items with full cost data
     const itemsRes = await pool.query(
-          `SELECT qi.product_id, qi.quantity, qi.unit_price, qi.discount_percent, qi.line_total,
+      `SELECT qi.id, qi.product_id, qi.quantity, qi.unit_price, qi.discount_percent,
+              qi.discount_amount, qi.line_total,
               COALESCE(p.cost, 0) AS cost, p.name, p.sku, p.category
        FROM public.quotation_items qi
        LEFT JOIN public.products p ON qi.product_id = p.id
-       WHERE qi.quotation_id = $1`,
+       WHERE qi.quotation_id = $1
+       ORDER BY qi.id`,
       [quotationId]
     );
 
+    // Active catalog for quote-update suggestions
     const catalogRes = await pool.query(
       `SELECT id AS product_id, name, category, unit_price, cost
-       FROM public.products
-       WHERE is_active = TRUE
-       ORDER BY name
-       LIMIT 200`
+       FROM public.products WHERE is_active = TRUE ORDER BY name LIMIT 200`
     );
 
-    // Entire chat negotiation thread (last 20 messages)
+    // Full chat thread – latest 100 messages in chronological order
     const msgRes = await pool.query(
-      `SELECT sender_role, sender_name, message, recipient_role, created_at
-       FROM public.quotation_messages
-       WHERE quotation_id = $1
-       ORDER BY created_at ASC
-       LIMIT 20`,
+      `SELECT * FROM (
+         SELECT sender_role, sender_name, message, recipient_role,
+                to_char(created_at, 'YYYY-MM-DD HH24:MI') AS ts,
+                created_at
+         FROM public.quotation_messages
+         WHERE quotation_id = $1
+         ORDER BY created_at DESC
+         LIMIT 100
+       ) sub
+       ORDER BY sub.created_at ASC`,
       [quotationId]
     );
 
     // Formal negotiation portal tickets
     const negRes = await pool.query(
-      `SELECT requested_discount_percent, requested_delivery_date, customer_comment, status, created_at
+      `SELECT requested_discount_percent, requested_delivery_date,
+              customer_comment, removed_item_ids, status,
+              to_char(created_at, 'YYYY-MM-DD') AS date
        FROM public.negotiation_requests
        WHERE quotation_id = $1
-       ORDER BY created_at DESC
-       LIMIT 5`,
+       ORDER BY created_at DESC LIMIT 10`,
       [quotationId]
     );
 
-    // Customer historical deals & behavior
-    const pastHistoryRes = await pool.query(
-      `SELECT q.quotation_number, q.status, q.final_amount, q.margin_percentage, q.created_at
+    // Customer deal history
+    const histRes = await pool.query(
+      `SELECT q.quotation_number, q.status, q.final_amount, q.margin_percentage,
+              to_char(q.created_at, 'YYYY-MM-DD') AS date
        FROM public.quotations q
        WHERE q.customer_id = $1 AND q.id != $2
-       ORDER BY q.created_at DESC
-       LIMIT 5`,
+       ORDER BY q.created_at DESC LIMIT 8`,
       [q.customer_id, quotationId]
     );
 
@@ -136,177 +146,267 @@ class AiService {
       catalog: catalogRes.rows,
       chatHistory: msgRes.rows,
       negotiationRequests: negRes.rows,
-      customerHistory: pastHistoryRes.rows,
+      customerHistory: histRes.rows,
     };
   }
 
-  // Interactive AI Negotiator Grounded in Conversation History
-  async consultNegotiator(quotationId, userPrompt, user) {
+  // ─── Main RAG-Powered Negotiation Consultant ────────────────────────────────
+  async consultNegotiator(quotationId, userPrompt, user, recipientRole = "CUSTOMER") {
     const ctx = await this.getQuotationContext(quotationId);
-    if (!ctx) {
-      throw new Error("Quotation context not found.");
-    }
+    if (!ctx) throw new Error("Quotation context not found.");
 
     const q = ctx.quotation;
 
-    // Items summary
+    // ── Build context blocks ──────────────────────────────────────────────────
+    // Internal context for analysis only (NEVER appears in customer-facing draft)
+    const currentMarginPct = Number(q.margin_percentage || 0);
+    const safeDiscountHeadroom = Math.max(0, currentMarginPct - 18).toFixed(1);
+
+    // Items — no cost data shown (avoids leaking margin in AI output)
     const itemsSummary = ctx.items.length > 0
-      ? ctx.items
-          .map(
-                (i) =>
-                  `${i.name} [Product ID ${i.product_id}] (Qty ${i.quantity}, Price ₹${i.unit_price}, Cost ₹${i.cost}, Discount ${i.discount_percent}%)`
-          )
-          .join("; ")
-      : "Standard line items";
+      ? ctx.items.map(i =>
+          `• ${i.name} (SKU: ${i.sku}, Category: ${i.category}) — Qty: ${i.quantity}, Unit Price: ₹${i.unit_price}, Discount: ${i.discount_percent}%, Line Total: ₹${i.line_total}`
+        ).join("\n")
+      : "No line items on this quotation.";
+
+    // Financial summary for INTERNAL analysis only — analyst context, not for draft
+    const totalCost = Number(q.total_cost || (Number(q.final_amount) * 0.72));
+    const currentProfit = Number(q.final_amount) - totalCost;
+    const internalFinancials = `[INTERNAL DEAL METRICS — STRICTLY CONFIDENTIAL FOR STRATEGY ONLY]
+Invoice Subtotal: ₹${Number(q.subtotal).toLocaleString("en-IN")} | Current Discount: ₹${Number(q.discount_amount).toLocaleString("en-IN")}
+Final Selling Price: ₹${Number(q.final_amount).toLocaleString("en-IN")} | Total Product Cost: ₹${totalCost.toLocaleString("en-IN")}
+Current Gross Profit: ₹${Math.round(currentProfit).toLocaleString("en-IN")} | Current Gross Margin: ${currentMarginPct}%
+Minimum Commercial Margin Floor: 18.0% | Max Safe Additional Discount Headroom: ${safeDiscountHeadroom}% | Risk Level: ${q.risk_level || "N/A"}`;
+
+    const chatTranscript = ctx.chatHistory.length > 0
+      ? ctx.chatHistory.map(m =>
+          `[${m.ts}] ${m.sender_role} (${m.sender_name}): ${m.message}`
+        ).join("\n")
+      : "(No prior conversation.)";
+
+    const portalNegotiations = ctx.negotiationRequests.length > 0
+      ? ctx.negotiationRequests.map(nr =>
+          `• [${nr.date}] Status: ${nr.status} | Discount Requested: ${nr.requested_discount_percent || 0}% | Delivery: ${nr.requested_delivery_date || "N/A"} | Customer Note: "${nr.customer_comment || "—"}"${
+            nr.removed_item_ids?.length ? ` | Removal Request: ${JSON.stringify(nr.removed_item_ids)}` : ""
+          }`
+        ).join("\n")
+      : "(No formal negotiation requests on file.)";
+
+    const customerHistory = ctx.customerHistory.length > 0
+      ? ctx.customerHistory.map(h =>
+          `• Quote #${h.quotation_number} — ${h.status}, Total ₹${h.final_amount} (${h.date})`
+        ).join("\n")
+      : "(No prior quotations for this customer.)";
+
+    // Catalog for quote-update only — no cost data
     const catalogSummary = ctx.catalog
-      .map((item) => `${item.name} [Product ID ${item.product_id}] (${item.category}, Price ₹${item.unit_price}, Cost ₹${item.cost})`)
-      .join("; ");
+      .map(p => `${p.name} [ID: ${p.product_id}] | Category: ${p.category} | List Price: ₹${p.unit_price}`)
+      .join("\n");
 
-    // Recent chat messages
-    const chatTranscript =
-      ctx.chatHistory.length > 0
-        ? ctx.chatHistory
-            .map(
-              (m) =>
-                `[${m.sender_role} - ${m.sender_name}]: "${m.message}"`
-            )
-            .join("\n")
-        : "(No prior chat messages exchanged yet.)";
+    // Identify the newest customer message and last message in thread
+    const latestCustomerMsg = [...ctx.chatHistory]
+      .reverse()
+      .find(m => m.sender_role === "CUSTOMER");
+    const lastAnyMsg = ctx.chatHistory.length > 0 ? ctx.chatHistory[ctx.chatHistory.length - 1] : null;
 
-    // Past formal negotiations
-    const portalNegotiations =
-      ctx.negotiationRequests.length > 0
-        ? ctx.negotiationRequests
-            .map(
-              (nr) =>
-                `- Requested Discount: ${nr.requested_discount_percent || 0}%, Date: ${
-                  nr.requested_delivery_date || "N/A"
-                }, Note: "${nr.customer_comment || "None"}", Status: ${nr.status}`
-            )
-            .join("\n")
-        : "(No formal portal negotiation tickets.)";
+    const recentHighlight = [
+      latestCustomerMsg ? `• LATEST CLIENT INQUIRY: [${latestCustomerMsg.ts}] ${latestCustomerMsg.sender_name}: "${latestCustomerMsg.message}"` : null,
+      lastAnyMsg && (!latestCustomerMsg || lastAnyMsg !== latestCustomerMsg)
+        ? `• LAST MESSAGE IN THREAD: [${lastAnyMsg.ts}] ${lastAnyMsg.sender_role} (${lastAnyMsg.sender_name}): "${lastAnyMsg.message}"`
+        : null
+    ].filter(Boolean).join("\n");
 
-    // Past customer deals
-    const pastCustomerDeals =
-      ctx.customerHistory.length > 0
-        ? ctx.customerHistory
-            .map(
-              (ph) =>
-                `- Quote #${ph.quotation_number}: ${ph.status}, ₹${ph.final_amount}, Margin: ${ph.margin_percentage}%`
-            )
-            .join("\n")
-        : "(No prior quotations.)";
+    // Target audience description
+    const audienceRole = (recipientRole || "CUSTOMER").toUpperCase();
+    const audienceDescription =
+      audienceRole === "ADMIN"
+        ? "INTERNAL ADMIN / MANAGEMENT (Internal escalation, requesting approval or reporting deal status with exact financials)"
+        : audienceRole === "SALES_REP"
+        ? `INTERNAL SALES REP (${q.sales_rep_name}) (Directive commercial coaching and deal negotiation instructions)`
+        : `EXTERNAL CLIENT / CUSTOMER (${q.customer_name}) (Customer-facing formal executive message with ZERO internal financial leakage)`;
 
-    const systemPrompt = `You are DealFlow360's Senior Commercial Negotiation Strategist.
-You MUST output ONLY a valid, parseable JSON object with NO preamble, NO thinking tokens, and NO markdown code fences.
+    // ── System Prompt ─────────────────────────────────────────────────────────
+    const systemPrompt = `You are the Chief Commercial Officer & Principal AI Commercial Strategist for DealFlow360, an enterprise B2B quotation platform.
+Your job is to protect company profit margins, identify requested discounts, evaluate whether a deal makes financial sense, and instruct the user whether to REJECT, COUNTER, or ACCEPT.
 
-The JSON schema must be exactly:
+CURRENT RECIPIENT TARGET FOR DRAFT: ${audienceRole} -> ${audienceDescription}
+
+=== COMPANY COMMERCIAL RULES & THRESHOLDS ===
+1. ABSOLUTE MARGIN FLOOR: 18.0% Gross Profit Margin.
+   - Total Cost for this quote is: ₹${totalCost.toLocaleString("en-IN")}
+   - Current Price is: ₹${Number(q.final_amount).toLocaleString("en-IN")} (Margin: ${currentMarginPct}%, Gross Profit: ₹${Math.round(currentProfit).toLocaleString("en-IN")})
+   - Any concession that causes gross margin to drop BELOW 18.0% is UNACCEPTABLE, UNFAIR, and MUST BE REJECTED.
+
+2. DISCOUNT IDENTIFICATION & MARGIN SIMULATION:
+   - Carefully scan the customer's chat messages (especially the latest inquiry).
+   - Detect what discount percentage or price concession the customer is asking for (e.g. 10%, 15%, 25%, or specific amount).
+   - Calculate the resulting Projected Revenue, Projected Gross Profit (= Projected Revenue - Total Cost), and Projected Gross Margin % (= Projected Gross Profit / Projected Revenue * 100).
+
+3. COMMERCIAL VERDICT RULES ("decision"):
+   - "REJECT":
+     * If the customer's requested discount/price drops gross margin BELOW the 18.0% floor.
+     * If the deal would generate insufficient gross profit or is commercially one-sided/unfair.
+     * If the customer is demanding extreme concessions without increasing order volume.
+   - "COUNTER":
+     * If the customer's requested discount is slightly above what we can afford, but we can offer a smaller capped discount (safe headroom up to ${safeDiscountHeadroom}%) in exchange for upfront payment or multi-year commitment.
+   - "ACCEPT":
+     * If the requested terms leave our margin comfortably above 22.0% and represent a profitable, high-value deal.
+
+4. STRATEGY INSTRUCTIONS ("strategy"):
+   - If REJECTING: Instruct to stand 100% firm on the current price. Defend our enterprise build quality, dedicated warranty, SLA guarantees, and high ROI. Recommend offering non-price concessions (e.g., phased milestone delivery or 30-day payment terms) instead of reducing price.
+   - If COUNTERING: Specify the maximum allowable discount percentage that preserves at least 20% margin.
+
+5. ROLE-SPECIFIC DRAFTING RULES ("suggestedDraft"):
+   - When Target is CUSTOMER:
+     * Write an executive, consultative, polite, and firm message addressed to "Dear ${q.customer_name},".
+     * If REJECTING: Diplomatically decline the requested discount, articulate superior product value and SLA, and propose alternative commercial terms (milestones, delivery schedule) without conceding on price.
+     * STRICT CONFIDENTIALITY: NEVER reveal internal costs, margins, margin percentages, risk ratings, or the "18%" floor.
+   - When Target is ADMIN:
+     * Write a clear, professional internal briefing addressed to "Dear Admin / Commercial Approvals Team,".
+     * Present the key internal metrics directly (Requested discount, Total Cost: ₹${totalCost.toLocaleString("en-IN")}, Margin: ${currentMarginPct}%, Projected Margin).
+     * State whether this request is within policy or requires an explicit override, and recommend whether to reject or permit an exception.
+   - When Target is SALES_REP:
+     * Write a clear directive note addressed to "Hi ${q.sales_rep_name},".
+     * Give specific step-by-step negotiation instructions on what to say to the client.
+
+6. OUTPUT FORMAT: Respond ONLY with valid JSON matching this exact structure:
 {
-  "summary": "1-2 concise sentences analyzing the client's position, latest message, and past history.",
-  "dealHealth": "Clear margin assessment explaining current margin vs the 18% floor.",
-  "strategy": "Actionable tactic (e.g., concession trade-off, bundling, delivery terms).",
-  "suggestedDraft": "The complete, polished, ready-to-send professional message to the client.",
+  "decision": "REJECT | COUNTER | ACCEPT",
+  "requestedTerms": "Summary of discount or concessions requested by client (e.g., '15% additional discount on total order')",
+  "projectedMargin": "Projected gross margin percentage under requested terms (e.g., '14.2%')",
+  "projectedProfit": "Projected gross profit in ₹ under requested terms (e.g., '₹18,500')",
+  "isCommerciallyViable": true | false,
+  "summary": "Internal commercial analysis: State the financial breakdown, resulting margin, and why the deal makes or does not make commercial sense.",
+  "dealHealth": "Margin health status (e.g., 'CRITICAL RISK: Projected margin of 14.2% is below the 18.0% mandatory floor' or 'HEALTHY MARGIN: 24.5%')",
+  "strategy": "Tactical guidance explaining how to handle the customer's objection or concession request.",
+  "suggestedDraft": "Polished, ready-to-send message tailored specifically for ${audienceRole}.",
   "quoteUpdate": {
     "shouldRecreate": false,
-    "rationale": "string",
-    "items": [{"productId": "existing Product ID", "quantity": 1, "unitPrice": 0, "discountPercent": 0}]
+    "rationale": "Internal note on whether line items or quantities should be updated.",
+    "items": []
   }
-}
+}`;
 
-Rules:
-1. Ground the response on the chat transcript and client's actual messages.
-2. Protect the 18% minimum gross margin floor.
-3. The draft message must be professional, courteous, persuasive, and directly applicable.
-      4. Output raw JSON only.
-      5. quoteUpdate may only use Product IDs from the Available Catalog Products list. Do not invent products.
-      6. Set shouldRecreate true only when the negotiation requires changing quote lines, quantities, prices, or discounts. Otherwise use false and copy the current items unchanged.`;
+    // ── User Message (full grounded context) ──────────────────────────────────
+    const userMessage = `=== ACTIVE QUOTATION DETAILS ===
+Quote Number: #${q.quotation_number} | Status: ${q.status} | Created: ${new Date(q.created_at).toLocaleDateString("en-IN")}
+Client: ${q.customer_name} | Company: ${q.company_name || "N/A"} | Account Tier: ${q.customer_tier || "STANDARD"}
+Lead Sales Rep: ${q.sales_rep_name}
+Commercial Total: ₹${Number(q.final_amount).toLocaleString("en-IN")} (Subtotal: ₹${Number(q.subtotal).toLocaleString("en-IN")}, Discount Applied: ₹${Number(q.discount_amount).toLocaleString("en-IN")})
 
-    const userMessage = `DEAL FINANCIALS:
-- Quote: #${q.quotation_number}
-- Client: ${q.customer_name} (${q.company_name || "Enterprise"})
-- Customer Tier: ${q.customer_tier || "BRONZE"}
-- Deal Total: ₹${q.final_amount} (Subtotal: ₹${q.subtotal})
-- Current Gross Margin: ${q.margin_percentage || 20}% (Cost: ₹${q.total_cost || 0})
-- Line Items: ${itemsSummary}
-- Available Catalog Products: ${catalogSummary}
+${internalFinancials}
 
-PAST NEGOTIATION TICKETS:
+=== TARGET RECIPIENT ===
+Sending message to: ${audienceRole} (${audienceDescription})
+
+=== MOST RECENT MESSAGE REQUIRING IMMEDIATE RESPONSE ===
+${recentHighlight || "(No client message yet. Client is reviewing the initial quotation.)"}
+
+=== CURRENT QUOTATION LINE ITEMS ===
+${itemsSummary}
+
+=== FORMAL NEGOTIATION / ITEM REMOVAL TICKETS ===
 ${portalNegotiations}
 
-CHAT HISTORY:
+=== CLIENT HISTORICAL CLOSED DEALS ===
+${customerHistory}
+
+=== FULL CONVERSATION TRANSCRIPT (${ctx.chatHistory.length} MESSAGES) ===
 ${chatTranscript}
 
-CUSTOMER PAST DEALS:
-${pastCustomerDeals}
+=== AVAILABLE CATALOG PRODUCTS (for quoteUpdate only) ===
+${catalogSummary}
 
-USER INSTRUCTION:
-Speaker: ${user.full_name} (${user.role})
-Request: "${userPrompt}"`;
+=== SENDER INQUIRY / FOCUS ===
+${user.full_name} (${user.role}): "${userPrompt}"
 
-    const groqResponse = await callGroqChat(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-      0.3
-    );
+Identify customer concessions, compute profit/margin impact, determine whether to REJECT/COUNTER/ACCEPT, and generate an insightful strategy and ${audienceRole}-tailored draft.`;
 
-    let parsed = null;
-    if (groqResponse) {
-      try {
-        const jsonMatch = groqResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          parsed = JSON.parse(jsonMatch[0]);
-        }
-      } catch (parseErr) {
-        console.warn("[DealFlow AI] JSON parse failed, extracting sections:", parseErr?.message);
-      }
-    }
+    // ── Call LLM ──────────────────────────────────────────────────────────────
+    const rawResponse = await callGroqChat([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ], 0.6);
 
-    const currentMargin = Number(q.margin_percentage || 20);
-    const customerName = q.customer_name || "Client";
-    const lastMsg = ctx.chatHistory[ctx.chatHistory.length - 1];
+    const parsed = extractJSON(rawResponse);
 
     if (parsed && (parsed.suggestedDraft || parsed.summary)) {
-      const summary = parsed.summary || `Analysis of Quote #${q.quotation_number} for ${customerName}.`;
-      const dealHealth = parsed.dealHealth || `Current margin is ${currentMargin}%, maintaining healthy headroom above the 18% floor.`;
-      const strategy = parsed.strategy || `Acknowledge client terms while holding base pricing and offering flexible delivery terms.`;
-      const suggestedDraft = parsed.suggestedDraft || (groqResponse.length < 400 ? groqResponse : "");
-
-      const formattedReply = `📋 Context Analysis:\n${summary}\n\n💡 Recommended Strategy:\n${strategy}\n\n🛡️ Margin Health:\n${dealHealth}`;
-
+      const decision = (parsed.decision || (currentMarginPct < 18 ? "REJECT" : "COUNTER")).toUpperCase();
       return {
-        summary,
-        dealHealth,
-        strategy,
-        reply: formattedReply,
-        suggestedDraft: suggestedDraft.trim(),
-            quoteUpdate: parsed.quoteUpdate && Array.isArray(parsed.quoteUpdate.items)
-              ? parsed.quoteUpdate
-              : { shouldRecreate: false, rationale: "No structured quotation change recommended.", items: [] },
-        margin: `${currentMargin}%`,
+        decision,
+        requestedTerms: parsed.requestedTerms || "Customer reviewing quotation terms.",
+        projectedMargin: parsed.projectedMargin || `${currentMarginPct}%`,
+        projectedProfit: parsed.projectedProfit || `₹${Math.round(currentProfit).toLocaleString("en-IN")}`,
+        isCommerciallyViable: parsed.isCommerciallyViable !== undefined ? parsed.isCommerciallyViable : (decision !== "REJECT"),
+        summary: parsed.summary || `Reviewing deal context for ${q.customer_name} on Quote #${q.quotation_number}.`,
+        dealHealth: parsed.dealHealth || (decision === "REJECT" ? "CRITICAL MARGIN RISK - Below 18% floor" : `Commercial viability assessed. Headroom: ${safeDiscountHeadroom}% available (internal).`),
+        strategy: parsed.strategy || (decision === "REJECT" ? "Firmly decline additional discounts and defend pricing on product value." : "Offer value-added concessions rather than direct price adjustments."),
+        reply: `📋 Verdict: ${decision}\n${parsed.summary}\n\n💡 Recommended Strategy:\n${parsed.strategy}\n\n🛡️ Margin Health:\n${parsed.dealHealth}`,
+        suggestedDraft: (parsed.suggestedDraft || "").trim(),
+        quoteUpdate: parsed.quoteUpdate?.items?.length
+          ? parsed.quoteUpdate
+          : { shouldRecreate: false, rationale: "No line changes needed.", items: [] },
         finalAmount: q.final_amount,
+        targetRole: audienceRole,
+        _context: {
+          messagesAnalyzed: ctx.chatHistory.length,
+          negotiationTickets: ctx.negotiationRequests.length,
+          customerDeals: ctx.customerHistory.length,
+        },
       };
     }
 
-    // High quality deterministic fallback grounded in actual history
-    const fallbackDraft = lastMsg
-      ? `Dear ${customerName}, thank you for your note regarding "${lastMsg.message.slice(0, 55)}...". We have reviewed your request alongside our production costs. While our current margin (${currentMargin}%) does not allow further base discounts without breaching our 18% floor, we would be glad to offer complimentary expedited delivery and extended payment terms to support your timeline.`
-      : `Dear ${customerName}, thank you for reaching out regarding Quote #${q.quotation_number}. Under your ${q.customer_tier || "Standard"} tier terms, we are committed to providing the most competitive terms while maintaining our quality standards. Let us schedule a brief discussion to finalize mutually beneficial milestones.`;
+    // ── Deterministic fallback with explicit financial calculations ──
+    const discountMatch = latestCustomerMsg?.message?.match(/(\d+(?:\.\d+)?)\s*%/);
+    const requestedDiscountPct = discountMatch ? parseFloat(discountMatch[1]) : null;
 
-    const fallbackSummary = `Analyzed ${ctx.chatHistory.length} chat message(s) for ${customerName} (${q.customer_tier || "Standard"} tier). Current gross margin stands at ${currentMargin}%.`;
-    const fallbackStrategy = `Protect the 18% margin floor by offering value-added concessions (accelerated delivery, priority support) rather than direct unit price cuts.`;
-    const fallbackHealth = `Gross margin is currently ${currentMargin}%. Limit any additional concessions to value-adds rather than cash discounts.`;
+    let projRevenue = Number(q.final_amount);
+    if (requestedDiscountPct) {
+      projRevenue = Number(q.subtotal) * (1 - (requestedDiscountPct / 100));
+    }
+    const projProfit = Math.round(projRevenue - totalCost);
+    const projMarginPct = projRevenue > 0 ? Number(((projProfit / projRevenue) * 100).toFixed(1)) : 0;
+
+    const isUnfair = projMarginPct < 18 || (latestCustomerMsg && /discount|reduce|cheap|cut|less|lower|off|heavy discount/i.test(latestCustomerMsg.message) && currentMarginPct <= 20);
+    const fallbackDecision = isUnfair ? "REJECT" : currentMarginPct >= 25 ? "ACCEPT" : "COUNTER";
+
+    let fallbackDraft = "";
+    if (audienceRole === "ADMIN") {
+      fallbackDraft = `Dear Admin,\n\nRegarding Quote #${q.quotation_number} for ${q.customer_name} (${q.company_name || "N/A"}):\n\nCustomer has requested additional pricing concessions${latestCustomerMsg ? `: "${latestCustomerMsg.message}"` : ""}.\n\n• Current Final Amount: ₹${Number(q.final_amount).toLocaleString("en-IN")}\n• Total Cost: ₹${totalCost.toLocaleString("en-IN")}\n• Projected Margin: ${projMarginPct}%\n• Recommendation: ${isUnfair ? "REJECT discount to protect our 18.0% margin floor" : "Counter-offer within safe limits"}.\n\nPlease let me know if an exception is permitted or if I should proceed with the standard value defense.\n\nRegards,\n${user.full_name || user.email}`;
+    } else if (audienceRole === "SALES_REP") {
+      fallbackDraft = `Hi ${q.sales_rep_name},\n\nRegarding Quote #${q.quotation_number} for ${q.customer_name}:\n\n${isUnfair ? "Please firmly decline any further discount. Defend our premium enterprise specifications, warranty coverage, and high SLA commitments." : "You have room for a modest counter-offer in exchange for upfront payment or quarterly commitment."}\n\nMaintain pricing integrity and offer milestone delivery if needed.\n\nBest regards,\nManagement`;
+    } else {
+      fallbackDraft = latestCustomerMsg
+        ? isUnfair
+          ? `Dear ${q.customer_name},\n\nThank you for sharing your feedback regarding Quote #${q.quotation_number}.\n\nWe have carefully evaluated your request regarding pricing adjustments. Given the premium enterprise specifications, dedicated warranty, and high SLA commitments included with our solution, we are unable to provide further discounts beyond our current proposed pricing of ₹${Number(q.final_amount).toLocaleString("en-IN")}.\n\nOur proposal represents our most competitive commercial offering for this scope of delivery. We would be delighted to discuss flexible milestone delivery schedules or customized payment structures to best align with your operational roadmap.\n\nPlease let us know if you would like to proceed on these agreed terms.\n\nWarm regards,\n${q.sales_rep_name}`
+          : `Dear ${q.customer_name},\n\nThank you for your message regarding Quote #${q.quotation_number}. We appreciate you taking the time to share your thoughts.\n\nWe have reviewed your note — "${latestCustomerMsg.message.slice(0, 80)}${latestCustomerMsg.message.length > 80 ? "..." : ""}" — and are pleased to confirm that we can accommodate your requirements. To ensure we deliver the best outcome for your business, we would like to propose scheduling a brief call to align on final commercial terms, including delivery timelines and payment structure.\n\nWe look forward to finalising this partnership at the earliest.\n\nWarm regards,\n${q.sales_rep_name}`
+        : `Dear ${q.customer_name},\n\nThank you for your continued engagement with us on Quote #${q.quotation_number}. We remain committed to delivering the most competitive and value-driven proposal for your organisation.\n\nKindly let us know your preferred timeline so that we may prioritise this for you and bring the engagement to a successful close.\n\nWarm regards,\n${q.sales_rep_name}`;
+    }
 
     return {
-      summary: fallbackSummary,
-      dealHealth: fallbackHealth,
-      strategy: fallbackStrategy,
-      reply: `📋 Context Analysis:\n${fallbackSummary}\n\n💡 Recommended Strategy:\n${fallbackStrategy}\n\n🛡️ Margin Health:\n${fallbackHealth}`,
+      decision: fallbackDecision,
+      requestedTerms: latestCustomerMsg ? latestCustomerMsg.message : "Client reviewing quotation.",
+      projectedMargin: `${projMarginPct}%`,
+      projectedProfit: `₹${projProfit.toLocaleString("en-IN")}`,
+      isCommerciallyViable: !isUnfair,
+      summary: isUnfair
+        ? `Customer request requires concessions that would compress gross margins to ${projMarginPct}%, which breaches our mandatory 18.0% margin floor (Cost: ₹${totalCost.toLocaleString("en-IN")}, Profit: ₹${projProfit.toLocaleString("en-IN")}). Recommend rejecting the discount to protect deal profitability.`
+        : `${ctx.chatHistory.length} message(s) reviewed. Client: ${q.customer_name} (${q.customer_tier || "STANDARD"} tier). Projected margin: ${projMarginPct}%. Safe discount headroom: ${safeDiscountHeadroom}% (internal).`,
+      dealHealth: isUnfair ? `CRITICAL MARGIN RISK: Projected margin ${projMarginPct}% is below the 18.0% company floor.` : `COMMERCIALLY HEALTHY: Projected margin ${projMarginPct}% is above the 18.0% floor.`,
+      strategy: isUnfair
+        ? "Firmly reject price concessions. Defend solution value, warranty coverage, and ROI. Offer payment terms or milestone delivery flexibility instead."
+        : "Offer flexibility through delivery terms and payment structure rather than direct price reductions.",
+      reply: `📋 Verdict: ${fallbackDecision}\n${isUnfair ? "Unfair / Margin-risk deal terms detected." : "Deal terms viable."}`,
       suggestedDraft: fallbackDraft,
-      quoteUpdate: { shouldRecreate: false, rationale: "No structured quotation change recommended.", items: [] },
-      margin: `${currentMargin}%`,
+      quoteUpdate: { shouldRecreate: false, rationale: "No line changes recommended.", items: [] },
+      margin: `${currentMarginPct}%`,
       finalAmount: q.final_amount,
+      targetRole: audienceRole,
+      _context: {
+        messagesAnalyzed: ctx.chatHistory.length,
+        negotiationTickets: ctx.negotiationRequests.length,
+        customerDeals: ctx.customerHistory.length,
+      },
     };
   }
 

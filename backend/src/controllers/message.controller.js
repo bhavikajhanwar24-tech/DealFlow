@@ -55,12 +55,13 @@ class MessageController {
   async consultAi(req, res, next) {
     try {
       const { quotationId } = req.params;
-      const { prompt } = req.body;
+      const { prompt, recipientRole } = req.body;
       const aiService = require("../services/ai.service");
       const data = await aiService.consultNegotiator(
         quotationId,
         prompt || "Analyze this quotation negotiation and suggest a response.",
-        req.user
+        req.user,
+        recipientRole || "CUSTOMER"
       );
       res.json({ success: true, data });
     } catch (err) {
@@ -85,6 +86,16 @@ class MessageController {
         recipientRole
       });
       res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async markRead(req, res, next) {
+    try {
+      const { quotationId } = req.params;
+      await messageService.markAsRead(quotationId, req.user.id);
+      res.json({ success: true, message: "Marked as read" });
     } catch (err) {
       next(err);
     }

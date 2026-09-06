@@ -11,5 +11,6 @@ router.post("/quotations/:quotationId/ai-consult", messageController.consultAi);
 router.post("/quotations/:quotationId/ai-send", messageController.sendAiOnBehalf);
 router.get("/quotations/:quotationId", messageController.getMessages);
 router.post("/quotations/:quotationId", messageController.sendMessage);
+router.put("/quotations/:quotationId/read", messageController.markRead);
 
 module.exports = router;
