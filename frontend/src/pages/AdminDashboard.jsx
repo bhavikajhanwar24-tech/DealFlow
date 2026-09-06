@@ -1626,6 +1626,21 @@ export default function AdminDashboard({ onNavigate }) {
                     </option>
                   ))}
                 </select>
+
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setCurrentRoute("/admin/staff")}
+                  style={{
+                    padding: "0.4rem 0.85rem",
+                    fontSize: "0.8125rem",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
+                >
+                  <Briefcase size={14} /> Manage Staff & Credentials
+                </button>
               </div>
             </div>
 

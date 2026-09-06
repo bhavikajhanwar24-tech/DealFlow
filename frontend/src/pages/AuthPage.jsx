@@ -337,31 +337,49 @@ export default function AuthPage({ onLoginSuccess }) {
             </button>
           </div>
 
-          {/* User Category: Employee vs Customer */}
-          <div className="category-switcher">
-            <button
-              type="button"
-              className={`category-btn ${userCategory === "employee" ? "active" : ""}`}
-              disabled={activeTab === "signup"}
-              onClick={() => {
-                if (activeTab === "signup") return;
-                setUserCategory("employee");
-                setErrorMessage("");
-              }}
-            >
-              <BriefcaseIcon size={15} /> Internal Employee
-            </button>
-            <button
-              type="button"
-              className={`category-btn ${userCategory === "customer" ? "active" : ""}`}
-              onClick={() => {
-                setUserCategory("customer");
-                setErrorMessage("");
-              }}
-            >
-              <BuildingIcon size={15} /> Customer Portal
-            </button>
-          </div>
+          {/* User Category: Employee vs Customer (Disabled in Sign Up since Staff accounts are admin-provisioned) */}
+          {activeTab === "login" ? (
+            <div className="category-switcher">
+              <button
+                type="button"
+                className={`category-btn ${userCategory === "employee" ? "active" : ""}`}
+                onClick={() => {
+                  setUserCategory("employee");
+                  setErrorMessage("");
+                }}
+              >
+                <BriefcaseIcon size={15} /> Internal Employee
+              </button>
+              <button
+                type="button"
+                className={`category-btn ${userCategory === "customer" ? "active" : ""}`}
+                onClick={() => {
+                  setUserCategory("customer");
+                  setErrorMessage("");
+                }}
+              >
+                <BuildingIcon size={15} /> Customer Portal
+              </button>
+            </div>
+          ) : (
+            <div style={{
+              background: "#f1f5f9",
+              border: "1px solid #e2e8f0",
+              borderRadius: "8px",
+              padding: "0.625rem 0.875rem",
+              marginBottom: "1rem",
+              fontSize: "0.8125rem",
+              color: "#475569",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "8px"
+            }}>
+              <InfoIcon size={16} style={{ color: "#3b82f6", flexShrink: 0, marginTop: "2px" }} />
+              <div>
+                <strong>Customer Self-Registration:</strong> Staff and employee accounts are provisioned exclusively by the Organization Administrator.
+              </div>
+            </div>
+          )}
 
           {/* Error Banner */}
           {errorMessage && (
@@ -513,176 +531,15 @@ export default function AuthPage({ onLoginSuccess }) {
             </form>
           )}
 
-          {/* ================= EMPLOYEE SIGNUP FORM ================= */}
-          {activeTab === "signup" && userCategory === "employee" && (
-            <form onSubmit={handleEmployeeSubmit}>
-              <div style={{ marginBottom: "1rem", textAlign: "center" }}>
-                <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: "#0f172a" }}>
-                  Employee Registration
-                </h2>
-                <p style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                  Requires administrator approval before access is granted.
-                </p>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Full Name</label>
-                <div className="input-wrapper">
-                  <div className="input-icon"><UserIcon size={16} /></div>
-                  <input
-                    type="text"
-                    required
-                    className="form-input"
-                    placeholder="e.g. Rahul Sharma"
-                    value={employeeForm.fullName}
-                    onChange={(e) =>
-                      setEmployeeForm({ ...employeeForm, fullName: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Employee ID</label>
-                  <div className="input-wrapper">
-                    <div className="input-icon"><IdCardIcon size={16} /></div>
-                    <input
-                      type="text"
-                      required
-                      className="form-input"
-                      placeholder="EMP-1024"
-                      value={employeeForm.employeeId}
-                      onChange={(e) =>
-                        setEmployeeForm({
-                          ...employeeForm,
-                          employeeId: e.target.value
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Department</label>
-                  <select
-                    className="form-select no-icon"
-                    value={employeeForm.department}
-                    onChange={(e) =>
-                      setEmployeeForm({
-                        ...employeeForm,
-                        department: e.target.value
-                      })
-                    }
-                  >
-                    <option value="Sales">Sales</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Operations">Operations</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Work Email</label>
-                <div className="input-wrapper">
-                  <div className="input-icon"><MailIcon size={16} /></div>
-                  <input
-                    type="email"
-                    required
-                    className="form-input"
-                    placeholder="rahul@company.com"
-                    value={employeeForm.email}
-                    onChange={(e) =>
-                      setEmployeeForm({ ...employeeForm, email: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Requested Role</label>
-                <select
-                  className="form-select no-icon"
-                  value={employeeForm.requestedRole}
-                  onChange={(e) =>
-                    setEmployeeForm({
-                      ...employeeForm,
-                      requestedRole: e.target.value
-                    })
-                  }
-                >
-                  <option value="SALES_REP">Sales Representative</option>
-                  <option value="SALES_MANAGER">Sales Manager</option>
-                  <option value="FINANCE">Finance Specialist</option>
-                  <option value="OPERATIONS">Operations Coordinator</option>
-                </select>
-                <small style={{ fontSize: "0.6875rem", color: "#64748b", marginTop: "2px", display: "block" }}>
-                  * ADMIN roles are not self-service and require executive appointment.
-                </small>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Password</label>
-                  <div className="input-wrapper">
-                    <div className="input-icon"><LockIcon size={16} /></div>
-                    <input
-                      type="password"
-                      required
-                      className="form-input"
-                      placeholder="Min 6 chars"
-                      value={employeeForm.password}
-                      onChange={(e) =>
-                        setEmployeeForm({
-                          ...employeeForm,
-                          password: e.target.value
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Confirm Password</label>
-                  <div className="input-wrapper">
-                    <div className="input-icon"><LockIcon size={16} /></div>
-                    <input
-                      type="password"
-                      required
-                      className="form-input"
-                      placeholder="Re-enter password"
-                      value={employeeForm.confirmPassword}
-                      onChange={(e) =>
-                        setEmployeeForm({
-                          ...employeeForm,
-                          confirmPassword: e.target.value
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="btn-primary"
-                disabled={loading}
-                style={{ marginTop: "0.5rem" }}
-              >
-                {loading ? "Submitting Registration..." : "Submit Registration"}
-              </button>
-            </form>
-          )}
-
-          {/* ================= CUSTOMER SIGNUP FORM ================= */}
-          {activeTab === "signup" && userCategory === "customer" && (
+          {/* ================= CUSTOMER SIGNUP FORM (Staff creation is admin-only) ================= */}
+          {activeTab === "signup" && (
             <form onSubmit={handleCustomerSubmit}>
               <div style={{ marginBottom: "1rem", textAlign: "center" }}>
                 <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: "#0f172a" }}>
                   Customer Registration
                 </h2>
                 <p style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                  Instant access to your quotations and order portal.
+                  Instant access to your quotations, negotiation threads, and order portal.
                 </p>
               </div>
 

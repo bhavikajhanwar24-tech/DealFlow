@@ -78,7 +78,7 @@ async function getAdminStats(req, res) {
 
 async function getStaff(req, res) {
   try {
-    const staff = await adminService.getStaff();
+    const staff = await adminService.getStaff(req.query);
     return res.status(200).json({ success: true, count: staff.length, data: staff });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to retrieve staff." });
@@ -102,6 +102,29 @@ async function updateStaff(req, res) {
     return res.status(200).json({ success: true, message: "Staff account updated successfully.", data: staff });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to update staff account." });
+  }
+}
+
+async function toggleStaffStatus(req, res) {
+  try {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const staff = await adminService.toggleStaffStatus(req.params.id, req.body.status, req.user.id, ip);
+    const message = staff.status === "ACTIVE"
+      ? `Staff member ${staff.full_name} (${staff.employee_id}) activated successfully.`
+      : `Staff member ${staff.full_name} (${staff.employee_id}) deactivated successfully.`;
+    return res.status(200).json({ success: true, message, data: staff });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to update staff status." });
+  }
+}
+
+async function resetStaffPassword(req, res) {
+  try {
+    const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const staff = await adminService.resetStaffPassword(req.params.id, req.body.password, req.user.id, ip);
+    return res.status(200).json({ success: true, message: `Password reset successfully for ${staff.full_name}.`, data: staff });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message || "Failed to reset staff password." });
   }
 }
 
@@ -254,6 +277,8 @@ module.exports = {
   getStaff,
   createStaff,
   updateStaff,
+  toggleStaffStatus,
+  resetStaffPassword,
   getProducts,
   createProduct,
   updateProduct,

@@ -8,6 +8,7 @@ const {
   validateRejection,
   validateStaff,
   validateStaffUpdate,
+  validatePasswordReset,
   validateProduct,
   validateWarehouse,
   validateDiscountPolicy
@@ -34,6 +35,8 @@ router.get("/stats", adminController.getAdminStats);
 router.get("/staff", adminController.getStaff);
 router.post("/staff", validateStaff, adminController.createStaff);
 router.put("/staff/:id", validateStaffUpdate, adminController.updateStaff);
+router.patch("/staff/:id/status", adminController.toggleStaffStatus);
+router.post("/staff/:id/reset-password", validatePasswordReset, adminController.resetStaffPassword);
 router.get("/products", adminController.getProducts);
 router.post("/products", validateProduct, adminController.createProduct);
 router.put("/products/:id", validateProduct, adminController.updateProduct);

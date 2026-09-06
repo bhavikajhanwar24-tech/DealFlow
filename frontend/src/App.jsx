@@ -5,6 +5,7 @@ import ScrollVideoHero from "./components/ScrollVideoHero";
 import AuthPage from "./pages/AuthPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminStaff from "./pages/AdminStaff";
+import AdminApprovals from "./pages/AdminApprovals";
 import ProductManagement from "./pages/ProductManagement";
 import AdminWarehouses from "./pages/AdminWarehouses";
 import DiscountPolicies from "./pages/DiscountPolicies";
@@ -151,9 +152,18 @@ function AppContent() {
       return <AdminDashboard onNavigate={navigate} />;
     }
 
-    if (currentRoute === "/admin/staff" || currentRoute === "/admin/employee-approvals") {
-      // Admin is not allowed to manage users/staff
-      return <AccessDenied onNavigate={navigate} requiredRoles={["SUPERADMIN"]} />;
+    if (currentRoute === "/admin/staff") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <AdminStaff />;
+    }
+
+    if (currentRoute === "/admin/employee-approvals") {
+      if (user.role !== "ADMIN") {
+        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
+      }
+      return <AdminApprovals />;
     }
 
     if (currentRoute === "/admin/products") {

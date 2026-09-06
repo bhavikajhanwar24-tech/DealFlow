@@ -1,4 +1,5 @@
 const ALLOWED_EMPLOYEE_ROLES = [
+  "STAFF",
   "SALES_REP",
   "SALES_MANAGER",
   "FINANCE",
@@ -8,7 +9,10 @@ const ALLOWED_EMPLOYEE_ROLES = [
 const ALLOWED_DEPARTMENTS = [
   "Sales",
   "Finance",
-  "Operations"
+  "Operations",
+  "Support",
+  "Executive",
+  "General"
 ];
 
 function isValidEmail(email) {
@@ -116,18 +120,21 @@ function validateCustomerRegister(req, res, next) {
 
 function validateLogin(req, res, next) {
   const { email, password } = req.body;
+  const errors = [];
 
   if (!email || !isValidEmail(email)) {
-    return res.status(400).json({
-      success: false,
-      message: "Please enter a valid email address."
-    });
+    errors.push("A valid email address is required.");
   }
 
   if (!password || typeof password !== "string" || !password.trim()) {
+    errors.push("Password is required.");
+  }
+
+  if (errors.length > 0) {
     return res.status(400).json({
       success: false,
-      message: "Please enter your password."
+      message: errors[0],
+      errors
     });
   }
 
@@ -136,19 +143,17 @@ function validateLogin(req, res, next) {
 
 function validateRejection(req, res, next) {
   const { reason } = req.body;
-
   if (!reason || typeof reason !== "string" || reason.trim().length < 3) {
     return res.status(400).json({
       success: false,
-      message: "A rejection reason of at least 3 characters is required."
+      message: "A rejection reason (at least 3 characters) is required."
     });
   }
-
   next();
 }
 
 function validateStaff(req, res, next) {
-  const { fullName, employeeId, email, password, department, role } = req.body;
+  const { fullName, employeeId, email, password, department, role, status } = req.body;
   const errors = [];
 
   if (!fullName || typeof fullName !== "string" || fullName.trim().length < 2) {
@@ -168,6 +173,9 @@ function validateStaff(req, res, next) {
   }
   if (!password || typeof password !== "string" || password.length < 6) {
     errors.push("Password must be at least 6 characters long.");
+  }
+  if (status && !["ACTIVE", "INACTIVE", "SUSPENDED"].includes(String(status).toUpperCase())) {
+    errors.push("Status must be ACTIVE, INACTIVE, or SUSPENDED.");
   }
 
   if (errors.length > 0) {
@@ -199,14 +207,31 @@ function validateStaffUpdate(req, res, next) {
   if (password !== undefined && password !== "" && (typeof password !== "string" || password.length < 6)) {
     errors.push("Password must be at least 6 characters long.");
   }
-  if (status && !["ACTIVE", "SUSPENDED"].includes(String(status).toUpperCase())) {
-    errors.push("Status must be ACTIVE or SUSPENDED.");
+  if (status && !["ACTIVE", "INACTIVE", "SUSPENDED"].includes(String(status).toUpperCase())) {
+    errors.push("Status must be ACTIVE, INACTIVE, or SUSPENDED.");
   }
 
   if (errors.length > 0) {
     return res.status(400).json({ success: false, message: errors[0], errors });
   }
 
+  next();
+}
+
+function validatePasswordReset(req, res, next) {
+  const { password, confirmPassword } = req.body;
+  const errors = [];
+
+  if (!password || typeof password !== "string" || password.length < 6) {
+    errors.push("Password must be at least 6 characters long.");
+  }
+  if (confirmPassword !== undefined && password !== confirmPassword) {
+    errors.push("Passwords do not match.");
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ success: false, message: errors[0], errors });
+  }
   next();
 }
 
@@ -330,6 +355,7 @@ module.exports = {
   validateRejection,
   validateStaff,
   validateStaffUpdate,
+  validatePasswordReset,
   validateProduct,
   PRODUCT_CATEGORIES,
   validateWarehouse,

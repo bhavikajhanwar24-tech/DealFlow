@@ -160,82 +160,296 @@ async function getAdminStats() {
   };
 }
 
-async function getStaff() {
-  const result = await db.query(`
-    SELECT id, full_name, email, employee_id, department, role, status,
-           created_at, updated_at
+async function getStaff(queryFilters = {}) {
+  const { search, department, role, status } = queryFilters;
+  let queryText = `
+    SELECT id, full_name, email, phone, employee_id, department, designation, role, status,
+           last_login, created_at, updated_at
     FROM public.users
-    WHERE role != 'ADMIN' AND role != 'CUSTOMER'
-    ORDER BY created_at DESC
-  `);
+    WHERE role != 'CUSTOMER'
+  `;
+  const params = [];
+
+  if (search && String(search).trim()) {
+    params.push(`%${String(search).trim().toLowerCase()}%`);
+    queryText += ` AND (LOWER(full_name) LIKE $${params.length} OR LOWER(email) LIKE $${params.length} OR LOWER(COALESCE(employee_id, '')) LIKE $${params.length})`;
+  }
+
+  if (department && String(department).trim() && String(department).toUpperCase() !== "ALL") {
+    params.push(String(department).trim());
+    queryText += ` AND LOWER(department) = LOWER($${params.length})`;
+  }
+
+  if (role && String(role).trim() && String(role).toUpperCase() !== "ALL") {
+    params.push(String(role).trim().toUpperCase());
+    queryText += ` AND role = $${params.length}`;
+  }
+
+  if (status && String(status).trim() && String(status).toUpperCase() !== "ALL") {
+    params.push(String(status).trim().toUpperCase());
+    queryText += ` AND status = $${params.length}`;
+  }
+
+  queryText += ` ORDER BY created_at DESC`;
+  const result = await db.query(queryText, params);
   return result.rows;
 }
 
 async function createStaff(data, adminUserId, ipAddress) {
-  const { fullName, employeeId, email, password, department, role } = data;
+  const { fullName, employeeId, email, phone, designation, password, department, role, status } = data;
   const normalizedEmail = email.trim().toLowerCase();
   const normalizedEmployeeId = employeeId.trim().toUpperCase();
   const normalizedRole = role.toUpperCase();
-  const existing = await db.query(
-    "SELECT id FROM public.users WHERE email = $1 OR employee_id = $2",
-    [normalizedEmail, normalizedEmployeeId]
-  );
 
-  if (existing.rows.length > 0) {
-    const error = new Error("Email or Staff ID is already assigned.");
+  if (normalizedRole === "ADMIN") {
+    const error = new Error("Creating unrestricted administrator accounts through staff management is not permitted.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const existingEmail = await db.query(
+    "SELECT id FROM public.users WHERE email = $1",
+    [normalizedEmail]
+  );
+  if (existingEmail.rows.length > 0) {
+    const error = new Error("This email is already associated with an account.");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const existingEmp = await db.query(
+    "SELECT id FROM public.users WHERE employee_id = $1",
+    [normalizedEmployeeId]
+  );
+  if (existingEmp.rows.length > 0) {
+    const error = new Error("Employee ID is already registered to another staff member.");
     error.statusCode = 409;
     throw error;
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+  const accountStatus = (status || "ACTIVE").toUpperCase();
+
   const result = await db.query(`
     INSERT INTO public.users (
-      full_name, email, password_hash, employee_id, role, status, department,
+      full_name, email, phone, password_hash, employee_id, role, status, department, designation,
       approved_by, approved_at
-    ) VALUES ($1, $2, $3, $4, $5, 'ACTIVE', $6, $7, CURRENT_TIMESTAMP)
-    RETURNING id, full_name, email, employee_id, role, status, department, created_at
-  `, [fullName.trim(), normalizedEmail, passwordHash, normalizedEmployeeId, normalizedRole, department.trim(), adminUserId]);
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
+    RETURNING id, full_name, email, phone, employee_id, role, status, department, designation, created_at
+  `, [
+    fullName.trim(),
+    normalizedEmail,
+    phone?.trim() || null,
+    passwordHash,
+    normalizedEmployeeId,
+    normalizedRole,
+    accountStatus,
+    department.trim(),
+    designation?.trim() || null,
+    adminUserId
+  ]);
 
   const staff = result.rows[0];
   await db.query(
     `INSERT INTO public.audit_logs (user_id, action, details, ip_address)
      VALUES ($1, $2, $3, $4)`,
-    [adminUserId, "STAFF_CREATED", JSON.stringify({ targetUserId: staff.id, employeeId: staff.employee_id }), ipAddress || null]
+    [
+      adminUserId,
+      "STAFF_CREATED",
+      JSON.stringify({
+        targetUserId: staff.id,
+        employeeId: staff.employee_id,
+        email: staff.email,
+        name: staff.full_name,
+        role: staff.role,
+        department: staff.department
+      }),
+      ipAddress || null
+    ]
   );
   return staff;
 }
 
 async function updateStaff(userId, data, adminUserId, ipAddress) {
-  const { fullName, employeeId, email, password, department, role, status } = data;
-  const normalizedEmail = email.trim().toLowerCase();
-  const normalizedEmployeeId = employeeId.trim().toUpperCase();
-  const existing = await db.query(
-    `SELECT id FROM public.users
-     WHERE (email = $1 OR employee_id = $2) AND id != $3`,
-    [normalizedEmail, normalizedEmployeeId, userId]
+  const existingUser = await db.query(
+    "SELECT id, full_name, email, phone, employee_id, role, department, designation, status FROM public.users WHERE id = $1",
+    [userId]
   );
-
-  if (existing.rows.length > 0) {
-    const error = new Error("Email or Staff ID is already assigned.");
-    error.statusCode = 409;
+  if (existingUser.rows.length === 0) {
+    const error = new Error("Staff member not found.");
+    error.statusCode = 404;
     throw error;
   }
 
-  const values = [fullName.trim(), normalizedEmail, normalizedEmployeeId, role.toUpperCase(), department.trim(), (status || "ACTIVE").toUpperCase(), userId];
-  let query = `UPDATE public.users
-               SET full_name = $1, email = $2, employee_id = $3, role = $4,
-                   department = $5, status = $6, updated_at = CURRENT_TIMESTAMP`;
-  if (password) {
-    values.splice(6, 0, await bcrypt.hash(password, 10));
-    query += ", password_hash = $7 WHERE id = $8";
-  } else {
-    query += " WHERE id = $7";
+  const current = existingUser.rows[0];
+  const fullName = data.fullName !== undefined ? data.fullName.trim() : current.full_name;
+  const normalizedEmail = data.email !== undefined ? data.email.trim().toLowerCase() : current.email;
+  const normalizedEmployeeId = data.employeeId !== undefined ? data.employeeId.trim().toUpperCase() : current.employee_id;
+  const phone = data.phone !== undefined ? (data.phone ? data.phone.trim() : null) : current.phone;
+  const designation = data.designation !== undefined ? (data.designation ? data.designation.trim() : null) : current.designation;
+  const department = data.department !== undefined ? data.department.trim() : current.department;
+  const normalizedRole = data.role !== undefined ? data.role.toUpperCase() : current.role;
+  const accountStatus = data.status !== undefined ? data.status.toUpperCase() : current.status;
+
+  if (normalizedRole === "ADMIN") {
+    const error = new Error("Elevating staff accounts to unrestricted administrator is not permitted.");
+    error.statusCode = 403;
+    throw error;
   }
-  query += `
-    AND role != 'ADMIN' AND role != 'CUSTOMER'
-    RETURNING id, full_name, email, employee_id, role, status, department, created_at, updated_at`;
+
+  if (normalizedEmail !== current.email) {
+    const existingEmail = await db.query(
+      `SELECT id FROM public.users WHERE email = $1 AND id != $2`,
+      [normalizedEmail, userId]
+    );
+    if (existingEmail.rows.length > 0) {
+      const error = new Error("This email is already associated with an account.");
+      error.statusCode = 409;
+      throw error;
+    }
+  }
+
+  if (normalizedEmployeeId && normalizedEmployeeId !== current.employee_id) {
+    const existingEmp = await db.query(
+      `SELECT id FROM public.users WHERE employee_id = $1 AND id != $2`,
+      [normalizedEmployeeId, userId]
+    );
+    if (existingEmp.rows.length > 0) {
+      const error = new Error("Employee ID is already registered to another staff member.");
+      error.statusCode = 409;
+      throw error;
+    }
+  }
+
+  const oldRole = current.role;
+
+  let query = `
+    UPDATE public.users
+    SET full_name = $1, email = $2, phone = $3, employee_id = $4, role = $5,
+        department = $6, designation = $7, status = $8, updated_at = CURRENT_TIMESTAMP
+  `;
+  const values = [
+    fullName,
+    normalizedEmail,
+    phone,
+    normalizedEmployeeId,
+    normalizedRole,
+    department,
+    designation,
+    accountStatus
+  ];
+
+  if (data.password) {
+    values.push(await bcrypt.hash(data.password, 10));
+    query += `, password_hash = $${values.length}`;
+  }
+
+  values.push(userId);
+  query += ` WHERE id = $${values.length} RETURNING id, full_name, email, phone, employee_id, role, status, department, designation, last_login, created_at, updated_at`;
 
   const result = await db.query(query, values);
+  const staff = result.rows[0];
+
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address)
+     VALUES ($1, $2, $3, $4)`,
+    [
+      adminUserId,
+      "STAFF_UPDATED",
+      JSON.stringify({
+        targetUserId: staff.id,
+        employeeId: staff.employee_id,
+        email: staff.email,
+        name: staff.full_name,
+        role: staff.role,
+        department: staff.department,
+        status: staff.status
+      }),
+      ipAddress || null
+    ]
+  );
+
+  if (oldRole !== staff.role) {
+    await db.query(
+      `INSERT INTO public.audit_logs (user_id, action, details, ip_address)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        adminUserId,
+        "STAFF_ROLE_CHANGED",
+        JSON.stringify({
+          targetUserId: staff.id,
+          employeeId: staff.employee_id,
+          previousRole: oldRole,
+          newRole: staff.role
+        }),
+        ipAddress || null
+      ]
+    );
+  }
+
+  return staff;
+}
+
+async function toggleStaffStatus(userId, status, adminUserId, ipAddress) {
+  const targetStatus = String(status).toUpperCase();
+  if (!["ACTIVE", "INACTIVE", "SUSPENDED"].includes(targetStatus)) {
+    const error = new Error("Status must be ACTIVE or INACTIVE.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const result = await db.query(
+    `UPDATE public.users
+     SET status = $1, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $2
+     RETURNING id, full_name, email, employee_id, role, status, department, designation`,
+    [targetStatus, userId]
+  );
+
+  if (result.rows.length === 0) {
+    const error = new Error("Staff member not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const staff = result.rows[0];
+  const actionName = targetStatus === "ACTIVE" ? "STAFF_ACTIVATED" : "STAFF_DEACTIVATED";
+
+  await db.query(
+    `INSERT INTO public.audit_logs (user_id, action, details, ip_address)
+     VALUES ($1, $2, $3, $4)`,
+    [
+      adminUserId,
+      actionName,
+      JSON.stringify({
+        targetUserId: staff.id,
+        employeeId: staff.employee_id,
+        name: staff.full_name,
+        status: targetStatus
+      }),
+      ipAddress || null
+    ]
+  );
+
+  return staff;
+}
+
+async function resetStaffPassword(userId, newPassword, adminUserId, ipAddress) {
+  if (!newPassword || newPassword.length < 6) {
+    const error = new Error("Password must be at least 6 characters long.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  const result = await db.query(
+    `UPDATE public.users
+     SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $2
+     RETURNING id, full_name, email, employee_id, role, status`,
+    [passwordHash, userId]
+  );
+
   if (result.rows.length === 0) {
     const error = new Error("Staff member not found.");
     error.statusCode = 404;
@@ -246,8 +460,18 @@ async function updateStaff(userId, data, adminUserId, ipAddress) {
   await db.query(
     `INSERT INTO public.audit_logs (user_id, action, details, ip_address)
      VALUES ($1, $2, $3, $4)`,
-    [adminUserId, "STAFF_UPDATED", JSON.stringify({ targetUserId: staff.id, employeeId: staff.employee_id }), ipAddress || null]
+    [
+      adminUserId,
+      "STAFF_PASSWORD_RESET",
+      JSON.stringify({
+        targetUserId: staff.id,
+        employeeId: staff.employee_id,
+        email: staff.email
+      }),
+      ipAddress || null
+    ]
   );
+
   return staff;
 }
 
@@ -676,6 +900,8 @@ module.exports = {
   getStaff,
   createStaff,
   updateStaff,
+  toggleStaffStatus,
+  resetStaffPassword,
   getProducts,
   createProduct,
   updateProduct,

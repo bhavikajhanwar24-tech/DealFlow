@@ -63,6 +63,9 @@ async function initDatabase() {
     `);
 
     await client.query(`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS customer_tier VARCHAR(50)`);
+    await client.query(`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`);
+    await client.query(`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS designation VARCHAR(100)`);
+    await client.query(`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS last_login TIMESTAMPTZ`);
 
     // Create audit_logs table
     await client.query(`

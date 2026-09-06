@@ -9,25 +9,25 @@
   --primary-subtle: #dbeafe;
   --accent-cyan: #06b6d4;
   --accent-indigo: #4f46e5;
-  
+
   --bg-main: #f8fafc;
   --bg-card: #ffffff;
   --bg-card-alt: #f1f5f9;
-  
+
   --text-main: #0f172a;
   --text-muted: #64748b;
   --text-subtle: #94a3b8;
-  
+
   --border-light: #e2e8f0;
   --border-focus: #3b82f6;
-  
+
   --success: #10b981;
   --success-light: #ecfdf5;
   --warning: #f59e0b;
   --warning-light: #fffbeb;
   --danger: #ef4444;
   --danger-light: #fef2f2;
-  
+
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 10px 25px -3px rgba(37, 99, 235, 0.08), 0 4px 10px -4px rgba(0, 0, 0, 0.04);
@@ -42,9 +42,15 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
+
 .spin-animation {
   display: block;
   animation: spin 1s linear infinite;
@@ -64,6 +70,7 @@ body {
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
 }
+
 /* ==========================================================================
    DealFlow360 Light SaaS Design System & Global Resets
    ========================================================================== */
@@ -75,41 +82,43 @@ body {
   --color-bg-tertiary: #f1f5f9;
   --color-bg-glass: rgba(255, 255, 255, 0.85);
   --color-bg-glass-card: rgba(255, 255, 255, 0.92);
-  
+
   --color-text-primary: #0f172a;
   --color-text-secondary: #475569;
   --color-text-muted: #64748b;
   --color-text-light: #94a3b8;
-  
+
   --color-brand: #2563eb;
   --color-brand-hover: #1d4ed8;
   --color-brand-light: #eff6ff;
   --color-brand-border: #bfdbfe;
-  
+
   --color-accent: #6366f1;
   --color-accent-gradient: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
-  
+
   --color-border-subtle: rgba(226, 232, 240, 0.8);
   --color-border-strong: #cbd5e1;
-  
+
   /* Fonts */
   --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  
+
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
   --shadow-xl: 0 20px 50px -12px rgba(0, 0, 0, 0.12), 0 10px 15px -8px rgba(0, 0, 0, 0.06);
   --shadow-video: 0 25px 60px -15px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(226, 232, 240, 0.8);
-  
+
   /* Transitions */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-smooth: 400ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -124,19 +133,28 @@ html {
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
   scroll-padding-top: var(--topbar-height, 4rem);
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
 body {
   min-height: 100vh;
   overflow-x: hidden;
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
 /* Typography elements */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-heading);
   color: var(--color-text-primary);
   font-weight: 700;
@@ -161,7 +179,9 @@ button {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-input, select, textarea {
+input,
+select,
+textarea {
   font-family: inherit;
   font-size: 0.9375rem;
 }
@@ -191,8 +211,15 @@ a {
 }
 
 @keyframes floatSlow {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 /* Badges positioning */
@@ -201,21 +228,25 @@ a {
   left: 14%;
   animation-delay: 0s;
 }
+
 .badge-quotes {
   top: 22%;
   left: 8%;
   animation-delay: 1.5s;
 }
+
 .badge-fulfillment {
   top: 14%;
   right: 14%;
   animation-delay: 1s;
 }
+
 .badge-billing {
   top: 36%;
   right: 8%;
   animation-delay: 2.5s;
 }
+
 .badge-insights {
   bottom: 12%;
   right: 18%;
@@ -389,7 +420,8 @@ a {
   align-items: center;
 }
 
-.form-input, .form-select {
+.form-input,
+.form-select {
   width: 100%;
   padding: 0.6875rem 0.875rem 0.6875rem 2.5rem;
   border: 1.5px solid var(--border-light);
@@ -400,11 +432,13 @@ a {
   transition: all 0.2s ease;
 }
 
-.form-input.no-icon, .form-select.no-icon {
+.form-input.no-icon,
+.form-select.no-icon {
   padding-left: 0.875rem;
 }
 
-.form-input:focus, .form-select:focus {
+.form-input:focus,
+.form-select:focus {
   outline: none;
   border-color: var(--border-focus);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
@@ -416,6 +450,7 @@ input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none !important;
   margin: 0 !important;
 }
+
 input[type="number"] {
   -moz-appearance: textfield !important;
   appearance: textfield !important;
@@ -789,6 +824,7 @@ input[type="number"] {
     opacity: 0;
     transform: translateY(-8px) scale(0.97);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -868,6 +904,7 @@ input[type="number"] {
   .more-mega-menu {
     width: 560px;
   }
+
   .mega-menu-grid {
     grid-template-columns: 1fr 1fr !important;
   }
@@ -878,6 +915,7 @@ input[type="number"] {
     right: 0 !important;
     width: 320px;
   }
+
   .mega-menu-grid {
     grid-template-columns: 1fr !important;
   }
@@ -989,16 +1027,55 @@ input[type="number"] {
   margin-top: 0.1rem;
 }
 
-.mega-item-icon.blue { background: #dbeafe; color: #2563eb; }
-.mega-item-icon.emerald { background: #d1fae5; color: #059669; }
-.mega-item-icon.amber { background: #fef3c7; color: #d97706; }
-.mega-item-icon.green { background: #dcfce7; color: #16a34a; }
-.mega-item-icon.orange { background: #ffedd5; color: #ea580c; }
-.mega-item-icon.indigo { background: #e0e7ff; color: #4f46e5; }
-.mega-item-icon.purple { background: #f3e8ff; color: #9333ea; }
-.mega-item-icon.cyan { background: #cffafe; color: #0891b2; }
-.mega-item-icon.slate { background: #f1f5f9; color: #475569; }
-.mega-item-icon.rose { background: #ffe4e6; color: #e11d48; }
+.mega-item-icon.blue {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.mega-item-icon.emerald {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.mega-item-icon.amber {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.mega-item-icon.green {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.mega-item-icon.orange {
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+.mega-item-icon.indigo {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+.mega-item-icon.purple {
+  background: #f3e8ff;
+  color: #9333ea;
+}
+
+.mega-item-icon.cyan {
+  background: #cffafe;
+  color: #0891b2;
+}
+
+.mega-item-icon.slate {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.mega-item-icon.rose {
+  background: #ffe4e6;
+  color: #e11d48;
+}
 
 .mega-item-body {
   flex: 1;
@@ -1188,7 +1265,7 @@ input[type="number"] {
   align-self: start;
 }
 
-.split-panel-sidebar > :not(.split-panel-sidebar-scroll) {
+.split-panel-sidebar> :not(.split-panel-sidebar-scroll) {
   flex-shrink: 0;
 }
 
@@ -1439,7 +1516,7 @@ input[type="number"] {
 }
 
 .admin-action-card strong,
-.admin-action-card > span:last-child {
+.admin-action-card>span:last-child {
   display: block;
 }
 
@@ -1449,7 +1526,7 @@ input[type="number"] {
   font-size: 1.15rem;
 }
 
-.admin-action-card > span:last-child {
+.admin-action-card>span:last-child {
   color: var(--text-muted);
   font-size: 0.86rem;
   line-height: 1.5;
@@ -1820,7 +1897,7 @@ input[type="number"] {
   overflow: hidden;
 }
 
-.discount-policy-panel .panel-heading-spread > div:first-child {
+.discount-policy-panel .panel-heading-spread>div:first-child {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
@@ -1967,6 +2044,7 @@ input[type="number"] {
 }
 
 @media (max-width: 850px) {
+
   .governance-filters,
   .governance-form .form-row {
     grid-template-columns: 1fr;
@@ -2292,9 +2370,11 @@ section:has(> table) {
     max-height: none !important;
     min-height: calc(100vh - 160px) !important;
   }
+
   .quotation-messages-sidebar.has-selected {
     display: none !important;
   }
+
   .quotation-messages-sidebar:not(.has-selected) {
     width: 100% !important;
     min-width: 100% !important;
@@ -2302,14 +2382,17 @@ section:has(> table) {
     min-height: 520px !important;
     border-right: none !important;
   }
+
   .quotation-messages-chat-pane.is-selected {
     display: flex !important;
     width: 100% !important;
     min-height: 560px !important;
   }
+
   .quotation-messages-chat-pane:not(.is-selected) {
     display: none !important;
   }
+
   .mobile-back-to-convs-btn {
     display: inline-flex !important;
   }
@@ -2317,6 +2400,7 @@ section:has(> table) {
 
 /* Tablet & Large Mobile (<= 1024px) */
 @media (max-width: 1024px) {
+
   .main-content,
   .admin-page,
   .customer-portal,
@@ -2328,6 +2412,7 @@ section:has(> table) {
     width: 580px !important;
     max-width: calc(100vw - 2rem) !important;
   }
+
   .mega-menu-grid {
     grid-template-columns: 1fr 1fr !important;
   }
@@ -2339,13 +2424,23 @@ section:has(> table) {
 }
 
 @keyframes fadeInBackdrop {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideInDrawer {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
 }
 
 /* Mobile Nav Drawer Styles */
@@ -2504,6 +2599,7 @@ section:has(> table) {
 
 /* Standard Mobile Devices (<= 768px) */
 @media (max-width: 768px) {
+
   .main-content,
   .admin-page,
   .customer-portal,
@@ -2720,9 +2816,9 @@ section:has(> table) {
     padding: 0.65rem !important;
   }
 
-  div[style*="position: fixed"] > div[style*="background: #fff"],
-  div[style*="position: fixed"] > div[style*="background: white"],
-  div[style*="position: fixed"] > div[style*="background: rgb(255"] {
+  div[style*="position: fixed"]>div[style*="background: #fff"],
+  div[style*="position: fixed"]>div[style*="background: white"],
+  div[style*="position: fixed"]>div[style*="background: rgb(255"] {
     max-width: min(96vw, 680px) !important;
     max-height: 92vh !important;
     overflow-y: auto !important;
@@ -2733,6 +2829,7 @@ section:has(> table) {
 
 /* Small Mobile Devices (<= 480px) */
 @media (max-width: 480px) {
+
   .main-content,
   .admin-page,
   .customer-portal,
@@ -2857,16 +2954,20 @@ section:has(> table) {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
 }
+
 .chat-custom-scroll::-webkit-scrollbar {
   width: 6px;
 }
+
 .chat-custom-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .chat-custom-scroll::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 9999px;
 }
+
 .chat-custom-scroll::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
@@ -2877,7 +2978,7 @@ section:has(> table) {
    --------------------------------------------------------- */
 /* All direct section children of the main content on dashboard pages */
 /* All direct section children of the main content on dashboard pages */
-.main-content > section {
+.main-content>section {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -2886,8 +2987,8 @@ section:has(> table) {
 }
 
 /* Extra override for .sales-bg-active sections – ensure transparency */
-.sales-bg-active .main-content > section,
-.sales-bg-active > section {
+.sales-bg-active .main-content>section,
+.sales-bg-active>section {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -2910,8 +3011,8 @@ section:has(> table) {
 /* =========================================================
    Extra override for .sales-bg-active sections – ensure transparency
    --------------------------------------------------------- */
-.sales-bg-active .main-content > section,
-.sales-bg-active > section {
+.sales-bg-active .main-content>section,
+.sales-bg-active>section {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -2919,7 +3020,7 @@ section:has(> table) {
   -webkit-backdrop-filter: none !important;
 }
 
-/* Ensure admin page generic div backgrounds are transparent */
+/* Ensure admin page generic div backgrounds are transparent
 .admin-page div {
   background: transparent;
-}
+} */

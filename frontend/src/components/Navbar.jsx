@@ -433,6 +433,12 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               <PackageIcon size={16} /> Products
             </button>
             <button
+              className={`nav-link-btn ${currentRoute === "/admin/staff" ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/admin/staff")}
+            >
+              <BriefcaseIcon size={16} /> Staff & Team
+            </button>
+            <button
               className={`nav-link-btn ${currentRoute.startsWith("/sales/quotations") ? "active" : ""}`}
               onClick={() => setCurrentRoute("/sales/quotations")}
             >
@@ -917,6 +923,12 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
                     onClick={() => { setCurrentRoute("/admin/products"); setIsMobileDrawerOpen(false); }}
                   >
                     <PackageIcon size={18} /> <span>Products & Catalog</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item ${currentRoute === "/admin/staff" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/admin/staff"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <BriefcaseIcon size={18} /> <span>Staff & Team Credentials</span>
                   </button>
                   <button
                     className={`mobile-nav-item ${currentRoute.startsWith("/sales/quotations") ? "active" : ""}`}

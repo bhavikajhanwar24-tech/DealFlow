@@ -24,80 +24,9 @@ function sanitizeUser(user) {
 }
 
 async function registerEmployee(data, ipAddress) {
-  const {
-    fullName,
-    employeeId,
-    email,
-    password,
-    department,
-    requestedRole
-  } = data;
-
-  const normalizedEmail = email.trim().toLowerCase();
-  const normalizedEmpId = employeeId.trim().toUpperCase();
-
-  // Check email collision
-  const existingEmail = await db.query(
-    "SELECT id, status FROM public.users WHERE email = $1",
-    [normalizedEmail]
-  );
-  if (existingEmail.rows.length > 0) {
-    const error = new Error("Email is already registered.");
-    error.statusCode = 409;
-    throw error;
-  }
-
-  // Check employee ID collision
-  const existingEmpId = await db.query(
-    "SELECT id FROM public.users WHERE employee_id = $1",
-    [normalizedEmpId]
-  );
-  if (existingEmpId.rows.length > 0) {
-    const error = new Error("Employee ID is already registered.");
-    error.statusCode = 409;
-    throw error;
-  }
-
-  const salt = await bcrypt.genSalt(10);
-  const passwordHash = await bcrypt.hash(password, salt);
-
-  const role = requestedRole.toUpperCase();
-  const status = "PENDING_APPROVAL";
-
-  const result = await db.query(
-    `INSERT INTO public.users (
-      full_name, email, password_hash, employee_id, role, status, department
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-    RETURNING id, full_name, email, employee_id, role, status, department, created_at`,
-    [
-      fullName.trim(),
-      normalizedEmail,
-      passwordHash,
-      normalizedEmpId,
-      role,
-      status,
-      department.trim()
-    ]
-  );
-
-  const createdUser = result.rows[0];
-
-  await db.query(
-    `INSERT INTO public.audit_logs (user_id, action, details, ip_address)
-     VALUES ($1, $2, $3, $4)`,
-    [
-      createdUser.id,
-      "EMPLOYEE_REGISTRATION_SUBMITTED",
-      JSON.stringify({
-        employeeId: normalizedEmpId,
-        department: createdUser.department,
-        requestedRole: role
-      }),
-      ipAddress || null
-    ]
-  );
-
-  return sanitizeUser(createdUser);
+  const error = new Error("Public staff registration is disabled. Staff accounts are created directly by the System Administrator.");
+  error.statusCode = 403;
+  throw error;
 }
 
 async function registerCustomer(data, ipAddress) {
@@ -159,8 +88,8 @@ async function loginUser(email, password, ipAddress) {
   const normalizedEmail = email.trim().toLowerCase();
 
   const result = await db.query(
-    `SELECT id, full_name, email, password_hash, employee_id, company_name,
-            role, status, department, created_at
+    `SELECT id, full_name, email, phone, designation, password_hash, employee_id, company_name,
+            role, status, department, last_login, created_at
      FROM public.users WHERE email = $1`,
     [normalizedEmail]
   );
@@ -195,19 +124,26 @@ async function loginUser(email, password, ipAddress) {
     throw error;
   }
 
-  if (user.status === "SUSPENDED") {
-    const error = new Error("Your account has been suspended. Please contact your administrator.");
-    error.statusCode = 403;
-    error.accountStatus = "SUSPENDED";
-    throw error;
-  }
-
-  if (user.status !== "ACTIVE") {
-    const error = new Error("Your account is inactive. Please contact support.");
+  if (user.status === "SUSPENDED" || user.status === "INACTIVE") {
+    const error = new Error("Your account has been deactivated. Please contact the administrator.");
     error.statusCode = 403;
     error.accountStatus = user.status;
     throw error;
   }
+
+  if (user.status !== "ACTIVE") {
+    const error = new Error("Your account is inactive. Please contact the administrator.");
+    error.statusCode = 403;
+    error.accountStatus = user.status;
+    throw error;
+  }
+
+  // Update last login timestamp
+  await db.query(
+    `UPDATE public.users SET last_login = CURRENT_TIMESTAMP WHERE id = $1`,
+    [user.id]
+  );
+  user.last_login = new Date();
 
   const token = generateToken(user);
 
