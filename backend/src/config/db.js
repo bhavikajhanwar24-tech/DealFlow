@@ -254,6 +254,12 @@ async function initDatabase() {
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE public.negotiation_requests ADD COLUMN IF NOT EXISTS removed_item_ids JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE public.negotiation_requests ADD COLUMN IF NOT EXISTS requested_items JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE public.negotiation_requests ADD COLUMN IF NOT EXISTS sales_rep_response TEXT;
+      ALTER TABLE public.negotiation_requests ADD COLUMN IF NOT EXISTS resolved_by UUID REFERENCES public.users(id);
+      ALTER TABLE public.negotiation_requests ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
     `);
 
     await client.query(`
@@ -602,6 +608,29 @@ async function initDatabase() {
         UPDATE public.warehouses SET city = 'Bengaluru', state = 'Karnataka' WHERE name ILIKE '%Bangalore%' AND city IS NULL;
       `);
     }
+
+    // Create staff_complaints table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.staff_complaints (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        customer_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+        staff_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+        quotation_id UUID REFERENCES public.quotations(id) ON DELETE SET NULL,
+        category VARCHAR(50) NOT NULL DEFAULT 'GENERAL',
+        subject VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        status VARCHAR(30) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ACTION_TAKEN', 'REJECTED')),
+        admin_notes TEXT,
+        resolved_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+        resolved_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_staff_complaints_customer ON public.staff_complaints(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_staff_complaints_staff ON public.staff_complaints(staff_id);
+      CREATE INDEX IF NOT EXISTS idx_staff_complaints_status ON public.staff_complaints(status);
+    `);
 
     // Seed default Admin if not exists
     const adminCheck = await client.query(

@@ -1,5 +1,29 @@
-import { useEffect, useRef, useState } from "react";
-import { Edit3, MapPin, Package, Plus, Search, Trash2, Warehouse as WarehouseIcon, X } from "lucide-react";
+import { useEffect, useRef, useState, useMemo, Fragment } from "react";
+import {
+  Edit3,
+  MapPin,
+  Package,
+  Plus,
+  Search,
+  Trash2,
+  Warehouse as WarehouseIcon,
+  X,
+  PieChart as PieChartIcon,
+  BarChart3,
+  TrendingUp,
+  Layers,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Filter,
+  Tag,
+  Boxes,
+  DollarSign,
+  Table as TableIcon,
+  LayoutGrid,
+  Check,
+  Sparkles,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
   Bar,
@@ -9,6 +33,8 @@ import {
   Legend,
   Line,
   LineChart,
+  Area,
+  AreaChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -26,7 +52,29 @@ const EMPTY_FORM = {
   longitude: "78.9629",
   isActive: true,
 };
-const CHART_COLORS = ["#2563eb", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+const CHART_COLORS = ["#2563eb", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+
+const CATEGORY_THEMES = {
+  HARDWARE: { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe", color: "#2563eb", bar: "linear-gradient(90deg, #2563eb, #3b82f6)" },
+  SERVICE: { bg: "#ecfdf5", text: "#047857", border: "#a7f3d0", color: "#10b981", bar: "linear-gradient(90deg, #10b981, #34d399)" },
+  SERVICES: { bg: "#ecfdf5", text: "#047857", border: "#a7f3d0", color: "#10b981", bar: "linear-gradient(90deg, #10b981, #34d399)" },
+  SOFTWARE: { bg: "#f5f3ff", text: "#6d28d9", border: "#ddd6fe", color: "#8b5cf6", bar: "linear-gradient(90deg, #8b5cf6, #a78bfa)" },
+  SUBSCRIPTION: { bg: "#fdf4ff", text: "#a21caf", border: "#f5d0fe", color: "#d946ef", bar: "linear-gradient(90deg, #d946ef, #e879f9)" },
+  ACCESSORIES: { bg: "#fffbeb", text: "#b45309", border: "#fde68a", color: "#f59e0b", bar: "linear-gradient(90deg, #f59e0b, #fbbf24)" },
+  CONSUMABLES: { bg: "#ecfeff", text: "#0e7490", border: "#a5f3fc", color: "#06b6d4", bar: "linear-gradient(90deg, #06b6d4, #22d3ee)" },
+  OTHER: { bg: "#f8fafc", text: "#334155", border: "#cbd5e1", color: "#64748b", bar: "linear-gradient(90deg, #64748b, #94a3b8)" },
+};
+
+const getCategoryTheme = (category = "") => {
+  const key = String(category || "").trim().toUpperCase();
+  return CATEGORY_THEMES[key] || {
+    bg: "#f8fafc",
+    text: "#475569",
+    border: "#cbd5e1",
+    color: "#64748b",
+    bar: "linear-gradient(90deg, #64748b, #94a3b8)",
+  };
+};
 
 function WarehouseMap({ position, onSelect }) {
   const containerRef = useRef(null);
@@ -39,7 +87,7 @@ function WarehouseMap({ position, onSelect }) {
 
     const map = L.map(containerRef.current).setView(position, 5);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; OpenStreetMap contributors',
+      attribution: "&copy; OpenStreetMap contributors",
     }).addTo(map);
 
     const warehouseIcon = new L.DivIcon({
@@ -99,6 +147,35 @@ export default function AdminWarehouses() {
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventorySaving, setInventorySaving] = useState(false);
   const [analytics, setAnalytics] = useState({ warehouses: [], products: [], warehouseMix: [] });
+
+  // UI state for Product Mix modal/section toggle & directory filter
+  const [showProductMix, setShowProductMix] = useState(false);
+  const [productMixMode, setProductMixMode] = useState("CATEGORY"); // "CATEGORY" | "WAREHOUSE"
+  const [mixLayoutMode, setMixLayoutMode] = useState("TABLE"); // "TABLE" | "GRID"
+  const [expandedCategory, setExpandedCategory] = useState(null); // category string or null
+  const [expandedMixWarehouse, setExpandedMixWarehouse] = useState(null); // warehouse id or null
+  const [showMixCharts, setShowMixCharts] = useState(false); // toggle visual charts
+  const [selectedMixWarehouseId, setSelectedMixWarehouseId] = useState("ALL");
+  const [directoryFilter, setDirectoryFilter] = useState("");
+  const [localMixMode, setLocalMixMode] = useState("CATEGORY"); // "CATEGORY" | "PRODUCT"
+  const [facilitySearchText, setFacilitySearchText] = useState("");
+  const [facilityDropdownOpen, setFacilityDropdownOpen] = useState(false);
+  const [categorySearchFilter, setCategorySearchFilter] = useState("");
+  const [warehouseModeSearch, setWarehouseModeSearch] = useState("");
+
+  const facilityDropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (facilityDropdownRef.current && !facilityDropdownRef.current.contains(e.target)) {
+        setFacilityDropdownOpen(false);
+      }
+    }
+    if (facilityDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [facilityDropdownOpen]);
 
   const latitude = Number(form.latitude);
   const longitude = Number(form.longitude);
@@ -312,64 +389,1602 @@ export default function AdminWarehouses() {
     }
   };
 
+  // Filter warehouses for the Directory list
+  const filteredDirectoryWarehouses = useMemo(() => {
+    if (!directoryFilter.trim()) return warehouses;
+    const q = directoryFilter.toLowerCase();
+    return warehouses.filter(
+      (w) =>
+        w.name?.toLowerCase().includes(q) ||
+        w.address?.toLowerCase().includes(q) ||
+        (w.is_active ? "active" : "inactive").includes(q)
+    );
+  }, [warehouses, directoryFilter]);
+
+  // Total inventory units across all products
+  const totalNetworkUnits = useMemo(() => {
+    return analytics.products.reduce((acc, p) => acc + Number(p.total_units || 0), 0);
+  }, [analytics.products]);
+
+  // Product-to-Category lookup map
+  const productCategoryMap = useMemo(() => {
+    const map = {};
+    for (const p of products) {
+      if (p.id) {
+        map[p.id] = (p.category || "HARDWARE").toUpperCase();
+      }
+    }
+    return map;
+  }, [products]);
+
+  // Aggregate Product Mix by Category (network-wide or filtered by selected warehouse)
+  const categoryMixData = useMemo(() => {
+    const mixRows = analytics.warehouseMix || [];
+    const filteredRows =
+      selectedMixWarehouseId === "ALL"
+        ? mixRows
+        : mixRows.filter((row) => row.warehouse_id === selectedMixWarehouseId);
+
+    const catMap = {};
+
+    for (const row of filteredRows) {
+      const catName = (
+        row.category ||
+        productCategoryMap[row.product_id] ||
+        "HARDWARE"
+      ).toUpperCase();
+      const units = Number(row.total_units || 0);
+      const prodMatch = products.find((p) => p.id === row.product_id);
+      const unitPrice = prodMatch ? Number(prodMatch.unitPrice || prodMatch.unit_price || 0) : 0;
+      const value = Number(row.inventory_value || 0) || units * unitPrice;
+
+      if (!catMap[catName]) {
+        catMap[catName] = {
+          category: catName,
+          total_units: 0,
+          inventory_value: 0,
+          products: {},
+          warehouses: {},
+        };
+      }
+
+      catMap[catName].total_units += units;
+      catMap[catName].inventory_value += value;
+
+      // Group products in this category
+      if (!catMap[catName].products[row.product_id]) {
+        catMap[catName].products[row.product_id] = {
+          id: row.product_id,
+          name: row.product_name,
+          sku: row.sku || (prodMatch ? prodMatch.sku : ""),
+          total_units: 0,
+          inventory_value: 0,
+        };
+      }
+      catMap[catName].products[row.product_id].total_units += units;
+      catMap[catName].products[row.product_id].inventory_value += value;
+
+      // Group warehouses holding this category
+      if (!catMap[catName].warehouses[row.warehouse_id]) {
+        catMap[catName].warehouses[row.warehouse_id] = {
+          id: row.warehouse_id,
+          name: row.warehouse_name,
+          total_units: 0,
+        };
+      }
+      catMap[catName].warehouses[row.warehouse_id].total_units += units;
+    }
+
+    const list = Object.values(catMap).map((cat) => ({
+      category: cat.category,
+      total_units: cat.total_units,
+      inventory_value: cat.inventory_value,
+      products: Object.values(cat.products).sort((a, b) => b.total_units - a.total_units),
+      warehouses: Object.values(cat.warehouses).sort((a, b) => b.total_units - a.total_units),
+    }));
+
+    return list.sort((a, b) => b.total_units - a.total_units);
+  }, [analytics.warehouseMix, selectedMixWarehouseId, productCategoryMap, products]);
+
+  const totalMixCategoryUnits = useMemo(() => {
+    return categoryMixData.reduce((acc, c) => acc + c.total_units, 0);
+  }, [categoryMixData]);
+
+  const totalMixCategoryValue = useMemo(() => {
+    return categoryMixData.reduce((acc, c) => acc + c.inventory_value, 0);
+  }, [categoryMixData]);
+
+  const leadingCategory = categoryMixData[0] || null;
+  const leadingCategoryPct =
+    totalMixCategoryUnits > 0 && leadingCategory
+      ? ((leadingCategory.total_units / totalMixCategoryUnits) * 100).toFixed(1)
+      : "0";
+
+  const filteredMixFacilities = useMemo(() => {
+    if (!facilitySearchText.trim()) return analytics.warehouses || [];
+    const q = facilitySearchText.toLowerCase().trim();
+    return (analytics.warehouses || []).filter(
+      (w) => w.name?.toLowerCase().includes(q) || w.address?.toLowerCase().includes(q)
+    );
+  }, [analytics.warehouses, facilitySearchText]);
+
+  const selectedFacilityObj = (analytics.warehouses || []).find((w) => w.id === selectedMixWarehouseId);
+  const selectedFacilityLabel = selectedMixWarehouseId === "ALL"
+    ? `All Facilities (${(analytics.warehouses || []).length})`
+    : selectedFacilityObj?.name || "Selected Facility";
+
+  const displayCategoryMixData = useMemo(() => {
+    if (!categorySearchFilter.trim()) return categoryMixData;
+    const q = categorySearchFilter.toLowerCase().trim();
+    return categoryMixData.filter(
+      (c) =>
+        c.category?.toLowerCase().includes(q) ||
+        c.products?.some((p) => p.name?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q))
+    );
+  }, [categoryMixData, categorySearchFilter]);
+
+  // Local warehouse category breakdown (for the selected warehouse in directory)
+  const localCategoryBreakdown = useMemo(() => {
+    const catMap = {};
+    for (const item of inventory) {
+      const cat = (item.category || productCategoryMap[item.productId || item.product_id] || "HARDWARE").toUpperCase();
+      const qty = Number(item.quantity || 0);
+      if (!catMap[cat]) {
+        catMap[cat] = {
+          name: cat,
+          quantity: 0,
+          sku_count: 0,
+          items: [],
+        };
+      }
+      catMap[cat].quantity += qty;
+      catMap[cat].sku_count += 1;
+      catMap[cat].items.push(item);
+    }
+    return Object.values(catMap).sort((a, b) => b.quantity - a.quantity);
+  }, [inventory, productCategoryMap]);
+
   return (
-    <main className="main-content admin-page">
-      <div className="page-heading-row">
+    <main className="main-content admin-page" style={{ paddingBottom: "3rem" }}>
+      <style>{`
+        .warehouse-analytics-grid {
+          display: grid;
+          grid-template-columns: 1.3fr 1fr 1fr;
+          gap: 1.25rem;
+          margin-bottom: 1.5rem;
+        }
+        @media (max-width: 1100px) {
+          .warehouse-analytics-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+        .warehouse-dir-scroll-wrap::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .warehouse-dir-scroll-wrap::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+      `}</style>
+
+      {/* Page Header with Action Button for Product Mix */}
+      <div className="page-heading-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem", marginBottom: "1.5rem" }}>
         <div>
           <p className="eyebrow">Operations master data</p>
-          <h1>Warehouses & locations</h1>
-          <p className="page-subtitle">Create warehouse locations, search their address, and place an exact map pin for fulfillment planning.</p>
+          <h1 style={{ fontSize: "1.75rem", fontWeight: 800, margin: "0.2rem 0" }}>Warehouses & Locations</h1>
+          <p className="page-subtitle">Configure fulfillment hubs, geocode facility addresses, inspect inventory density, and govern multi-warehouse route planning.</p>
         </div>
+
+        {/* Button to toggle Product Mix separate section */}
+        <button
+          type="button"
+          onClick={() => setShowProductMix((prev) => !prev)}
+          className={showProductMix ? "btn-primary" : "btn-secondary"}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.6rem 1.15rem",
+            fontWeight: 700,
+            fontSize: "0.85rem",
+            borderRadius: "9px",
+            cursor: "pointer",
+            boxShadow: showProductMix ? "0 4px 14px rgba(37, 99, 235, 0.28)" : "none",
+            height: "40px",
+          }}
+        >
+          <Tag size={16} />
+          <span>{showProductMix ? "Hide Product Mix" : "Product Mix by Category"}</span>
+          <span
+            style={{
+              background: showProductMix ? "rgba(255,255,255,0.25)" : "#eff6ff",
+              color: showProductMix ? "#ffffff" : "#2563eb",
+              padding: "0.15rem 0.5rem",
+              borderRadius: "9999px",
+              fontSize: "0.725rem",
+              fontWeight: 800,
+            }}
+          >
+            {categoryMixData.length} categories · {totalMixCategoryUnits.toLocaleString()} units
+          </span>
+        </button>
       </div>
 
-      {error && <div className="alert alert-danger">{error}</div>}
-      {success && <div className="alert alert-success">{success}</div>}
+      {error && <div className="alert alert-danger" style={{ borderRadius: "10px", marginBottom: "1.25rem" }}>{error}</div>}
+      {success && <div className="alert alert-success" style={{ borderRadius: "10px", marginBottom: "1.25rem" }}>{success}</div>}
 
+      {/* ------------------------------------------------------------------
+          SEPARATE SECTION: PRODUCT MIX BY CATEGORY & WAREHOUSE
+         ------------------------------------------------------------------ */}
+      {showProductMix && (
+        <section
+          className="admin-panel"
+          style={{
+            marginBottom: "1.75rem",
+            padding: "1.5rem",
+            background: "linear-gradient(180deg, #ffffff, #f8fafc)",
+            border: "1.5px solid #bfdbfe",
+            borderRadius: "14px",
+            boxShadow: "0 10px 25px -5px rgba(37, 99, 235, 0.08)",
+          }}
+        >
+          {/* Section Header with View Mode Switcher, Facility Filter, and Close */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "1.25rem",
+              borderBottom: "1px solid #e2e8f0",
+              paddingBottom: "1rem",
+              flexWrap: "wrap",
+              gap: "0.85rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              <div
+                style={{
+                  width: "38px",
+                  height: "38px",
+                  borderRadius: "10px",
+                  background: "linear-gradient(135deg, #dbeafe, #eff6ff)",
+                  border: "1px solid #bfdbfe",
+                  color: "#2563eb",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {productMixMode === "CATEGORY" ? <Tag size={20} /> : <WarehouseIcon size={20} />}
+              </div>
+              <div>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: 0, color: "#0f172a" }}>
+                  {productMixMode === "CATEGORY" ? "Product Mix by Category" : "Product Mix by Warehouse"}
+                </h2>
+                <p style={{ margin: "0.15rem 0 0 0", fontSize: "0.8rem", color: "#64748b" }}>
+                  {productMixMode === "CATEGORY"
+                    ? "Category volume breakdown, asset valuation, and SKU distribution segmented across your fulfillment network."
+                    : "Inspect SKU inventory volume, product breakdown, and stock concentration for each warehouse."}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+              {/* Mode Switcher Tabs: By Category vs By Warehouse */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: "0.2rem",
+                  background: "#e0f2fe",
+                  padding: "3px",
+                  borderRadius: "8px",
+                  border: "1px solid #bae6fd",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setProductMixMode("CATEGORY")}
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    fontSize: "0.775rem",
+                    fontWeight: 700,
+                    borderRadius: "6px",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                    background: productMixMode === "CATEGORY" ? "#2563eb" : "transparent",
+                    color: productMixMode === "CATEGORY" ? "#ffffff" : "#0284c7",
+                    boxShadow: productMixMode === "CATEGORY" ? "0 1px 3px rgba(37,99,235,0.3)" : "none",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <Tag size={13} /> Mix by Category
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProductMixMode("WAREHOUSE")}
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    fontSize: "0.775rem",
+                    fontWeight: 700,
+                    borderRadius: "6px",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                    background: productMixMode === "WAREHOUSE" ? "#2563eb" : "transparent",
+                    color: productMixMode === "WAREHOUSE" ? "#ffffff" : "#0284c7",
+                    boxShadow: productMixMode === "WAREHOUSE" ? "0 1px 3px rgba(37,99,235,0.3)" : "none",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <WarehouseIcon size={13} /> Mix by Warehouse
+                </button>
+              </div>
+
+              {/* Facility Filter Dropdown (Replaces overflowing button list) */}
+              {/* Facility Filter Searchable Dropdown */}
+              <div style={{ position: "relative" }} ref={facilityDropdownRef}>
+                <button
+                  type="button"
+                  id="mix-facility-trigger-btn"
+                  onClick={() => setFacilityDropdownOpen((prev) => !prev)}
+                  style={{
+                    height: "36px",
+                    fontSize: "0.785rem",
+                    fontWeight: 700,
+                    padding: "0 0.85rem",
+                    borderRadius: "8px",
+                    border: facilityDropdownOpen ? "1.5px solid #2563eb" : "1.5px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#0f172a",
+                    minWidth: "210px",
+                    maxWidth: "280px",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "0.5rem",
+                    boxShadow: facilityDropdownOpen ? "0 0 0 3px rgba(37, 99, 235, 0.12)" : "0 1px 2px rgba(0,0,0,0.05)",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <MapPin size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {selectedFacilityLabel}
+                    </span>
+                  </span>
+                  <ChevronDown size={14} color="#64748b" style={{ transform: facilityDropdownOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s ease", flexShrink: 0 }} />
+                </button>
+
+                {facilityDropdownOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 4px)",
+                      left: 0,
+                      zIndex: 100,
+                      width: "300px",
+                      background: "#ffffff",
+                      borderRadius: "10px",
+                      border: "1.5px solid #cbd5e1",
+                      boxShadow: "0 12px 30px -4px rgba(15, 23, 42, 0.18)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div style={{ padding: "0.5rem", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.4rem",
+                          background: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "6px",
+                          padding: "0.25rem 0.5rem",
+                        }}
+                      >
+                        <Search size={13} color="#94a3b8" />
+                        <input
+                          type="text"
+                          placeholder="Search facility name / city..."
+                          value={facilitySearchText}
+                          onChange={(e) => setFacilitySearchText(e.target.value)}
+                          autoFocus
+                          style={{
+                            border: "none",
+                            outline: "none",
+                            fontSize: "0.75rem",
+                            width: "100%",
+                            background: "transparent",
+                          }}
+                        />
+                        {facilitySearchText && (
+                          <button
+                            type="button"
+                            onClick={() => setFacilitySearchText("")}
+                            style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, display: "flex" }}
+                          >
+                            <X size={12} color="#94a3b8" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ maxHeight: "240px", overflowY: "auto", padding: "0.3rem" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMixWarehouseId("ALL");
+                          setFacilityDropdownOpen(false);
+                          setFacilitySearchText("");
+                        }}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "0.45rem 0.65rem",
+                          fontSize: "0.775rem",
+                          fontWeight: selectedMixWarehouseId === "ALL" ? 700 : 500,
+                          borderRadius: "6px",
+                          border: "none",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          background: selectedMixWarehouseId === "ALL" ? "#eff6ff" : "transparent",
+                          color: selectedMixWarehouseId === "ALL" ? "#2563eb" : "#1e293b",
+                          marginBottom: "2px",
+                        }}
+                      >
+                        <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                          <WarehouseIcon size={13} color={selectedMixWarehouseId === "ALL" ? "#2563eb" : "#64748b"} />
+                          All Facilities ({analytics.warehouses.length})
+                        </span>
+                        {selectedMixWarehouseId === "ALL" && <Check size={14} color="#2563eb" />}
+                      </button>
+
+                      {filteredMixFacilities.length === 0 ? (
+                        <div style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.75rem", color: "#94a3b8" }}>
+                          No matching facilities found
+                        </div>
+                      ) : (
+                        filteredMixFacilities.map((w) => {
+                          const isSelected = selectedMixWarehouseId === w.id;
+                          return (
+                            <button
+                              key={w.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedMixWarehouseId(w.id);
+                                setFacilityDropdownOpen(false);
+                                setFacilitySearchText("");
+                              }}
+                              style={{
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "0.45rem 0.65rem",
+                                fontSize: "0.775rem",
+                                fontWeight: isSelected ? 700 : 500,
+                                borderRadius: "6px",
+                                border: "none",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                background: isSelected ? "#eff6ff" : "transparent",
+                                color: isSelected ? "#2563eb" : "#1e293b",
+                                marginBottom: "2px",
+                              }}
+                            >
+                              <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: "0.5rem" }}>
+                                <div>{w.name}</div>
+                                {w.address && (
+                                  <div style={{ fontSize: "0.68rem", color: "#64748b", fontWeight: 400, overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {w.address}
+                                  </div>
+                                )}
+                              </div>
+                              {isSelected && <Check size={14} color="#2563eb" style={{ flexShrink: 0 }} />}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* View Orientation Switcher: Tabular vs Cards */}
+              <div
+                style={{
+                  display: "inline-flex",
+                  gap: "0.2rem",
+                  background: "#f1f5f9",
+                  padding: "3px",
+                  borderRadius: "7px",
+                  border: "1px solid #e2e8f0",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setMixLayoutMode("TABLE")}
+                  title="Tabular Data Table View"
+                  style={{
+                    padding: "0.3rem 0.65rem",
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.3rem",
+                    background: mixLayoutMode === "TABLE" ? "#ffffff" : "transparent",
+                    color: mixLayoutMode === "TABLE" ? "#2563eb" : "#64748b",
+                    boxShadow: mixLayoutMode === "TABLE" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                  }}
+                >
+                  <TableIcon size={13} /> Tabular
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMixLayoutMode("GRID")}
+                  title="Card Grid View"
+                  style={{
+                    padding: "0.3rem 0.65rem",
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.3rem",
+                    background: mixLayoutMode === "GRID" ? "#ffffff" : "transparent",
+                    color: mixLayoutMode === "GRID" ? "#2563eb" : "#64748b",
+                    boxShadow: mixLayoutMode === "GRID" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                  }}
+                >
+                  <LayoutGrid size={13} /> Cards
+                </button>
+              </div>
+
+              {/* Toggle Visual Charts */}
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowMixCharts((prev) => !prev)}
+                style={{
+                  padding: "0.35rem 0.7rem",
+                  fontSize: "0.775rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  height: "34px",
+                  background: showMixCharts ? "#eff6ff" : undefined,
+                  borderColor: showMixCharts ? "#bfdbfe" : undefined,
+                  color: showMixCharts ? "#2563eb" : undefined,
+                }}
+              >
+                <PieChartIcon size={14} /> {showMixCharts ? "Hide Visual Charts" : "Show Visual Charts"}
+              </button>
+
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowProductMix(false)}
+                style={{
+                  padding: "0.35rem 0.75rem",
+                  fontSize: "0.8rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.3rem",
+                  height: "34px",
+                }}
+              >
+                <X size={14} /> Close Section
+              </button>
+            </div>
+          </div>
+
+          {/* ================================================================
+              CATEGORY VIEW MODE
+             ================================================================ */}
+          {productMixMode === "CATEGORY" && (
+            <div>
+              {/* Category KPI Metric Cards */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gap: "0.85rem",
+                  marginBottom: "1.25rem",
+                }}
+              >
+                <div
+                  style={{
+                    background: "#ffffff",
+                    borderRadius: "10px",
+                    padding: "0.85rem 1.1rem",
+                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.3rem" }}>
+                    <span style={{ fontSize: "0.725rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+                      Active Categories
+                    </span>
+                    <div style={{ width: "24px", height: "24px", borderRadius: "6px", background: "#eff6ff", color: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Tag size={13} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "#0f172a" }}>
+                    {categoryMixData.length}
+                  </div>
+                  <span style={{ fontSize: "0.7rem", color: "#64748b" }}>
+                    {selectedMixWarehouseId === "ALL" ? `Across all ${analytics.warehouses.length} facilities` : "In selected facility"}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    background: "#ffffff",
+                    borderRadius: "10px",
+                    padding: "0.85rem 1.1rem",
+                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.3rem" }}>
+                    <span style={{ fontSize: "0.725rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+                      Categorized Stock
+                    </span>
+                    <div style={{ width: "24px", height: "24px", borderRadius: "6px", background: "#ecfeff", color: "#0891b2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Boxes size={13} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "#0f172a" }}>
+                    {totalMixCategoryUnits.toLocaleString()}
+                  </div>
+                  <span style={{ fontSize: "0.7rem", color: "#0891b2", fontWeight: 600 }}>
+                    Physical units on hand
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    background: "#ffffff",
+                    borderRadius: "10px",
+                    padding: "0.85rem 1.1rem",
+                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.3rem" }}>
+                    <span style={{ fontSize: "0.725rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+                      Total Valuation
+                    </span>
+                    <div style={{ width: "24px", height: "24px", borderRadius: "6px", background: "#ecfdf5", color: "#059669", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <DollarSign size={13} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "#0f172a" }}>
+                    ₹{totalMixCategoryValue >= 100000 ? `${(totalMixCategoryValue / 100000).toFixed(2)}L` : totalMixCategoryValue.toLocaleString("en-IN")}
+                  </div>
+                  <span style={{ fontSize: "0.7rem", color: "#059669", fontWeight: 600 }}>
+                    Calculated at unit price
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    background: "#ffffff",
+                    borderRadius: "10px",
+                    padding: "0.85rem 1.1rem",
+                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.3rem" }}>
+                    <span style={{ fontSize: "0.725rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+                      Leading Category
+                    </span>
+                    <div style={{ width: "24px", height: "24px", borderRadius: "6px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <TrendingUp size={13} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#0f172a", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
+                    {leadingCategory ? leadingCategory.category : "N/A"}
+                  </div>
+                  <span style={{ fontSize: "0.7rem", color: "#7c3aed", fontWeight: 600 }}>
+                    {leadingCategoryPct}% volume share
+                  </span>
+                </div>
+              </div>
+
+              {/* Optional Visual Charts (Toggled via button) */}
+              {showMixCharts && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                    gap: "1.25rem",
+                    marginBottom: "1.25rem",
+                  }}
+                >
+                  <div style={{ background: "#ffffff", borderRadius: "10px", padding: "1.25rem", border: "1px solid #e2e8f0" }}>
+                    <h4 style={{ fontSize: "0.9rem", fontWeight: 800, margin: "0 0 0.5rem 0" }}>Volume Share by Category</h4>
+                    <div style={{ width: "100%", height: "220px" }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={categoryMixData}
+                            dataKey="total_units"
+                            nameKey="category"
+                            innerRadius={50}
+                            outerRadius={80}
+                            paddingAngle={3}
+                          >
+                            {categoryMixData.map((item) => (
+                              <Cell key={item.category} fill={getCategoryTheme(item.category).color} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(val, name) => [`${Number(val).toLocaleString()} units`, name]} />
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div style={{ background: "#ffffff", borderRadius: "10px", padding: "1.25rem", border: "1px solid #e2e8f0" }}>
+                    <h4 style={{ fontSize: "0.9rem", fontWeight: 800, margin: "0 0 0.5rem 0" }}>Inventory Value by Category</h4>
+                    <div style={{ width: "100%", height: "220px" }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={categoryMixData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                          <XAxis dataKey="category" tick={{ fontSize: 10, fill: "#475569" }} />
+                          <YAxis tick={{ fontSize: 10, fill: "#475569" }} tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}K`} />
+                          <Tooltip formatter={(val) => [`₹${Number(val).toLocaleString("en-IN")}`, "Inventory Value"]} />
+                          <Bar dataKey="inventory_value" radius={[6, 6, 0, 0]}>
+                            {categoryMixData.map((item) => (
+                              <Cell key={item.category} fill={getCategoryTheme(item.category).color} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Filter & Summary bar */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  marginBottom: "0.85rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.45rem",
+                    background: "#ffffff",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "8px",
+                    padding: "0.35rem 0.75rem",
+                    width: "280px",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <Search size={14} color="#64748b" />
+                  <input
+                    type="text"
+                    placeholder="Filter category or product SKU..."
+                    value={categorySearchFilter}
+                    onChange={(e) => setCategorySearchFilter(e.target.value)}
+                    style={{
+                      border: "none",
+                      outline: "none",
+                      fontSize: "0.775rem",
+                      width: "100%",
+                      background: "transparent",
+                    }}
+                  />
+                  {categorySearchFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setCategorySearchFilter("")}
+                      style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, display: "flex" }}
+                    >
+                      <X size={12} color="#94a3b8" />
+                    </button>
+                  )}
+                </div>
+
+                <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                  Showing <strong>{displayCategoryMixData.length}</strong> of <strong>{categoryMixData.length}</strong> categories
+                </span>
+              </div>
+
+              {/* TABULAR LAYOUT FOR CATEGORIES */}
+              {mixLayoutMode === "TABLE" ? (
+                <div
+                  style={{
+                    background: "#ffffff",
+                    borderRadius: "10px",
+                    border: "1.5px solid #e2e8f0",
+                    overflow: "hidden",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <div style={{ maxHeight: "460px", overflowY: "auto", overflowX: "auto" }}>
+                    <table className="data-table" style={{ margin: 0, width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+                      <thead
+                        style={{
+                          position: "sticky",
+                          top: 0,
+                          zIndex: 5,
+                          background: "#f8fafc",
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+                        }}
+                      >
+                        <tr>
+                          <th style={{ width: "38px", padding: "10px 8px", textAlign: "center" }}></th>
+                          <th style={{ padding: "10px 14px" }}>Product Category</th>
+                          <th style={{ padding: "10px 14px", textAlign: "center" }}>SKUs</th>
+                          <th style={{ padding: "10px 14px", textAlign: "right" }}>Physical Units</th>
+                          <th style={{ padding: "10px 14px", minWidth: "160px" }}>Volume Share</th>
+                          <th style={{ padding: "10px 14px", textAlign: "right" }}>Total Valuation</th>
+                          <th style={{ padding: "10px 14px" }}>Stocked Facilities</th>
+                          <th style={{ padding: "10px 14px", minWidth: "220px" }}>Top SKUs Preview</th>
+                          <th style={{ padding: "10px 14px", textAlign: "center" }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayCategoryMixData.length === 0 ? (
+                          <tr>
+                            <td colSpan="9" className="empty-state" style={{ padding: "3rem" }}>
+                              No product categories found matching your filter criteria.
+                            </td>
+                          </tr>
+                        ) : (
+                          displayCategoryMixData.map((catItem) => {
+                            const isExpanded = expandedCategory === catItem.category;
+                            const theme = getCategoryTheme(catItem.category);
+                            const catShare = totalMixCategoryUnits > 0
+                              ? ((catItem.total_units / totalMixCategoryUnits) * 100).toFixed(1)
+                              : "0";
+
+                            return (
+                              <Fragment key={catItem.category}>
+                                <tr
+                                  onClick={() => setExpandedCategory(isExpanded ? null : catItem.category)}
+                                  style={{
+                                    cursor: "pointer",
+                                    background: isExpanded ? "rgba(37, 99, 235, 0.05)" : undefined,
+                                    borderLeft: isExpanded ? `4px solid ${theme.color}` : "4px solid transparent",
+                                    transition: "background 0.15s ease",
+                                  }}
+                                >
+                                  <td style={{ textAlign: "center", padding: "10px 8px", color: "#64748b" }}>
+                                    {isExpanded ? <ChevronUp size={16} color="#2563eb" /> : <ChevronDown size={16} />}
+                                  </td>
+                                  <td style={{ padding: "10px 14px" }}>
+                                    <span
+                                      style={{
+                                        background: theme.bg,
+                                        color: theme.text,
+                                        border: `1px solid ${theme.border}`,
+                                        padding: "0.25rem 0.65rem",
+                                        borderRadius: "6px",
+                                        fontSize: "0.8rem",
+                                        fontWeight: 800,
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "0.35rem",
+                                      }}
+                                    >
+                                      <Tag size={12} /> {catItem.category}
+                                    </span>
+                                  </td>
+                                  <td style={{ textAlign: "center", padding: "10px 14px" }}>
+                                    <span className="badge badge-neutral" style={{ fontSize: "0.75rem", fontWeight: 700 }}>
+                                      {catItem.products.length} SKUs
+                                    </span>
+                                  </td>
+                                  <td style={{ textAlign: "right", padding: "10px 14px" }}>
+                                    <strong style={{ fontSize: "0.95rem", color: "#0f172a" }}>
+                                      {catItem.total_units.toLocaleString()}
+                                    </strong>{" "}
+                                    <span style={{ fontSize: "0.75rem", color: "#64748b" }}>units</span>
+                                  </td>
+                                  <td style={{ padding: "10px 14px" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                      <div style={{ flex: 1, height: "6px", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
+                                        <div style={{ height: "100%", width: `${catShare}%`, background: theme.bar, borderRadius: "3px" }} />
+                                      </div>
+                                      <span style={{ fontSize: "0.775rem", fontWeight: 700, color: "#334155", minWidth: "42px" }}>
+                                        {catShare}%
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td style={{ textAlign: "right", padding: "10px 14px" }}>
+                                    <strong style={{ color: "#059669", fontSize: "0.95rem" }}>
+                                      ₹{catItem.inventory_value.toLocaleString("en-IN")}
+                                    </strong>
+                                  </td>
+                                  <td style={{ padding: "10px 14px" }}>
+                                    <span style={{ fontSize: "0.775rem", color: "#475569" }}>
+                                      📍 {catItem.warehouses.length} {catItem.warehouses.length === 1 ? "facility" : "facilities"}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: "10px 14px" }}>
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                                      {catItem.products.slice(0, 2).map((p) => (
+                                        <span
+                                          key={p.id}
+                                          style={{
+                                            fontSize: "0.725rem",
+                                            background: "#f8fafc",
+                                            border: "1px solid #e2e8f0",
+                                            borderRadius: "4px",
+                                            padding: "1px 6px",
+                                            color: "#334155",
+                                          }}
+                                        >
+                                          {p.name} ({p.total_units})
+                                        </span>
+                                      ))}
+                                      {catItem.products.length > 2 && (
+                                        <span style={{ fontSize: "0.7rem", color: "#64748b", alignSelf: "center" }}>
+                                          +{catItem.products.length - 2} more
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td style={{ textAlign: "center", padding: "10px 14px" }}>
+                                    <button
+                                      type="button"
+                                      className="btn-secondary"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedCategory(isExpanded ? null : catItem.category);
+                                      }}
+                                      style={{ fontSize: "0.75rem", padding: "0.25rem 0.6rem" }}
+                                    >
+                                      {isExpanded ? "Collapse" : "View SKUs"}
+                                    </button>
+                                  </td>
+                                </tr>
+
+                                {/* Expanded Sub-Table: All Products in this category */}
+                                {isExpanded && (
+                                  <tr style={{ background: "#f8fafc" }}>
+                                    <td colSpan="9" style={{ padding: "0.85rem 1.25rem", borderBottom: "2px solid #e2e8f0" }}>
+                                      <div
+                                        style={{
+                                          background: "#ffffff",
+                                          border: `1.5px solid ${theme.border}`,
+                                          borderRadius: "8px",
+                                          padding: "0.85rem 1rem",
+                                          boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                                        }}
+                                      >
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                                          <span style={{ fontSize: "0.825rem", fontWeight: 800, color: theme.text, display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                                            <Package size={14} /> Products in {catItem.category} ({catItem.products.length} catalog items)
+                                          </span>
+                                          <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                                            Category Total: <strong>{catItem.total_units.toLocaleString()} units</strong> · <strong>₹{catItem.inventory_value.toLocaleString("en-IN")}</strong>
+                                          </span>
+                                        </div>
+                                        <table className="data-table" style={{ margin: 0, width: "100%", fontSize: "0.8rem" }}>
+                                          <thead>
+                                            <tr style={{ background: "#f8fafc" }}>
+                                              <th style={{ padding: "7px 10px" }}>Product Name</th>
+                                              <th style={{ padding: "7px 10px" }}>SKU</th>
+                                              <th style={{ padding: "7px 10px", textAlign: "right" }}>Quantity</th>
+                                              <th style={{ padding: "7px 10px", textAlign: "right" }}>Total Value</th>
+                                              <th style={{ padding: "7px 10px", minWidth: "140px" }}>Category Share</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {catItem.products.map((prod) => {
+                                              const prodPct = catItem.total_units > 0
+                                                ? ((prod.total_units / catItem.total_units) * 100).toFixed(1)
+                                                : "0";
+                                              return (
+                                                <tr key={prod.id}>
+                                                  <td style={{ padding: "7px 10px" }}>
+                                                    <strong>{prod.name}</strong>
+                                                  </td>
+                                                  <td style={{ padding: "7px 10px" }}>
+                                                    <code>{prod.sku || "-"}</code>
+                                                  </td>
+                                                  <td style={{ padding: "7px 10px", textAlign: "right" }}>
+                                                    <strong>{prod.total_units.toLocaleString()}</strong> units
+                                                  </td>
+                                                  <td style={{ padding: "7px 10px", textAlign: "right", color: "#059669", fontWeight: 600 }}>
+                                                    ₹{prod.inventory_value ? prod.inventory_value.toLocaleString("en-IN") : "-"}
+                                                  </td>
+                                                  <td style={{ padding: "7px 10px" }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                                                      <div style={{ flex: 1, height: "5px", background: "#f1f5f9", borderRadius: "2px", overflow: "hidden" }}>
+                                                        <div style={{ height: "100%", width: `${prodPct}%`, background: theme.color, borderRadius: "2px" }} />
+                                                      </div>
+                                                      <span style={{ fontSize: "0.725rem", color: "#64748b", minWidth: "36px" }}>
+                                                        {prodPct}%
+                                                      </span>
+                                                    </div>
+                                                  </td>
+                                                </tr>
+                                              );
+                                            })}
+                                          </tbody>
+                                        </table>
+
+                                        {/* Warehouses holding this category */}
+                                        <div style={{ marginTop: "0.75rem", paddingTop: "0.5rem", borderTop: "1px solid #f1f5f9" }}>
+                                          <span style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+                                            Stocked Facilities:
+                                          </span>
+                                          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginTop: "0.3rem" }}>
+                                            {catItem.warehouses.map((wh) => (
+                                              <span
+                                                key={wh.id}
+                                                style={{
+                                                  fontSize: "0.725rem",
+                                                  padding: "2px 7px",
+                                                  background: "#f8fafc",
+                                                  border: "1px solid #e2e8f0",
+                                                  borderRadius: "5px",
+                                                  color: "#334155",
+                                                }}
+                                              >
+                                                📍 {wh.name}: <strong>{wh.total_units.toLocaleString()}</strong>
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                /* CARDS GRID VIEW FOR CATEGORIES */
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+                    gap: "1.25rem",
+                  }}
+                >
+                  {displayCategoryMixData.length === 0 ? (
+                    <p className="empty-state" style={{ padding: "3rem", gridColumn: "1 / -1" }}>
+                      No product categories found matching your search.
+                    </p>
+                  ) : (
+                    displayCategoryMixData.map((catItem) => {
+                      const theme = getCategoryTheme(catItem.category);
+                      const catShare = totalMixCategoryUnits > 0
+                        ? ((catItem.total_units / totalMixCategoryUnits) * 100).toFixed(1)
+                        : "0";
+
+                      return (
+                        <div
+                          key={catItem.category}
+                          style={{
+                            background: "#ffffff",
+                            border: `1.5px solid ${theme.border}`,
+                            borderRadius: "12px",
+                            padding: "1.25rem",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "space-between",
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.85rem", paddingBottom: "0.65rem", borderBottom: "1px solid #f1f5f9" }}>
+                              <span style={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.border}`, padding: "0.25rem 0.65rem", borderRadius: "7px", fontSize: "0.825rem", fontWeight: 800 }}>
+                                <Tag size={13} /> {catItem.category}
+                              </span>
+                              <span style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "0.2rem 0.5rem", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 700 }}>
+                                {catShare}% share
+                              </span>
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", background: "#f8fafc", padding: "0.65rem 0.85rem", borderRadius: "8px", marginBottom: "0.85rem" }}>
+                              <div>
+                                <span style={{ fontSize: "0.7rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700 }}>Physical Stock</span>
+                                <div style={{ fontSize: "1.1rem", fontWeight: 800 }}>{catItem.total_units.toLocaleString()} units</div>
+                              </div>
+                              <div>
+                                <span style={{ fontSize: "0.7rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700 }}>Total Valuation</span>
+                                <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#059669" }}>₹{catItem.inventory_value.toLocaleString("en-IN")}</div>
+                              </div>
+                            </div>
+                            <div style={{ display: "grid", gap: "0.5rem" }}>
+                              {catItem.products.map((prod) => (
+                                <div key={prod.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.775rem" }}>
+                                  <span>{prod.name}</span>
+                                  <strong>{prod.total_units.toLocaleString()} units</strong>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ================================================================
+              WAREHOUSE VIEW MODE
+             ================================================================ */}
+          {productMixMode === "WAREHOUSE" && (
+            <div>
+              {/* Quick Filter Bar for Warehouses */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  marginBottom: "0.85rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.45rem",
+                    background: "#ffffff",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "8px",
+                    padding: "0.35rem 0.75rem",
+                    width: "280px",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <Search size={14} color="#64748b" />
+                  <input
+                    type="text"
+                    placeholder="Search warehouse name / city..."
+                    value={warehouseModeSearch}
+                    onChange={(e) => setWarehouseModeSearch(e.target.value)}
+                    style={{
+                      border: "none",
+                      outline: "none",
+                      fontSize: "0.775rem",
+                      width: "100%",
+                      background: "transparent",
+                    }}
+                  />
+                  {warehouseModeSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setWarehouseModeSearch("")}
+                      style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, display: "flex" }}
+                    >
+                      <X size={12} color="#94a3b8" />
+                    </button>
+                  )}
+                </div>
+
+                <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                  Active filter: <strong>{selectedFacilityLabel}</strong>
+                </span>
+              </div>
+
+              {/* TABULAR LAYOUT FOR WAREHOUSES */}
+              {mixLayoutMode === "TABLE" ? (
+                <div
+                  style={{
+                    background: "#ffffff",
+                    borderRadius: "10px",
+                    border: "1.5px solid #e2e8f0",
+                    overflow: "hidden",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <div style={{ maxHeight: "460px", overflowY: "auto", overflowX: "auto" }}>
+                    <table className="data-table" style={{ margin: 0, width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+                      <thead
+                        style={{
+                          position: "sticky",
+                          top: 0,
+                          zIndex: 5,
+                          background: "#f8fafc",
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+                        }}
+                      >
+                        <tr>
+                          <th style={{ width: "38px", padding: "10px 8px", textAlign: "center" }}></th>
+                          <th style={{ padding: "10px 14px" }}>Warehouse Facility</th>
+                          <th style={{ padding: "10px 14px" }}>Location Address</th>
+                          <th style={{ padding: "10px 14px", textAlign: "center" }}>SKUs Stocked</th>
+                          <th style={{ padding: "10px 14px", textAlign: "right" }}>Total Units</th>
+                          <th style={{ padding: "10px 14px", textAlign: "right" }}>Inventory Value</th>
+                          <th style={{ padding: "10px 14px" }}>Category Mix</th>
+                          <th style={{ padding: "10px 14px", textAlign: "center" }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analytics.warehouses.length === 0 ? (
+                          <tr>
+                            <td colSpan="8" className="empty-state" style={{ padding: "3rem" }}>
+                              No warehouses found.
+                            </td>
+                          </tr>
+                        ) : (
+                          analytics.warehouses
+                            .filter((w) => selectedMixWarehouseId === "ALL" || w.id === selectedMixWarehouseId)
+                            .filter((w) => {
+                              if (!warehouseModeSearch.trim()) return true;
+                              const q = warehouseModeSearch.toLowerCase().trim();
+                              return w.name?.toLowerCase().includes(q) || w.address?.toLowerCase().includes(q);
+                            })
+                            .map((warehouse) => {
+                              const isExpanded = expandedMixWarehouse === warehouse.id;
+                              const warehouseProducts = (analytics.warehouseMix || [])
+                                .filter((item) => item.warehouse_id === warehouse.id)
+                                .map((item) => ({
+                                  name: item.product_name,
+                                  total_units: Number(item.total_units),
+                                  id: item.product_id,
+                                  sku: item.sku,
+                                  category: item.category || productCategoryMap[item.product_id] || "HARDWARE",
+                                }));
+                              const totalUnits = warehouseProducts.reduce((sum, p) => sum + p.total_units, 0);
+                              const warehouseValue = Number(warehouse.inventory_value || 0);
+
+                              return (
+                                <Fragment key={warehouse.id}>
+                                  <tr
+                                    onClick={() => setExpandedMixWarehouse(isExpanded ? null : warehouse.id)}
+                                    style={{
+                                      cursor: "pointer",
+                                      background: isExpanded ? "rgba(37, 99, 235, 0.05)" : undefined,
+                                      borderLeft: isExpanded ? "4px solid #2563eb" : "4px solid transparent",
+                                      transition: "background 0.15s ease",
+                                    }}
+                                  >
+                                    <td style={{ textAlign: "center", padding: "10px 8px", color: "#64748b" }}>
+                                      {isExpanded ? <ChevronUp size={16} color="#2563eb" /> : <ChevronDown size={16} />}
+                                    </td>
+                                    <td style={{ padding: "10px 14px" }}>
+                                      <strong style={{ color: "#0f172a", fontSize: "0.9rem" }}>{warehouse.name}</strong>
+                                    </td>
+                                    <td style={{ padding: "10px 14px", fontSize: "0.775rem", color: "#64748b", maxWidth: "240px" }}>
+                                      {warehouse.address}
+                                    </td>
+                                    <td style={{ textAlign: "center", padding: "10px 14px" }}>
+                                      <span className="badge badge-neutral" style={{ fontSize: "0.75rem", fontWeight: 700 }}>
+                                        {warehouseProducts.length} SKUs
+                                      </span>
+                                    </td>
+                                    <td style={{ textAlign: "right", padding: "10px 14px" }}>
+                                      <strong style={{ fontSize: "0.95rem", color: "#0f172a" }}>
+                                        {totalUnits.toLocaleString()}
+                                      </strong>{" "}
+                                      <span style={{ fontSize: "0.75rem", color: "#64748b" }}>units</span>
+                                    </td>
+                                    <td style={{ textAlign: "right", padding: "10px 14px" }}>
+                                      <strong style={{ color: "#059669", fontSize: "0.95rem" }}>
+                                        ₹{warehouseValue.toLocaleString("en-IN")}
+                                      </strong>
+                                    </td>
+                                    <td style={{ padding: "10px 14px" }}>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                                        {[...new Set(warehouseProducts.map((p) => p.category))].slice(0, 3).map((cat) => {
+                                          const theme = getCategoryTheme(cat);
+                                          return (
+                                            <span
+                                              key={cat}
+                                              style={{
+                                                fontSize: "0.7rem",
+                                                padding: "1px 6px",
+                                                borderRadius: "4px",
+                                                background: theme.bg,
+                                                color: theme.text,
+                                                border: `1px solid ${theme.border}`,
+                                                fontWeight: 600,
+                                              }}
+                                            >
+                                              {cat}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    </td>
+                                    <td style={{ textAlign: "center", padding: "10px 14px" }}>
+                                      <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setExpandedMixWarehouse(isExpanded ? null : warehouse.id);
+                                        }}
+                                        style={{ fontSize: "0.75rem", padding: "0.25rem 0.6rem" }}
+                                      >
+                                        {isExpanded ? "Collapse" : "View Stock"}
+                                      </button>
+                                    </td>
+                                  </tr>
+
+                                  {/* Expanded Sub-Table: Products inside this warehouse */}
+                                  {isExpanded && (
+                                    <tr style={{ background: "#f8fafc" }}>
+                                      <td colSpan="8" style={{ padding: "0.85rem 1.25rem", borderBottom: "2px solid #e2e8f0" }}>
+                                        <div
+                                          style={{
+                                            background: "#ffffff",
+                                            border: "1.5px solid #cbd5e1",
+                                            borderRadius: "8px",
+                                            padding: "0.85rem 1rem",
+                                            boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                                          }}
+                                        >
+                                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
+                                            <span style={{ fontSize: "0.825rem", fontWeight: 800, color: "#1e293b", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                                              <WarehouseIcon size={14} color="#2563eb" /> Stock in {warehouse.name} ({warehouseProducts.length} SKUs)
+                                            </span>
+                                            <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                                              Total: <strong>{totalUnits.toLocaleString()} units</strong>
+                                            </span>
+                                          </div>
+                                          {warehouseProducts.length === 0 ? (
+                                            <p style={{ margin: "0.5rem 0", fontSize: "0.775rem", color: "#94a3b8" }}>No products stocked in this warehouse.</p>
+                                          ) : (
+                                            <table className="data-table" style={{ margin: 0, width: "100%", fontSize: "0.8rem" }}>
+                                              <thead>
+                                                <tr style={{ background: "#f8fafc" }}>
+                                                  <th style={{ padding: "7px 10px" }}>Product Name</th>
+                                                  <th style={{ padding: "7px 10px" }}>SKU</th>
+                                                  <th style={{ padding: "7px 10px" }}>Category</th>
+                                                  <th style={{ padding: "7px 10px", textAlign: "right" }}>Quantity</th>
+                                                  <th style={{ padding: "7px 10px", minWidth: "140px" }}>Share in Warehouse</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody>
+                                                {warehouseProducts.map((prod) => {
+                                                  const pct = totalUnits > 0 ? ((prod.total_units / totalUnits) * 100).toFixed(1) : "0";
+                                                  const theme = getCategoryTheme(prod.category);
+                                                  return (
+                                                    <tr key={prod.id}>
+                                                      <td style={{ padding: "7px 10px" }}>
+                                                        <strong>{prod.name}</strong>
+                                                      </td>
+                                                      <td style={{ padding: "7px 10px" }}>
+                                                        <code>{prod.sku || "-"}</code>
+                                                      </td>
+                                                      <td style={{ padding: "7px 10px" }}>
+                                                        <span
+                                                          style={{
+                                                            fontSize: "0.7rem",
+                                                            padding: "1px 6px",
+                                                            borderRadius: "4px",
+                                                            background: theme.bg,
+                                                            color: theme.text,
+                                                            border: `1px solid ${theme.border}`,
+                                                          }}
+                                                        >
+                                                          {prod.category}
+                                                        </span>
+                                                      </td>
+                                                      <td style={{ padding: "7px 10px", textAlign: "right" }}>
+                                                        <strong>{prod.total_units.toLocaleString()}</strong> units
+                                                      </td>
+                                                      <td style={{ padding: "7px 10px" }}>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                                                          <div style={{ flex: 1, height: "5px", background: "#f1f5f9", borderRadius: "2px", overflow: "hidden" }}>
+                                                            <div style={{ height: "100%", width: `${pct}%`, background: theme.color, borderRadius: "2px" }} />
+                                                          </div>
+                                                          <span style={{ fontSize: "0.725rem", color: "#64748b", minWidth: "36px" }}>
+                                                            {pct}%
+                                                          </span>
+                                                        </div>
+                                                      </td>
+                                                    </tr>
+                                                  );
+                                                })}
+                                              </tbody>
+                                            </table>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </Fragment>
+                              );
+                            })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                /* CARDS GRID VIEW FOR WAREHOUSES */
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: selectedMixWarehouseId === "ALL" ? "repeat(auto-fit, minmax(320px, 1fr))" : "1fr",
+                    gap: "1.25rem",
+                  }}
+                >
+                  {analytics.warehouses
+                    .filter((w) => selectedMixWarehouseId === "ALL" || w.id === selectedMixWarehouseId)
+                    .map((warehouse) => {
+                      const warehouseProducts = (analytics.warehouseMix || [])
+                        .filter((item) => item.warehouse_id === warehouse.id)
+                        .map((item) => ({
+                          name: item.product_name,
+                          total_units: Number(item.total_units),
+                          id: item.product_id,
+                          category: item.category || productCategoryMap[item.product_id] || "HARDWARE",
+                        }));
+                      const totalUnits = warehouseProducts.reduce((sum, p) => sum + p.total_units, 0);
+
+                      return (
+                        <div
+                          key={warehouse.id}
+                          style={{
+                            background: "#ffffff",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "12px",
+                            padding: "1.25rem",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem" }}>
+                            <div>
+                              <h3 style={{ fontSize: "1rem", fontWeight: 800, margin: 0 }}>{warehouse.name}</h3>
+                              <p style={{ fontSize: "0.75rem", color: "#64748b", margin: 0 }}>{warehouse.address}</p>
+                            </div>
+                            <span className="badge badge-active">{totalUnits.toLocaleString()} units</span>
+                          </div>
+                          <div style={{ display: "grid", gap: "0.5rem" }}>
+                            {warehouseProducts.map((item) => (
+                              <div key={item.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.775rem" }}>
+                                <span>{item.name}</span>
+                                <strong>{item.total_units.toLocaleString()} units</strong>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ------------------------------------------------------------------
+          TOP VISUALIZATIONS: FIXED HEIGHTS, TOOLTIPS, RESPONSIVE GRIDS
+         ------------------------------------------------------------------ */}
       <section className="warehouse-analytics-grid">
-        <div className="admin-panel warehouse-chart-panel warehouse-chart-wide">
-          <div className="panel-heading-spread warehouse-chart-heading">
-            <div><p className="eyebrow">All warehouses</p><h2>Units by warehouse</h2></div>
+        {/* Visualization 1: Units by Warehouse */}
+        <div className="admin-panel warehouse-chart-panel" style={{ padding: "1.25rem" }}>
+          <div className="panel-heading-spread" style={{ marginBottom: "0.75rem" }}>
+            <div>
+              <p className="eyebrow">Facility density</p>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0 }}>Units by Warehouse</h2>
+            </div>
             <span className="staff-count">{analytics.warehouses.length} locations</span>
           </div>
-          <div className="warehouse-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={analytics.warehouses.map((item) => ({ ...item, total_units: Number(item.total_units) }))}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="total_units" name="Units" fill="#2563eb" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div>
+          <div style={{ width: "100%", height: "260px" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={analytics.warehouses.map((item) => ({ ...item, total_units: Number(item.total_units) }))}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#475569" }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#475569" }} />
+                <Tooltip formatter={(value) => [`${value} Units`, "Total Units"]} contentStyle={{ borderRadius: "8px", borderColor: "#cbd5e1" }} />
+                <Bar dataKey="total_units" name="Units" fill="#2563eb" radius={[6, 6, 0, 0]} barSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="admin-panel warehouse-chart-panel">
-          <div className="warehouse-chart-heading"><p className="eyebrow">Inventory value</p><h2>Value trend</h2></div>
-          <div className="warehouse-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={analytics.warehouses.map((item) => ({ ...item, inventory_value: Number(item.inventory_value) }))}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(value) => [`₹${Number(value).toLocaleString("en-IN")}`, "Value"]} /><Line type="monotone" dataKey="inventory_value" name="Value" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} /></LineChart></ResponsiveContainer></div>
+
+        {/* Visualization 2: Inventory Value Trend */}
+        <div className="admin-panel warehouse-chart-panel" style={{ padding: "1.25rem" }}>
+          <div className="panel-heading-spread" style={{ marginBottom: "0.75rem" }}>
+            <div>
+              <p className="eyebrow">Capital holding</p>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0 }}>Inventory Value Trend</h2>
+            </div>
+            <span className="badge badge-approved" style={{ fontSize: "0.7rem" }}>INR Value</span>
+          </div>
+          <div style={{ width: "100%", height: "260px" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={analytics.warehouses.map((item) => ({ ...item, inventory_value: Number(item.inventory_value) }))}
+                margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="valGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#475569" }} />
+                <YAxis tick={{ fontSize: 10, fill: "#475569" }} tickFormatter={(val) => `₹${(Number(val) / 1000).toFixed(0)}K`} />
+                <Tooltip formatter={(value) => [`₹${Number(value).toLocaleString("en-IN")}`, "Inventory Value"]} contentStyle={{ borderRadius: "8px", borderColor: "#cbd5e1" }} />
+                <Area type="monotone" dataKey="inventory_value" name="Value" stroke="#10b981" strokeWidth={3} fill="url(#valGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="admin-panel warehouse-chart-panel">
-          <div className="warehouse-chart-heading"><p className="eyebrow">Product distribution</p><h2>Units across network</h2></div>
-          <div className="warehouse-chart"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={analytics.products.map((item) => ({ ...item, total_units: Number(item.total_units) }))} dataKey="total_units" nameKey="name" innerRadius={48} outerRadius={82} paddingAngle={3}>{analytics.products.map((item, index) => <Cell key={item.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart></ResponsiveContainer></div>
+
+        {/* Visualization 3: Product Distribution Across Network */}
+        <div className="admin-panel warehouse-chart-panel" style={{ padding: "1.25rem" }}>
+          <div className="panel-heading-spread" style={{ marginBottom: "0.75rem" }}>
+            <div>
+              <p className="eyebrow">Network distribution</p>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0 }}>Units Across Network</h2>
+            </div>
+            <span className="badge badge-neutral" style={{ fontSize: "0.7rem" }}>{totalNetworkUnits} Units</span>
+          </div>
+          <div style={{ width: "100%", height: "260px", position: "relative" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={analytics.products.map((item) => ({ ...item, total_units: Number(item.total_units) }))}
+                  dataKey="total_units"
+                  nameKey="name"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={3}
+                >
+                  {analytics.products.map((item, index) => (
+                    <Cell key={item.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(val) => [`${val} Units`, "Quantity"]} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </section>
 
-      <section className="admin-panel warehouse-pies-panel">
-        <div className="warehouse-chart-heading"><p className="eyebrow">Warehouse detail</p><h2>Product mix by warehouse</h2></div>
-        <div className="warehouse-pie-grid">
-          {analytics.warehouses.map((warehouse) => {
-            const warehouseProducts = analytics.warehouseMix
-              .filter((item) => item.warehouse_id === warehouse.id)
-              .map((item) => ({ name: item.product_name, total_units: Number(item.total_units), id: item.product_id }));
-            return (
-              <article className="warehouse-mini-pie" key={warehouse.id}>
-                <h3>{warehouse.name}</h3>
-                {warehouseProducts.length ? (
-                  <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={warehouseProducts} dataKey="total_units" nameKey="name" innerRadius={35} outerRadius={62} paddingAngle={3}>{warehouseProducts.map((item, index) => <Cell key={item.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /><Legend wrapperStyle={{ fontSize: 10 }} /></PieChart></ResponsiveContainer>
-                ) : <p className="empty-state">No stock assigned</p>}
-              </article>
-            );
-          })}
-          {!analytics.warehouses.length && <p className="empty-state">Create a warehouse to see its product mix.</p>}
-        </div>
-      </section>
-
-      <section className="warehouse-layout">
+      {/* ------------------------------------------------------------------
+          WAREHOUSE CREATION & MAP PINNING
+         ------------------------------------------------------------------ */}
+      <section className="warehouse-layout" style={{ marginBottom: "1.5rem" }}>
         <form className="admin-panel warehouse-form" onSubmit={saveWarehouse}>
           <div className="panel-heading">
             <div className="panel-icon"><WarehouseIcon size={18} /></div>
             <div>
-              <h2>{editingWarehouse ? "Edit warehouse" : "Create warehouse"}</h2>
-              <p>{editingWarehouse ? "Update the warehouse identity or map location." : "Save a named warehouse with its exact operating location."}</p>
+              <h2>{editingWarehouse ? "Edit Warehouse" : "Create Warehouse"}</h2>
+              <p>{editingWarehouse ? "Update warehouse address, identity or map pin." : "Save a fulfillment facility with its precise operating coordinates."}</p>
             </div>
           </div>
 
@@ -415,7 +2030,7 @@ export default function AdminWarehouses() {
           </div>
 
           {editingWarehouse && (
-            <label className="warehouse-active-toggle">
+            <label className="warehouse-active-toggle" style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.5rem 0 1rem 0" }}>
               <input type="checkbox" name="isActive" checked={form.isActive} onChange={updateField} />
               Active warehouse
             </label>
@@ -445,66 +2060,385 @@ export default function AdminWarehouses() {
         </section>
       </section>
 
-      <section className="admin-panel warehouse-list-panel">
-        <div className="panel-heading panel-heading-spread">
-          <div><p className="eyebrow">Saved locations</p><h2>Warehouse directory</h2></div>
-          <span className="staff-count">{warehouses.length} locations</span>
+      {/* ------------------------------------------------------------------
+          FIXED HEIGHT & OVERFLOW SCROLL: WAREHOUSE DIRECTORY
+         ------------------------------------------------------------------ */}
+      <section className="admin-panel warehouse-list-panel" style={{ marginBottom: "1.5rem", padding: "1.25rem 1.5rem" }}>
+        <div
+          className="panel-heading panel-heading-spread"
+          style={{ flexWrap: "wrap", gap: "0.75rem", marginBottom: "0.85rem", borderBottom: "1px solid #e2e8f0", paddingBottom: "0.75rem" }}
+        >
+          <div>
+            <p className="eyebrow">Saved locations</p>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 800, margin: 0 }}>Warehouse Directory</h2>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+            {/* Instant Filter Search Input */}
+            <div style={{ position: "relative" }}>
+              <Search size={14} color="#94a3b8" style={{ position: "absolute", left: "9px", top: "10px" }} />
+              <input
+                type="text"
+                placeholder="Filter warehouses..."
+                value={directoryFilter}
+                onChange={(e) => setDirectoryFilter(e.target.value)}
+                style={{
+                  paddingLeft: "28px",
+                  paddingRight: "10px",
+                  height: "34px",
+                  fontSize: "0.8rem",
+                  border: "1.5px solid #cbd5e1",
+                  borderRadius: "7px",
+                  width: "190px",
+                  background: "#ffffff",
+                }}
+              />
+            </div>
+            <span className="staff-count">
+              {filteredDirectoryWarehouses.length} of {warehouses.length} locations
+            </span>
+          </div>
         </div>
-        <div className="staff-table-wrap">
-          <table className="data-table staff-table">
-            <thead><tr><th>Warehouse</th><th>Address</th><th>Coordinates</th><th>Status</th><th /></tr></thead>
+
+        {/* Fixed Height Container with Overflow Scroll */}
+        <div
+          className="warehouse-dir-scroll-wrap"
+          style={{
+            maxHeight: "380px",
+            overflowY: "auto",
+            overflowX: "auto",
+            borderRadius: "10px",
+            border: "1.5px solid #e2e8f0",
+            background: "#ffffff",
+          }}
+        >
+          <table className="data-table staff-table" style={{ margin: 0, width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+            <thead
+              style={{
+                position: "sticky",
+                top: 0,
+                zIndex: 5,
+                background: "#f8fafc",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+              }}
+            >
+              <tr>
+                <th style={{ padding: "10px 14px" }}>Warehouse</th>
+                <th style={{ padding: "10px 14px" }}>Address</th>
+                <th style={{ padding: "10px 14px" }}>Coordinates</th>
+                <th style={{ padding: "10px 14px" }}>Status</th>
+                <th style={{ padding: "10px 14px", textAlign: "right" }}>Actions</th>
+              </tr>
+            </thead>
             <tbody>
-              {loading ? <tr><td colSpan="5" className="empty-state">Loading warehouses...</td></tr> : warehouses.length === 0 ? <tr><td colSpan="5" className="empty-state">No warehouses created yet.</td></tr> : warehouses.map((warehouse) => (
-                <tr key={warehouse.id} className={`warehouse-row ${selectedWarehouse?.id === warehouse.id ? "selected" : ""}`} onClick={() => selectWarehouse(warehouse)}>
-                  <td><strong>{warehouse.name}</strong></td>
-                  <td className="warehouse-address-cell">{warehouse.address}</td>
-                  <td><code>{Number(warehouse.latitude).toFixed(5)}, {Number(warehouse.longitude).toFixed(5)}</code></td>
-                  <td><span className={`badge ${warehouse.is_active ? "badge-active" : "badge-suspended"}`}>{warehouse.is_active ? "ACTIVE" : "INACTIVE"}</span></td>
-                  <td><div className="warehouse-row-actions"><button className="icon-button" title={`Edit ${warehouse.name}`} onClick={(event) => { event.stopPropagation(); editWarehouse(warehouse); }}><Edit3 size={16} /></button><span className="warehouse-row-hint">Manage stock</span></div></td>
+              {loading ? (
+                <tr>
+                  <td colSpan="5" className="empty-state" style={{ padding: "2.5rem" }}>Loading warehouses...</td>
                 </tr>
-              ))}
+              ) : filteredDirectoryWarehouses.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="empty-state" style={{ padding: "2.5rem" }}>
+                    {directoryFilter ? "No warehouses match your filter search." : "No warehouses created yet."}
+                  </td>
+                </tr>
+              ) : (
+                filteredDirectoryWarehouses.map((warehouse) => {
+                  const isSelected = selectedWarehouse?.id === warehouse.id;
+                  return (
+                    <tr
+                      key={warehouse.id}
+                      className={`warehouse-row ${isSelected ? "selected" : ""}`}
+                      onClick={() => selectWarehouse(warehouse)}
+                      style={{
+                        cursor: "pointer",
+                        background: isSelected ? "rgba(37, 99, 235, 0.08)" : undefined,
+                        borderLeft: isSelected ? "3px solid #2563eb" : "3px solid transparent",
+                        transition: "background 0.15s ease",
+                      }}
+                    >
+                      <td style={{ padding: "10px 14px" }}>
+                        <strong style={{ color: "#0f172a" }}>{warehouse.name}</strong>
+                      </td>
+                      <td className="warehouse-address-cell" style={{ padding: "10px 14px" }}>
+                        {warehouse.address}
+                      </td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <code style={{ fontSize: "0.8rem", color: "#475569" }}>
+                          {Number(warehouse.latitude).toFixed(5)}, {Number(warehouse.longitude).toFixed(5)}
+                        </code>
+                      </td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <span className={`badge ${warehouse.is_active ? "badge-active" : "badge-suspended"}`}>
+                          {warehouse.is_active ? "ACTIVE" : "INACTIVE"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                        <div className="warehouse-row-actions" style={{ justifyContent: "flex-end" }}>
+                          <button
+                            className="icon-button"
+                            title={`Edit ${warehouse.name}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              editWarehouse(warehouse);
+                            }}
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <span className="warehouse-row-hint" style={{ fontSize: "0.75rem", color: "#2563eb", fontWeight: 600 }}>
+                            Manage stock
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
       </section>
 
+      {/* ------------------------------------------------------------------
+          SELECTED WAREHOUSE INVENTORY MANAGEMENT PANEL
+         ------------------------------------------------------------------ */}
       {selectedWarehouse && (
-        <section className="admin-panel inventory-panel">
-          <div className="panel-heading panel-heading-spread">
+        <section className="admin-panel inventory-panel" style={{ padding: "1.5rem", borderRadius: "12px", border: "1.5px solid #cbd5e1" }}>
+          <div className="panel-heading panel-heading-spread" style={{ marginBottom: "1.25rem" }}>
             <div>
-              <p className="eyebrow">Warehouse inventory</p>
-              <h2>{selectedWarehouse.name}</h2>
-              <p>{selectedWarehouse.address}</p>
+              <p className="eyebrow">Facility inventory management</p>
+              <h2 style={{ fontSize: "1.25rem", fontWeight: 800, margin: 0 }}>{selectedWarehouse.name}</h2>
+              <p style={{ margin: "0.2rem 0 0 0", color: "#64748b", fontSize: "0.825rem" }}>{selectedWarehouse.address}</p>
             </div>
-            <button className="icon-button" title="Close inventory" onClick={() => setSelectedWarehouse(null)}><X size={16} /></button>
+            <button className="icon-button" title="Close inventory" onClick={() => setSelectedWarehouse(null)}>
+              <X size={16} />
+            </button>
           </div>
-          <form className="inventory-form" onSubmit={saveInventory}>
+
+          <form className="inventory-form" onSubmit={saveInventory} style={{ marginBottom: "1.5rem" }}>
             <div className="form-group">
               <label className="form-label" htmlFor="inventory-product">Product from catalog</label>
-              <select id="inventory-product" className="form-select no-icon" value={inventoryForm.productId} onChange={(event) => setInventoryForm((current) => ({ ...current, productId: event.target.value }))} required>
-                <option value="">Select a product</option>
-                {products.map((product) => <option key={product.id} value={product.id}>{product.name} ({product.sku})</option>)}
+              <select
+                id="inventory-product"
+                className="form-select no-icon"
+                value={inventoryForm.productId}
+                onChange={(event) => setInventoryForm((current) => ({ ...current, productId: event.target.value }))}
+                required
+                style={{ height: "38px" }}
+              >
+                <option value="">Select a catalog product</option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.name} ({product.sku})
+                  </option>
+                ))}
               </select>
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="inventory-quantity">Quantity available</label>
-              <input id="inventory-quantity" className="form-input no-icon" type="number" min="0" step="1" value={inventoryForm.quantity} onChange={(event) => setInventoryForm((current) => ({ ...current, quantity: event.target.value }))} required />
+              <input
+                id="inventory-quantity"
+                className="form-input no-icon"
+                type="number"
+                min="0"
+                step="1"
+                value={inventoryForm.quantity}
+                onChange={(event) => setInventoryForm((current) => ({ ...current, quantity: event.target.value }))}
+                required
+                style={{ height: "38px" }}
+              />
             </div>
-            <button className="btn-primary inventory-save-button" type="submit" disabled={inventorySaving}>{inventorySaving ? "Saving..." : "Add / update product"}</button>
+            <button className="btn-primary inventory-save-button" type="submit" disabled={inventorySaving} style={{ height: "38px" }}>
+              {inventorySaving ? "Saving..." : "Add / Update stock"}
+            </button>
           </form>
-          <div className="selected-warehouse-chart">
-            <div><p className="eyebrow">Selected warehouse</p><h3>Product mix</h3></div>
-            <div className="warehouse-chart warehouse-pie-chart"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={inventory.map((item) => ({ ...item, quantity: Number(item.quantity) })).filter((item) => item.quantity > 0)} dataKey="quantity" nameKey="name" innerRadius={52} outerRadius={88} paddingAngle={3}>{inventory.map((item, index) => <Cell key={item.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart></ResponsiveContainer></div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1.3fr",
+              gap: "1.5rem",
+              alignItems: "center",
+              marginBottom: "1.25rem",
+              background: "#f8fafc",
+              padding: "1.25rem",
+              borderRadius: "10px",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            <div>
+              <p className="eyebrow">Warehouse stock composition</p>
+              <h3 style={{ fontSize: "1.05rem", fontWeight: 800, margin: "0.2rem 0" }}>
+                Local Product Mix {localMixMode === "CATEGORY" ? "by Category" : "by Product"}
+              </h3>
+              <p style={{ fontSize: "0.8rem", color: "#64748b", margin: 0 }}>
+                {localMixMode === "CATEGORY"
+                  ? `Category distribution and merchandise balance in ${selectedWarehouse.name}.`
+                  : `Visual allocation of available SKUs in ${selectedWarehouse.name}.`}
+              </p>
+
+              {/* Segmented control for By Category vs By Product */}
+              <div
+                style={{
+                  display: "inline-flex",
+                  background: "#e2e8f0",
+                  padding: "3px",
+                  borderRadius: "7px",
+                  marginTop: "0.75rem",
+                  gap: "2px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setLocalMixMode("CATEGORY")}
+                  style={{
+                    padding: "0.25rem 0.65rem",
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.3rem",
+                    background: localMixMode === "CATEGORY" ? "#ffffff" : "transparent",
+                    color: localMixMode === "CATEGORY" ? "#2563eb" : "#64748b",
+                    boxShadow: localMixMode === "CATEGORY" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                  }}
+                >
+                  <Tag size={12} /> By Category
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLocalMixMode("PRODUCT")}
+                  style={{
+                    padding: "0.25rem 0.65rem",
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.3rem",
+                    background: localMixMode === "PRODUCT" ? "#ffffff" : "transparent",
+                    color: localMixMode === "PRODUCT" ? "#2563eb" : "#64748b",
+                    boxShadow: localMixMode === "PRODUCT" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                  }}
+                >
+                  <Package size={12} /> By Product
+                </button>
+              </div>
+
+              {/* Mini category summary badges in Category mode */}
+              {localMixMode === "CATEGORY" && localCategoryBreakdown.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginTop: "0.75rem" }}>
+                  {localCategoryBreakdown.map((cat) => {
+                    const theme = getCategoryTheme(cat.name);
+                    return (
+                      <span
+                        key={cat.name}
+                        style={{
+                          fontSize: "0.725rem",
+                          padding: "2px 7px",
+                          borderRadius: "5px",
+                          background: theme.bg,
+                          color: theme.text,
+                          border: `1px solid ${theme.border}`,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {cat.name}: <strong>{cat.quantity}</strong>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div style={{ width: "100%", height: "240px" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                {localMixMode === "CATEGORY" ? (
+                  <PieChart>
+                    <Pie
+                      data={localCategoryBreakdown}
+                      dataKey="quantity"
+                      nameKey="name"
+                      innerRadius={52}
+                      outerRadius={88}
+                      paddingAngle={3}
+                    >
+                      {localCategoryBreakdown.map((item) => (
+                        <Cell key={item.name} fill={getCategoryTheme(item.name).color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(val, name) => [`${val} Units`, name]} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                ) : (
+                  <PieChart>
+                    <Pie
+                      data={inventory
+                        .map((item) => ({ ...item, quantity: Number(item.quantity) }))
+                        .filter((item) => item.quantity > 0)}
+                      dataKey="quantity"
+                      nameKey="name"
+                      innerRadius={52}
+                      outerRadius={88}
+                      paddingAngle={3}
+                    >
+                      {inventory.map((item, index) => (
+                        <Cell key={item.id} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(val) => [`${val} Units`, "Available"]} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                )}
+              </ResponsiveContainer>
+            </div>
           </div>
+
           <div className="inventory-table-wrap">
-            {inventoryLoading ? <p className="empty-state">Loading inventory...</p> : inventory.length === 0 ? <p className="empty-state">No products assigned to this warehouse yet.</p> : (
-              <table className="data-table">
-                <thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>Quantity</th><th /></tr></thead>
-                <tbody>{inventory.map((item) => <tr key={item.id}><td><strong>{item.name}</strong></td><td><code>{item.sku}</code></td><td>{item.category}</td><td className="inventory-quantity">{item.quantity}</td><td><button className="icon-button danger-icon" title={`Remove ${item.name}`} onClick={() => removeInventory(item)}><Trash2 size={16} /></button></td></tr>)}</tbody>
+            {inventoryLoading ? (
+              <p className="empty-state">Loading inventory...</p>
+            ) : inventory.length === 0 ? (
+              <p className="empty-state">No products assigned to this warehouse yet.</p>
+            ) : (
+              <table className="data-table" style={{ width: "100%" }}>
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>SKU</th>
+                    <th>Category</th>
+                    <th>Quantity</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inventory.map((item) => (
+                    <tr key={item.id}>
+                      <td><strong>{item.name}</strong></td>
+                      <td><code>{item.sku}</code></td>
+                      <td><span className="badge badge-neutral" style={{ fontSize: "0.75rem" }}>{item.category}</span></td>
+                      <td className="inventory-quantity"><strong>{item.quantity}</strong> units</td>
+                      <td style={{ textAlign: "right" }}>
+                        <button
+                          className="icon-button danger-icon"
+                          title={`Remove ${item.name}`}
+                          onClick={() => removeInventory(item)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
             )}
           </div>
-          <p className="warehouse-map-help"><Package size={15} /> Choose an existing catalog product and save its available quantity for this warehouse. Saving the same product updates its quantity.</p>
+          <p className="warehouse-map-help" style={{ marginTop: "1rem" }}>
+            <Package size={15} /> Choose an existing catalog product and save its available quantity for this warehouse. Saving the same product updates its quantity.
+          </p>
         </section>
       )}
     </main>

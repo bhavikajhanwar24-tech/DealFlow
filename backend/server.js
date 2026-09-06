@@ -21,6 +21,7 @@ const analyticsRoutes = require("./src/routes/analytics.routes");
 const aiRoutes = require("./src/routes/ai.routes");
 
 const uploadRoutes = require("./src/routes/upload.routes");
+const complaintRoutes = require("./src/routes/complaint.routes");
 
 // PostgreSQL connection
 const pool = require("./src/config/db");
@@ -50,6 +51,7 @@ app.use("/api", dashboardRoutes);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/complaints", complaintRoutes);
 
 // ===============================
 // HEALTH CHECK

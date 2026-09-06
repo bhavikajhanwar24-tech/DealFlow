@@ -16,6 +16,8 @@ import {
   Calendar,
   DollarSign,
   Package,
+  ShieldAlert,
+  User,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -46,7 +48,7 @@ const statusLabel = {
   REJECTED: "Declined / Rejected",
 };
 
-export default function CustomerPortal() {
+export default function CustomerPortal({ onNavigate }) {
   const { user, token } = useAuth();
   const [quotations, setQuotations] = useState([]);
   const [selectedQuotationId, setSelectedQuotationId] = useState(null);
@@ -59,6 +61,7 @@ export default function CustomerPortal() {
   const [requestedDiscountPercent, setRequestedDiscountPercent] = useState("");
   const [requestedDeliveryDate, setRequestedDeliveryDate] = useState("");
   const [customerComment, setCustomerComment] = useState("");
+  const [selectedRemovalItemIds, setSelectedRemovalItemIds] = useState([]);
   const [products, setProducts] = useState([]);
   const [requestItems, setRequestItems] = useState([]);
   const [requestProductId, setRequestProductId] = useState("");
@@ -76,6 +79,102 @@ export default function CustomerPortal() {
   const [destCountry, setDestCountry] = useState("India");
   const [destLat, setDestLat] = useState("28.6139");
   const [destLng, setDestLng] = useState("77.2090");
+
+  // Complaints state
+  const [activeTab, setActiveTab] = useState("QUOTATIONS"); // 'QUOTATIONS' | 'COMPLAINTS'
+  const [complaints, setComplaints] = useState([]);
+  const [staffMembers, setStaffMembers] = useState([]);
+  const [complaintsLoading, setComplaintsLoading] = useState(false);
+  const [complaintStaffId, setComplaintStaffId] = useState("");
+  const [complaintQuotationId, setComplaintQuotationId] = useState("");
+  const [complaintCategory, setComplaintCategory] = useState("COMMUNICATION");
+  const [complaintSubject, setComplaintSubject] = useState("");
+  const [complaintDescription, setComplaintDescription] = useState("");
+  const [submittingComplaint, setSubmittingComplaint] = useState(false);
+
+  async function loadComplaints() {
+    setComplaintsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/complaints/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setComplaints(data.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load customer complaints:", err);
+    } finally {
+      setComplaintsLoading(false);
+    }
+  }
+
+  async function loadStaffMembers() {
+    try {
+      const response = await fetch(`${API_BASE}/complaints/staff-members`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setStaffMembers(data.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load staff members:", err);
+    }
+  }
+
+  async function handleLodgeComplaint(e) {
+    e.preventDefault();
+    if (!complaintStaffId) {
+      setError("Please select the staff member you are reporting.");
+      return;
+    }
+    if (!complaintSubject.trim()) {
+      setError("Please enter a subject for the complaint.");
+      return;
+    }
+    if (!complaintDescription.trim()) {
+      setError("Please describe the grievance in detail.");
+      return;
+    }
+
+    setSubmittingComplaint(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`${API_BASE}/complaints`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          staff_id: complaintStaffId,
+          quotation_id: complaintQuotationId || null,
+          category: complaintCategory,
+          subject: complaintSubject.trim(),
+          description: complaintDescription.trim(),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to submit complaint.");
+      }
+
+      setSuccess("Complaint lodged successfully and sent directly to System Administrator. You can track progress below.");
+      setComplaintStaffId("");
+      setComplaintQuotationId("");
+      setComplaintCategory("COMMUNICATION");
+      setComplaintSubject("");
+      setComplaintDescription("");
+      await loadComplaints();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmittingComplaint(false);
+    }
+  }
 
   async function loadQuotations() {
     setLoading(true);
@@ -136,6 +235,7 @@ async function loadRequestData() {
         setRequestedDeliveryDate("");
         setCustomerComment("");
       }
+      setSelectedRemovalItemIds([]);
       setSelectedQuotationId(id);
     } catch (requestError) {
       setError(requestError.message);
@@ -145,10 +245,42 @@ async function loadRequestData() {
     }
   }
 
+  function toggleRemovalItem(itemId) {
+    if (selectedRemovalItemIds.includes(itemId)) {
+      setSelectedRemovalItemIds((prev) => prev.filter((id) => id !== itemId));
+    } else {
+      if (quotation?.items && selectedRemovalItemIds.length + 1 >= quotation.items.length) {
+        setError("Cannot mark all items for removal. At least one product must remain in the quotation.");
+        return;
+      }
+      setError("");
+      setSelectedRemovalItemIds((prev) => [...prev, itemId]);
+    }
+  }
+
+  async function loadProducts() {
+    try {
+      const response = await fetch(`${API_BASE}/customer/quotations/products`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (response.ok && data.data) {
+        setProducts(data.data);
+      }
+    } catch (err) {
+      console.error("Failed to load catalog in customer portal:", err);
+    }
+  }
+
   useEffect(() => {
-  loadQuotations();
-  loadRequestData();
-}, [token]);
+    if (token) {
+      loadQuotations();
+      loadRequestData();
+      loadProducts();
+      loadComplaints();
+      loadStaffMembers();
+    }
+  }, [token]);
 
   function addRequestItem(productToAdd = null) {
     const product = productToAdd || products.find((entry) => entry.id === requestProductId);
@@ -198,15 +330,22 @@ async function loadRequestData() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Unable to send quotation request.");
-      setSuccess(data.message);
+      
+      if (data.data?.isAutoApproved) {
+        setSuccess(`⚡ Instant Auto-Approval! Quotation ${data.data.quotationNumber} has been generated and approved. You can review and confirm it below.`);
+      } else {
+        setSuccess(data.message || "Your custom quotation request has been submitted to the sales team for review.");
+      }
+
       setRequestItems([]);
       setRequestDeliveryDate("");
       setRequestComment("");
-      const requestsResponse = await fetch(`${API_BASE}/customer/quotations/requests`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const requestsData = await requestsResponse.json();
-      if (requestsResponse.ok) setCustomerRequests(requestsData.data || []);
+      
+      // Reload both requests and quotations
+      await Promise.all([
+        loadQuotations(),
+        loadRequestData()
+      ]);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -231,11 +370,13 @@ async function loadRequestData() {
           requestedDiscountPercent,
           requestedDeliveryDate,
           customerComment,
+          removedItemIds: selectedRemovalItemIds,
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Unable to submit negotiation request.");
       setSuccess(data.message);
+      setSelectedRemovalItemIds([]);
       await openQuotation(quotation.id);
       await loadQuotations();
     } catch (requestError) {
@@ -328,8 +469,19 @@ async function loadRequestData() {
   }
 
   const isDetail = Boolean(selectedQuotationId);
-  const canRespond = quotation && ["DRAFT", "APPROVED", "NEGOTIATION"].includes(quotation.status);
+  const canRespond =
+    quotation &&
+    ["DRAFT", "APPROVED", "NEGOTIATION", "PENDING_APPROVAL", "SENT"].includes(quotation.status);
   const pendingRequest = quotation?.negotiations?.find((request) => request.status === "PENDING");
+
+  const remainingItems = (quotation?.items || []).filter((item) => !selectedRemovalItemIds.includes(item.id));
+  const proposedSubtotal = remainingItems.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0), 0);
+  const proposedDiscountAmount = remainingItems.reduce((sum, item) => {
+    const lineSubtotal = Number(item.unitPrice || 0) * Number(item.quantity || 0);
+    const disc = requestedDiscountPercent !== "" ? Number(requestedDiscountPercent) : Number(item.discountPercent || 0);
+    return sum + (lineSubtotal * disc) / 100;
+  }, 0);
+  const proposedFinalAmount = Math.max(0, proposedSubtotal - proposedDiscountAmount);
 
   const glassStyle = {
     background: "rgba(255, 255, 255, 0.88)",
@@ -426,8 +578,85 @@ async function loadRequestData() {
 
       {!isDetail ? (
         <>
-          {/* Section 1: Request a New Quotation */}
-          <section style={glassStyle}>
+          {/* Main Portal View Tabs */}
+          <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem" }}>
+            <button
+              onClick={() => setActiveTab("QUOTATIONS")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.65rem 1.25rem",
+                borderRadius: "10px",
+                fontWeight: 700,
+                fontSize: "0.9rem",
+                cursor: "pointer",
+                border: "1px solid",
+                borderColor: activeTab === "QUOTATIONS" ? "#2563eb" : "#cbd5e1",
+                background: activeTab === "QUOTATIONS" ? "#2563eb" : "#ffffff",
+                color: activeTab === "QUOTATIONS" ? "#ffffff" : "#475569",
+                boxShadow: activeTab === "QUOTATIONS" ? "0 4px 12px rgba(37, 99, 235, 0.2)" : "none",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <FileText size={17} /> Quotations & Catalog ({quotations.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab("COMPLAINTS")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.65rem 1.25rem",
+                borderRadius: "10px",
+                fontWeight: 700,
+                fontSize: "0.9rem",
+                cursor: "pointer",
+                border: "1px solid",
+                borderColor: activeTab === "COMPLAINTS" ? "#2563eb" : "#cbd5e1",
+                background: activeTab === "COMPLAINTS" ? "#2563eb" : "#ffffff",
+                color: activeTab === "COMPLAINTS" ? "#ffffff" : "#475569",
+                boxShadow: activeTab === "COMPLAINTS" ? "0 4px 12px rgba(37, 99, 235, 0.2)" : "none",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <ShieldAlert size={17} /> Staff Complaints & Feedback
+              {complaints.filter((c) => c.status === "PENDING").length > 0 && (
+                <span
+                  style={{
+                    background: activeTab === "COMPLAINTS" ? "#f59e0b" : "#d97706",
+                    color: "#ffffff",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    padding: "0.15rem 0.5rem",
+                    borderRadius: "999px",
+                  }}
+                >
+                  {complaints.filter((c) => c.status === "PENDING").length} Pending
+                </span>
+              )}
+              {complaints.filter((c) => c.status === "ACTION_TAKEN").length > 0 && (
+                <span
+                  style={{
+                    background: activeTab === "COMPLAINTS" ? "#10b981" : "#059669",
+                    color: "#ffffff",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    padding: "0.15rem 0.5rem",
+                    borderRadius: "999px",
+                  }}
+                >
+                  {complaints.filter((c) => c.status === "ACTION_TAKEN").length} Action Taken
+                </span>
+              )}
+            </button>
+          </div>
+
+          {activeTab === "QUOTATIONS" && (
+            <>
+              {/* Section 1: Request a New Quotation */}
+              <section style={glassStyle}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
               <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(37, 99, 235, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Plus size={18} color="#2563eb" />
@@ -685,7 +914,267 @@ async function loadRequestData() {
             </div>
           </div>
         </>
-      ) : detailLoading ? (
+      )}
+
+      {activeTab === "COMPLAINTS" && (
+        <>
+          {/* Section: Lodge a Staff Complaint */}
+          <section style={glassStyle}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+              <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(220, 38, 38, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <ShieldAlert size={18} color="#dc2626" />
+              </div>
+              <h2 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#0f172a" }}>
+                Lodge a Staff Complaint
+              </h2>
+            </div>
+            <p style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "1.25rem" }}>
+              Have an issue with a sales rep, manager, or operations staff? Report unresponsiveness, pricing disagreements, or unprofessional conduct directly to Executive Administration. All complaints are audited and resolved with written explanation.
+            </p>
+
+            <form onSubmit={handleLodgeComplaint}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1rem" }}>
+                <label className="form-group" style={{ margin: 0 }}>
+                  <span className="form-label" style={{ fontWeight: 600, color: "#334155" }}>
+                    Select Staff Member <span style={{ color: "#ef4444" }}>*</span>
+                  </span>
+                  <select
+                    className="form-input no-icon"
+                    value={complaintStaffId}
+                    onChange={(e) => setComplaintStaffId(e.target.value)}
+                    required
+                  >
+                    <option value="">Choose staff member to report...</option>
+                    {staffMembers.map((staff) => (
+                      <option key={staff.id} value={staff.id}>
+                        {staff.full_name} ({staff.role} — {staff.email})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="form-group" style={{ margin: 0 }}>
+                  <span className="form-label" style={{ fontWeight: 600, color: "#334155" }}>
+                    Complaint Category
+                  </span>
+                  <select
+                    className="form-input no-icon"
+                    value={complaintCategory}
+                    onChange={(e) => setComplaintCategory(e.target.value)}
+                  >
+                    <option value="COMMUNICATION">Unresponsive / Delayed Communication</option>
+                    <option value="PRICING">Quotation / Pricing Discrepancy</option>
+                    <option value="CONDUCT">Unprofessional Conduct / Behavior</option>
+                    <option value="FULFILLMENT">Delivery / Fulfillment Delay</option>
+                    <option value="OTHER">General Grievance</option>
+                  </select>
+                </label>
+
+                <label className="form-group" style={{ margin: 0 }}>
+                  <span className="form-label" style={{ fontWeight: 600, color: "#334155" }}>
+                    Related Quotation (Optional)
+                  </span>
+                  <select
+                    className="form-input no-icon"
+                    value={complaintQuotationId}
+                    onChange={(e) => setComplaintQuotationId(e.target.value)}
+                  >
+                    <option value="">No specific quotation attached</option>
+                    {quotations.map((q) => (
+                      <option key={q.id} value={q.id}>
+                        {q.quotationNumber} — {currency(q.finalAmount)} ({q.status})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div style={{ marginTop: "1rem" }}>
+                <label className="form-group" style={{ margin: 0 }}>
+                  <span className="form-label" style={{ fontWeight: 600, color: "#334155" }}>
+                    Complaint Subject <span style={{ color: "#ef4444" }}>*</span>
+                  </span>
+                  <input
+                    className="form-input no-icon"
+                    type="text"
+                    placeholder="Brief summary of the issue (e.g., Sales rep unresponsive to discount review request)..."
+                    value={complaintSubject}
+                    onChange={(e) => setComplaintSubject(e.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+
+              <div style={{ marginTop: "1rem" }}>
+                <label className="form-group" style={{ margin: 0 }}>
+                  <span className="form-label" style={{ fontWeight: 600, color: "#334155" }}>
+                    Detailed Description <span style={{ color: "#ef4444" }}>*</span>
+                  </span>
+                  <textarea
+                    className="form-input no-icon"
+                    rows="3"
+                    placeholder="Describe what occurred, dates, and what outcome or resolution you are seeking from Admin..."
+                    value={complaintDescription}
+                    onChange={(e) => setComplaintDescription(e.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+
+              <button
+                className="btn-primary"
+                type="submit"
+                style={{ width: "auto", marginTop: "1.25rem", background: "#dc2626", borderColor: "#dc2626" }}
+                disabled={submittingComplaint}
+              >
+                <Send size={15} /> {submittingComplaint ? "Filing complaint..." : "Submit Complaint to Admin"}
+              </button>
+            </form>
+          </section>
+
+          {/* Section: My Filed Complaints History */}
+          <div style={glassStyle}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(37, 99, 235, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Clock size={18} color="#2563eb" />
+                </div>
+                <h2 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#0f172a" }}>
+                  My Filed Complaints ({complaints.length})
+                </h2>
+              </div>
+            </div>
+
+            {complaintsLoading ? (
+              <div style={{ textAlign: "center", padding: "2.5rem", color: "#64748b" }}>
+                <Clock size={22} style={{ animation: "spin 1s linear infinite", margin: "0 auto 0.5rem" }} />
+                <div>Loading your complaints...</div>
+              </div>
+            ) : complaints.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "3rem 1.5rem", color: "#64748b", background: "#f8fafc", borderRadius: "12px", border: "1px dashed #cbd5e1" }}>
+                <CheckCircle size={36} color="#10b981" style={{ margin: "0 auto 0.75rem" }} />
+                <div style={{ fontWeight: 700, color: "#1e293b", fontSize: "1rem" }}>No Complaints Filed</div>
+                <div style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>
+                  You have not submitted any complaints against staff. Any complaints you file will appear here along with the Admin's response.
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                {complaints.map((comp) => {
+                  const isPending = comp.status === "PENDING";
+                  const isActionTaken = comp.status === "ACTION_TAKEN";
+                  const isRejected = comp.status === "REJECTED";
+
+                  return (
+                    <div
+                      key={comp.id}
+                      style={{
+                        background: "#ffffff",
+                        border: isPending ? "1px solid #fde68a" : "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "1.25rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.85rem",
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+                      }}
+                    >
+                      {/* Top row */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+                            <span style={{ background: "#f1f5f9", color: "#475569", fontSize: "0.72rem", fontWeight: 700, padding: "0.15rem 0.5rem", borderRadius: "6px" }}>
+                              {comp.category}
+                            </span>
+                            {comp.quotation_number && (
+                              <span style={{ background: "#eff6ff", color: "#1d4ed8", fontSize: "0.72rem", fontWeight: 700, padding: "0.15rem 0.5rem", borderRadius: "6px" }}>
+                                Quote: {comp.quotation_number}
+                              </span>
+                            )}
+                            <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
+                              Filed on {new Date(comp.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            </span>
+                          </div>
+                          <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, color: "#0f172a" }}>
+                            {comp.subject}
+                          </h3>
+                        </div>
+
+                        <div>
+                          {isActionTaken && (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0", padding: "0.25rem 0.65rem", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 700 }}>
+                              <CheckCircle size={13} color="#059669" /> Action Taken by Admin
+                            </span>
+                          )}
+                          {isRejected && (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca", padding: "0.25rem 0.65rem", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 700 }}>
+                              <XCircle size={13} color="#dc2626" /> Rejected by Admin
+                            </span>
+                          )}
+                          {isPending && (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", padding: "0.25rem 0.65rem", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 700 }}>
+                              <Clock size={13} color="#d97706" /> Pending Admin Review
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Reported Staff */}
+                      <div style={{ background: "#f8fafc", padding: "0.6rem 0.85rem", borderRadius: "8px", fontSize: "0.85rem", color: "#475569", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <User size={15} color="#64748b" />
+                        <span>Reported Staff Member: <strong>{comp.staff_name}</strong> ({comp.staff_role} · {comp.staff_email})</span>
+                      </div>
+
+                      {/* Customer Description */}
+                      <div style={{ fontSize: "0.875rem", color: "#334155", lineHeight: "1.5", background: "#ffffff", border: "1px solid #f1f5f9", padding: "0.75rem 1rem", borderRadius: "8px" }}>
+                        {comp.description}
+                      </div>
+
+                      {/* Admin Resolution / Rejection Response Display */}
+                      {isActionTaken && (
+                        <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "10px", padding: "0.9rem 1.15rem" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "#166534", fontWeight: 700, fontSize: "0.875rem", marginBottom: "0.35rem" }}>
+                            <CheckCircle size={15} color="#16a34a" /> Administrator Resolution & Action Taken:
+                          </div>
+                          <div style={{ fontSize: "0.875rem", color: "#14532d", lineHeight: "1.45" }}>
+                            {comp.admin_notes}
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "#15803d", marginTop: "0.4rem" }}>
+                            Resolved on {new Date(comp.resolved_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </div>
+                        </div>
+                      )}
+
+                      {isRejected && (
+                        <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "10px", padding: "0.9rem 1.15rem" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "#991b1b", fontWeight: 700, fontSize: "0.875rem", marginBottom: "0.35rem" }}>
+                            <XCircle size={15} color="#dc2626" /> Administrator Explanation (Complaint Not Upheld):
+                          </div>
+                          <div style={{ fontSize: "0.875rem", color: "#7f1d1d", lineHeight: "1.45" }}>
+                            {comp.admin_notes}
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "#b91c1c", marginTop: "0.4rem" }}>
+                            Reviewed on {new Date(comp.resolved_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </div>
+                        </div>
+                      )}
+
+                      {isPending && (
+                        <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "8px", padding: "0.75rem 1rem", fontSize: "0.825rem", color: "#92400e", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <Clock size={15} color="#d97706" />
+                          <span>Your complaint is currently in the Administrator's review queue. Corrective action or explanation will be posted here once resolved.</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  ) : detailLoading ? (
         <div style={{ ...glassStyle, textAlign: "center", padding: "4rem", color: "#64748b" }}>
           <div className="spin" style={{ display: "inline-block", marginBottom: "1rem" }}>
             <FileText size={32} color="#2563eb" />
@@ -763,27 +1252,150 @@ async function loadRequestData() {
                     <th>Unit Price</th>
                     <th>Item Discount</th>
                     <th style={{ textAlign: "right" }}>Total Amount</th>
+                    {canRespond && !pendingRequest && <th style={{ textAlign: "center", width: "160px" }}>Item Adjustment</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {quotation.items.map((item) => (
-                    <tr key={item.id}>
-                      <td><strong style={{ color: "#0f172a" }}>{item.name}</strong></td>
-                      <td style={{ color: "#64748b" }}>{item.category}</td>
-                      <td><span style={{ fontWeight: 700 }}>{item.quantity}</span></td>
-                      <td>{currency(item.unitPrice)}</td>
-                      <td><span style={{ color: item.discountPercent > 0 ? "#ef4444" : "#64748b", fontWeight: 600 }}>{item.discountPercent}%</span></td>
-                      <td style={{ textAlign: "right", fontWeight: 800, color: "#0f172a" }}>{currency(item.lineTotal)}</td>
-                    </tr>
-                  ))}
+                  {quotation.items.map((item) => {
+                    const isPendingRemoval = pendingRequest?.removedItemIds?.includes(item.id);
+                    const isMarkedForRemoval = selectedRemovalItemIds.includes(item.id);
+
+                    return (
+                      <tr
+                        key={item.id}
+                        style={{
+                          background: isMarkedForRemoval
+                            ? "rgba(254, 242, 242, 0.75)"
+                            : isPendingRemoval
+                            ? "rgba(254, 243, 199, 0.5)"
+                            : undefined,
+                          color: isMarkedForRemoval ? "#94a3b8" : undefined,
+                        }}
+                      >
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                            <strong style={{ color: isMarkedForRemoval ? "#94a3b8" : "#0f172a", textDecoration: isMarkedForRemoval ? "line-through" : "none" }}>
+                              {item.name}
+                            </strong>
+                            {isPendingRemoval && (
+                              <span className="badge badge-pending" style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem" }}>
+                                ⏳ Removal Pending Sales Approval
+                              </span>
+                            )}
+                            {isMarkedForRemoval && (
+                              <span className="badge badge-rejected" style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem" }}>
+                                Marked for Removal
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ color: "#64748b" }}>{item.category}</td>
+                        <td><span style={{ fontWeight: 700, textDecoration: isMarkedForRemoval ? "line-through" : "none" }}>{item.quantity}</span></td>
+                        <td>{currency(item.unitPrice)}</td>
+                        <td><span style={{ color: item.discountPercent > 0 ? "#ef4444" : "#64748b", fontWeight: 600 }}>{item.discountPercent}%</span></td>
+                        <td style={{ textAlign: "right", fontWeight: 800, color: isMarkedForRemoval ? "#94a3b8" : "#0f172a", textDecoration: isMarkedForRemoval ? "line-through" : "none" }}>
+                          {currency(item.lineTotal)}
+                        </td>
+                        {canRespond && !pendingRequest && (
+                          <td style={{ textAlign: "center" }}>
+                            <button
+                              type="button"
+                              onClick={() => toggleRemovalItem(item.id)}
+                              style={{
+                                padding: "0.35rem 0.75rem",
+                                fontSize: "0.775rem",
+                                fontWeight: 700,
+                                borderRadius: "8px",
+                                border: isMarkedForRemoval ? "1px solid #dc2626" : "1px solid #fca5a5",
+                                background: isMarkedForRemoval ? "#dc2626" : "#fff1f2",
+                                color: isMarkedForRemoval ? "#ffffff" : "#be123c",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.35rem",
+                                transition: "all 0.2s ease",
+                              }}
+                            >
+                              {isMarkedForRemoval ? (
+                                <>Undo Removal</>
+                              ) : (
+                                <><Trash2 size={13} /> Request Removal</>
+                              )}
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
+            {/* Proposed Adjusted Quote Summary if items are marked for removal */}
+            {selectedRemovalItemIds.length > 0 && (
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #fef2f2 0%, #fff7ed 100%)",
+                  border: "1.5px solid #f87171",
+                  borderRadius: "12px",
+                  padding: "1rem 1.25rem",
+                  marginBottom: "1.25rem",
+                  boxShadow: "0 4px 12px rgba(239, 68, 68, 0.08)",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#991b1b", fontWeight: 800, fontSize: "0.95rem" }}>
+                    <Trash2 size={18} color="#dc2626" />
+                    <span>{selectedRemovalItemIds.length} item(s) selected for removal from this quotation</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Proposed New Total:</span>
+                    <strong style={{ fontSize: "1.2rem", color: "#b91c1c", fontWeight: 800 }}>{currency(proposedFinalAmount)}</strong>
+                    <span style={{ fontSize: "0.8rem", color: "#94a3b8", textDecoration: "line-through" }}>{currency(quotation.finalAmount)}</span>
+                  </div>
+                </div>
+                <div style={{ fontSize: "0.825rem", color: "#7f1d1d", marginTop: "0.4rem", lineHeight: "1.4" }}>
+                  When you submit your counter-offer below, a removal request will be dispatched to your sales representative. Once the sales representative reviews and approves, your quotation will be updated automatically.
+                </div>
+              </div>
+            )}
+
             {pendingRequest && (
-              <div className="alert alert-success" style={{ marginBottom: "1rem", borderRadius: "10px" }}>
-                <MessageSquare size={17} /> <strong>Active Negotiation Pending:</strong> Requested Discount:{" "}
-                {pendingRequest.requestedDiscountPercent ?? "-"}% · Target Date: {pendingRequest.requestedDeliveryDate || "Default"} · Status: Pending Sales Approval
+              <div className="alert alert-success" style={{ marginBottom: "1.25rem", borderRadius: "12px", padding: "1rem 1.25rem" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", width: "100%" }}>
+                  <MessageSquare size={20} color="#059669" style={{ marginTop: "0.15rem", flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#065f46", marginBottom: "0.25rem" }}>
+                      Active Negotiation Request Pending Sales Review
+                    </div>
+                    {pendingRequest.removedItemIds?.length > 0 && (
+                      <div style={{ fontSize: "0.85rem", color: "#065f46", marginTop: "0.25rem" }}>
+                        • <strong>Requested Item Removals:</strong>{" "}
+                        {pendingRequest.requestedItems?.length > 0
+                          ? pendingRequest.requestedItems.map((i) => `${i.name} (Qty: ${i.quantity})`).join(", ")
+                          : `${pendingRequest.removedItemIds.length} item(s)`}
+                      </div>
+                    )}
+                    {pendingRequest.requestedDiscountPercent !== null && (
+                      <div style={{ fontSize: "0.85rem", color: "#065f46", marginTop: "0.15rem" }}>
+                        • <strong>Requested Discount:</strong> {pendingRequest.requestedDiscountPercent}%
+                      </div>
+                    )}
+                    {pendingRequest.requestedDeliveryDate && (
+                      <div style={{ fontSize: "0.85rem", color: "#065f46", marginTop: "0.15rem" }}>
+                        • <strong>Requested Delivery Date:</strong> {pendingRequest.requestedDeliveryDate}
+                      </div>
+                    )}
+                    {pendingRequest.customerComment && (
+                      <div style={{ fontSize: "0.85rem", color: "#065f46", marginTop: "0.15rem", fontStyle: "italic" }}>
+                        • <strong>Customer Note:</strong> "{pendingRequest.customerComment}"
+                      </div>
+                    )}
+                    <div style={{ fontSize: "0.78rem", color: "#047857", marginTop: "0.4rem" }}>
+                      Submitted {new Date(pendingRequest.createdAt).toLocaleString("en-IN")}. Your sales representative has been notified and will update the quotation upon agreement.
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -838,7 +1450,7 @@ async function loadRequestData() {
                   />
                 </label>
 
-                <div style={{ display: "flex", gap: "0.85rem", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "0.85rem", flexWrap: "wrap", alignItems: "center" }}>
                   <button
                     className="btn-primary"
                     type="submit"
@@ -866,6 +1478,15 @@ async function loadRequestData() {
                     style={{ padding: "0.65rem 1.25rem" }}
                   >
                     <XCircle size={16} /> Decline Quotation
+                  </button>
+
+                  <button
+                    className="btn-secondary"
+                    type="button"
+                    onClick={() => onNavigate && onNavigate(`/customer/messages`)}
+                    style={{ padding: "0.65rem 1.25rem", background: "#eff6ff", color: "#1d4ed8", borderColor: "#bfdbfe" }}
+                  >
+                    <MessageSquare size={16} color="#1d4ed8" /> Open Live Chat & Negotiation
                   </button>
                 </div>
               </form>

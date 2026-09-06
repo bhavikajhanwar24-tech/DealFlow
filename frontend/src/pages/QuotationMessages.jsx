@@ -15,6 +15,8 @@ import {
   UserCheck,
   User,
   Info,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -87,7 +89,14 @@ export default function QuotationMessages({ onNavigate }) {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [copilotLoading, setCopilotLoading] = useState(false);
+  const [agentApplying, setAgentApplying] = useState(false);
   const [copilotResult, setCopilotResult] = useState(null);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiResponse, setAiResponse] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [recreatingQuote, setRecreatingQuote] = useState(false);
+  const [aiError, setAiError] = useState("");
   const [error, setError] = useState("");
 
   const chatEndRef = useRef(null);
@@ -167,9 +176,6 @@ export default function QuotationMessages({ onNavigate }) {
           setAiAnalysis(null);
         }
 
-        if (!isPolling) {
-          setTimeout(scrollToBottom, 100);
-        }
       } catch (err) {
         if (!isPolling) setError(err.message);
       } finally {
@@ -186,7 +192,9 @@ export default function QuotationMessages({ onNavigate }) {
   useEffect(() => {
     if (selectedQuotationId) {
       setRecipientRole("");
-      loadMessages(selectedQuotationId, "");
+      loadMessages(selectedQuotationId, "").then(() => {
+        setTimeout(scrollToBottom, 100);
+      });
     }
   }, [selectedQuotationId, loadMessages]);
 
@@ -200,7 +208,9 @@ export default function QuotationMessages({ onNavigate }) {
 
   const handleRecipientChange = (newRole) => {
     setRecipientRole(newRole);
-    loadMessages(selectedQuotationId, newRole, false);
+    loadMessages(selectedQuotationId, newRole, false).then(() => {
+      setTimeout(scrollToBottom, 100);
+    });
   };
 
   const handleSendMessage = async (e, textToSend = null) => {
@@ -221,11 +231,92 @@ export default function QuotationMessages({ onNavigate }) {
 
       setNewMessage("");
       await loadMessages(selectedQuotationId, recipientRoleRef.current, false);
+      setTimeout(scrollToBottom, 50);
       await loadQuotations(true);
     } catch (err) {
       setError(err.message);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleConsultAi = async (customPrompt = "") => {
+    const query = customPrompt || aiPrompt;
+    if (!query.trim()) return;
+
+    setAiLoading(true);
+    setAiError("");
+    setError("");
+    try {
+      const res = await safeFetchJson(`${API_BASE}/messages/quotations/${selectedQuotationId}/ai-consult`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ prompt: query }),
+      });
+      if (res && res.data) {
+        setAiResponse(res.data);
+      } else {
+        setAiError("Received empty response from AI engine.");
+      }
+    } catch (err) {
+      console.error("AI consult error:", err);
+      setAiError(err.message || "Failed to consult AI negotiator");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleSendAiOnBehalf = async (messageText) => {
+    const textToSend = messageText || aiResponse?.suggestedDraft;
+    if (!textToSend || !selectedQuotationId) return;
+
+    setSending(true);
+    try {
+      await safeFetchJson(`${API_BASE}/messages/quotations/${selectedQuotationId}/ai-send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          message: textToSend,
+          recipientRole: recipientRoleRef.current,
+        }),
+      });
+
+      setAiModalOpen(false);
+      setAiResponse(null);
+      setAiPrompt("");
+      await loadMessages(selectedQuotationId, recipientRoleRef.current, false);
+      setTimeout(scrollToBottom, 50);
+      await loadQuotations(true);
+    } catch (err) {
+      setError(err.message || "Failed to send message on behalf");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleRecreateFromAi = async () => {
+    const proposal = aiResponse?.quoteUpdate;
+    if (!proposal?.shouldRecreate || !proposal.items?.length || !selectedQuotationId || recreatingQuote) return;
+    setRecreatingQuote(true);
+    try {
+      await safeFetchJson(`${API_BASE}/quotations/${selectedQuotationId}/recreate-from-ai`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ items: proposal.items }),
+      });
+      setSuccess("AI proposal applied. Review the recreated draft before submitting it for risk analysis.");
+      setAiModalOpen(false);
+      if (onNavigate) onNavigate(`/sales/quotations/${selectedQuotationId}`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRecreatingQuote(false);
     }
   };
 
@@ -262,6 +353,32 @@ export default function QuotationMessages({ onNavigate }) {
     }
   };
 
+  const handleApplyNegotiationSuggestion = async () => {
+    if (!selectedQuotationId || !copilotResult || agentApplying) return;
+    const text = `${copilotResult.requestedValue || ""} ${copilotResult.suggestedAction || ""}`;
+    const match = text.match(/(\d+(?:\.\d+)?)\s*%/);
+    if (!match) {
+      setError("The agent suggestion does not contain a discount percentage to apply.");
+      return;
+    }
+    setAgentApplying(true);
+    setError("");
+    try {
+      await safeFetchJson(`${API_BASE}/quotations/${selectedQuotationId}/apply-negotiation-suggestion`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ discountPercent: Number(match[1]) }),
+      });
+      setSuccess("Agent suggestion applied. Quotation recalculated and sent back for approval.");
+      await loadMessages(selectedQuotationId, recipientRoleRef.current, false);
+      await loadQuotations(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAgentApplying(false);
+    }
+  };
+
   const filteredQuotations = quotations.filter((q) => {
     const qNum = (q.quotation_number || "").toLowerCase();
     const cName = (q.customer_name || "").toLowerCase();
@@ -291,16 +408,9 @@ export default function QuotationMessages({ onNavigate }) {
         }}
       >
         <div>
-          <div
-            className="badge badge-approved"
-            style={{ marginBottom: "0.25rem", display: "inline-flex", gap: "0.35rem", alignItems: "center", fontSize: "0.75rem" }}
-          >
-            <Sparkles size={12} /> Quotation Messaging & AI Negotiation Hub
-          </div>
+          
           <h1 style={{ fontSize: "1.45rem", margin: "0.15rem 0", fontWeight: 800 }}>Messages & Quotation Chat</h1>
-          <p className="page-subtitle" style={{ fontSize: "0.825rem", margin: 0 }}>
-            Dedicated channel messaging between Sales Rep, Admin, and Customer with real-time AI negotiation intelligence.
-          </p>
+         
         </div>
       </div>
 
@@ -314,8 +424,9 @@ export default function QuotationMessages({ onNavigate }) {
       <div
         style={{
           display: "flex",
-          height: "calc(100vh - 150px)",
-          minHeight: "750px",
+          height: "calc(100vh - 135px)",
+          maxHeight: "calc(100vh - 135px)",
+          minHeight: "550px",
           background: "rgba(255, 255, 255, 0.95)",
           backdropFilter: "blur(14px)",
           WebkitBackdropFilter: "blur(14px)",
@@ -334,9 +445,12 @@ export default function QuotationMessages({ onNavigate }) {
             display: "flex",
             flexDirection: "column",
             background: "rgba(248, 250, 252, 0.75)",
+            height: "100%",
+            minHeight: 0,
+            overflow: "hidden",
           }}
         >
-          <div style={{ padding: "0.85rem 1.15rem", borderBottom: "1px solid #e2e8f0" }}>
+          <div style={{ padding: "0.85rem 1.15rem", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
             <div style={{ fontWeight: 800, fontSize: "0.98rem", color: "#0f172a", marginBottom: "0.5rem" }}>
               Quotation Conversations
             </div>
@@ -353,7 +467,7 @@ export default function QuotationMessages({ onNavigate }) {
             </div>
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", padding: "0.5rem" }}>
+          <div className="chat-custom-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0.5rem" }}>
             {loading ? (
               <div style={{ padding: "2rem", textAlign: "center", color: "#64748b", fontSize: "0.875rem" }}>
                 Loading conversations...
@@ -420,7 +534,17 @@ export default function QuotationMessages({ onNavigate }) {
         </div>
 
         {/* RIGHT PANEL: Chat Interface */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#ffffff" }}>
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            background: "#ffffff",
+            height: "100%",
+            minHeight: 0,
+            overflow: "hidden",
+          }}
+        >
           {activeQuotation ? (
             <>
               {/* Chat Header */}
@@ -434,6 +558,7 @@ export default function QuotationMessages({ onNavigate }) {
                   background: "rgba(248, 250, 252, 0.95)",
                   flexWrap: "wrap",
                   gap: "0.75rem",
+                  flexShrink: 0,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
@@ -466,99 +591,38 @@ export default function QuotationMessages({ onNavigate }) {
                   </div>
                 </div>
 
-                {/* Header Actions & Dropdown Channel Selector */}
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-                  {/* Channel Dropdown */}
-                  <div
+                {/* Single AI Negotiation Button & Channel Controls */}
+                <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+                  {!isCustomer && <button
+                    type="button"
+                    onClick={() => {
+                      setAiModalOpen(true);
+                      if (!aiResponse) {
+                        handleConsultAi("Review this deal, check margin headroom, and recommend best negotiation strategy.");
+                      }
+                    }}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: "0.45rem",
-                      background: "#ffffff",
-                      border: "1.5px solid #cbd5e1",
+                      padding: "0.5rem 1rem",
                       borderRadius: "10px",
-                      padding: "0.3rem 0.65rem",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                      background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+                      color: "#ffffff",
+                      border: "none",
+                      fontWeight: 700,
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                      boxShadow: "0 4px 12px rgba(124, 58, 237, 0.3)",
+                      transition: "all 0.2s ease"
                     }}
                   >
-                    <label
-                      htmlFor="header-recipient-select"
-                      style={{
-                        fontSize: "0.78rem",
-                        fontWeight: 800,
-                        color: "#475569",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.03em",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.25rem",
-                      }}
-                    >
-                      <Users size={14} color="#2563eb" /> Chat with:
-                    </label>
-                    <select
-                      id="header-recipient-select"
-                      value={recipientRole}
-                      onChange={(e) => handleRecipientChange(e.target.value)}
-                      disabled={participants.length <= 1}
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        fontWeight: 700,
-                        fontSize: "0.835rem",
-                        color: "#0f172a",
-                        cursor: participants.length <= 1 ? "default" : "pointer",
-                        outline: "none",
-                        paddingRight: "0.5rem",
-                      }}
-                    >
-                      {participants.map((p) => (
-                        <option key={p.role} value={p.role}>
-                          {p.role === "ADMIN" && "👑 Admin"}
-                          {p.role === "CUSTOMER" && "👤 Customer"}
-                          {p.role === "SALES_REP" && "💼 Sales Rep"}
-                          {" — "}
-                          {p.sublabel || p.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                    <Sparkles size={16} /> AI Assistant
+                  </button>}
 
-                  {!isCustomer && (
-                    <button
-                      className="btn-primary"
-                      style={{
-                        padding: "0.45rem 0.85rem",
-                        fontSize: "0.8rem",
-                        background: "linear-gradient(135deg, #0284c7, #2563eb)",
-                        border: "none",
-                      }}
-                      onClick={handleRunCopilot}
-                      disabled={copilotLoading}
-                    >
-                      <Sparkles size={15} /> {copilotLoading ? "Analyzing..." : "Analyze with Copilot"}
-                    </button>
-                  )}
-
-                  <strong style={{ fontSize: "1.1rem", color: "#1e40af" }}>
+                  <strong style={{ fontSize: "1.05rem", color: "#1e40af" }}>
                     {currency(activeQuotation.final_amount)}
                   </strong>
-
-                  {onNavigate && (
-                    <button
-                      className="btn-secondary"
-                      style={{ padding: "0.4rem 0.85rem", fontSize: "0.8rem" }}
-                      onClick={() =>
-                        onNavigate(
-                          isCustomer
-                            ? "/customer/portal"
-                            : `/sales/quotations/${activeQuotation.id}`
-                        )
-                      }
-                    >
-                      View Details <ArrowRight size={14} />
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -577,6 +641,7 @@ export default function QuotationMessages({ onNavigate }) {
                   justifyContent: "space-between",
                   alignItems: "center",
                   fontSize: "0.8rem",
+                  flexShrink: 0,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -621,6 +686,7 @@ export default function QuotationMessages({ onNavigate }) {
                     justifyContent: "space-between",
                     alignItems: "center",
                     fontSize: "0.825rem",
+                    flexShrink: 0,
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
@@ -679,12 +745,15 @@ export default function QuotationMessages({ onNavigate }) {
                   boxShadow: '0 6px 16px -4px rgba(14, 165, 233, 0.15)',
                   position: 'relative',
                   zIndex: 2,
+                  flexShrink: 0,
+                  maxHeight: '220px',
+                  overflowY: 'auto',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.6rem' }}>
                     <h3 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0369a1', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <Sparkles size={16} color="#0284c7" /> AI Negotiation Copilot Recommendation
                     </h3>
-                    <button 
+                    <button
                       onClick={() => setCopilotResult(null)}
                       style={{ background: '#e0f2fe', border: 'none', borderRadius: '50%', width: '22px', height: '22px', cursor: 'pointer', color: '#0369a1', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       title="Close Insight"
@@ -692,7 +761,7 @@ export default function QuotationMessages({ onNavigate }) {
                       ✕
                     </button>
                   </div>
-                  
+
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', fontSize: '0.82rem', color: '#0c4a6e', marginBottom: '0.75rem' }}>
                     <div style={{ background: 'rgba(255,255,255,0.7)', padding: '0.5rem 0.75rem', borderRadius: '8px' }}>
                       <span style={{ color: '#64748b', fontSize: '0.74rem', textTransform: 'uppercase', fontWeight: 700 }}>Request Context</span>
@@ -707,20 +776,28 @@ export default function QuotationMessages({ onNavigate }) {
                       <div style={{ fontSize: '0.78rem', color: '#166534', fontWeight: 600 }}>Est. Margin: {copilotResult.estimatedMargin}</div>
                     </div>
                   </div>
-                  
+
                   <div style={{ background: 'rgba(255,255,255,0.85)', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.83rem', border: '1px solid #bae6fd' }}>
                     <div style={{ marginBottom: '0.4rem' }}>
                       <strong style={{ color: '#0369a1' }}>Strategy:</strong> <span style={{ color: '#334155' }}>{copilotResult.suggestedAction}</span>
                     </div>
                     <div style={{ paddingTop: '0.4rem', borderTop: '1px dashed #bae6fd', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      <strong style={{ color: '#0369a1' }}>Suggested Reply:</strong> 
+                      <strong style={{ color: '#0369a1' }}>Suggested Reply:</strong>
                       <p style={{ margin: 0, fontStyle: 'italic', color: '#1e293b', background: '#f8fafc', padding: '0.5rem 0.75rem', borderRadius: '6px', borderLeft: '3px solid #0284c7' }}>
                         "{copilotResult.suggestedReply}"
                       </p>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
-                        <button 
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={handleApplyNegotiationSuggestion}
+                          className="btn-primary"
+                          disabled={agentApplying}
+                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.76rem', background: '#16a34a' }}
+                        >
+                          {agentApplying ? "Recalculating..." : "Accept suggestion & re-submit"}
+                        </button>
+                        <button
                           onClick={() => setNewMessage(copilotResult.suggestedReply)}
-                          className="btn-primary" 
+                          className="btn-primary"
                           style={{ padding: '0.35rem 0.75rem', fontSize: '0.76rem', background: '#0284c7' }}
                         >
                           Insert into chat compose
@@ -731,16 +808,19 @@ export default function QuotationMessages({ onNavigate }) {
                 </div>
               )}
 
-              {/* Chat Scroll Window (Maximised Height & Spacing) */}
+              {/* Chat Scroll Window (Scrollable for any volume of messages) */}
               <div
+                className="chat-custom-scroll"
                 style={{
                   flex: 1,
+                  minHeight: 0,
                   overflowY: "auto",
-                  padding: "1.5rem 1.75rem",
+                  padding: "1.25rem 1.75rem",
                   background: "#f8fafc",
                   display: "flex",
                   flexDirection: "column",
-                  gap: "0.25rem",
+                  gap: "0.5rem",
+                  scrollBehavior: "smooth",
                 }}
               >
                 {messagesLoading && messages.length === 0 ? (
@@ -839,194 +919,6 @@ export default function QuotationMessages({ onNavigate }) {
                 <div ref={chatEndRef} />
               </div>
 
-              {/* Quick Preset Action Chips */}
-              <div
-                style={{
-                  padding: "0.55rem 1.25rem",
-                  borderTop: "1px solid #f1f5f9",
-                  background: "#ffffff",
-                  display: "flex",
-                  gap: "0.5rem",
-                  overflowX: "auto",
-                }}
-              >
-                {isCustomer ? (
-                  recipientRole === "ADMIN" ? (
-                    <>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={() =>
-                          handleSendMessage(null, "Thank you for reaching out. We have a question regarding quotation terms.")
-                        }
-                      >
-                        💬 Inquire with Admin Desk
-                      </button>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={() =>
-                          handleSendMessage(null, "Could you please confirm the payment milestones on this quotation?")
-                        }
-                      >
-                        💳 Confirm Payment Milestones
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={() =>
-                          handleSendMessage(null, "Hi team, can we discuss a discount adjustment on this quote?")
-                        }
-                      >
-                        💡 Request Discount Adjustment
-                      </button>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={() =>
-                          handleSendMessage(null, "Could you please confirm the estimated delivery timeline?")
-                        }
-                      >
-                        🚚 Delivery Date Inquiry
-                      </button>
-                    </>
-                  )
-                ) : isSalesRep ? (
-                  recipientRole === "ADMIN" ? (
-                    <>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={() =>
-                          handleSendMessage(
-                            null,
-                            "Requesting Admin approval for special discount terms on this quotation."
-                          )
-                        }
-                      >
-                        📊 Request Admin Discount Approval
-                      </button>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={() =>
-                          handleSendMessage(null, "Could you verify credit limit and margin clearance for this client?")
-                        }
-                      >
-                        🛡️ Margin & Credit Clearance
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={handleRunAIAutoReply}
-                      >
-                        🤖 Run AI Profit Analysis
-                      </button>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={() =>
-                          handleSendMessage(
-                            null,
-                            "Hello, we have updated the quotation pricing as requested. Please review."
-                          )
-                        }
-                      >
-                        ✅ Pricing Updated Notice
-                      </button>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={() =>
-                          handleSendMessage(
-                            null,
-                            "We are pleased to offer you special volume pricing on this quotation."
-                          )
-                        }
-                      >
-                        🎁 Special Volume Pricing
-                      </button>
-                    </>
-                  )
-                ) : (
-                  // ADMIN View
-                  recipientRole === "CUSTOMER" ? (
-                    <>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={() =>
-                          handleSendMessage(
-                            null,
-                            "Greetings from Corporate Admin. We are reviewing your quotation terms to provide the best possible offer."
-                          )
-                        }
-                      >
-                        👋 Welcome Customer from Admin Desk
-                      </button>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={() =>
-                          handleSendMessage(
-                            null,
-                            "We have authorized enterprise concessions for your order. Please review the updated terms."
-                          )
-                        }
-                      >
-                        ✨ Enterprise Terms Authorized
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={() =>
-                          handleSendMessage(
-                            null,
-                            "Discount terms are approved. You may proceed to confirm this quotation."
-                          )
-                        }
-                      >
-                        ✅ Approved - Proceed with Quotation
-                      </button>
-                      <button
-                        type="button"
-                        className="badge badge-neutral"
-                        style={{ cursor: "pointer", border: "1px solid #cbd5e1", fontSize: "0.775rem" }}
-                        onClick={() =>
-                          handleSendMessage(
-                            null,
-                            "Please ensure gross margin stays above 18% before issuing final agreement."
-                          )
-                        }
-                      >
-                        ⚠️ Margin Compliance Instruction
-                      </button>
-                    </>
-                  )
-                )}
-              </div>
-
               {/* Input Area */}
               <form
                 onSubmit={handleSendMessage}
@@ -1037,6 +929,7 @@ export default function QuotationMessages({ onNavigate }) {
                   display: "flex",
                   flexDirection: "column",
                   gap: "0.65rem",
+                  flexShrink: 0,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1124,6 +1017,367 @@ export default function QuotationMessages({ onNavigate }) {
           )}
         </div>
       </div>
+
+      {/* Interactive AI Negotiator Modal */}
+      {!isCustomer && aiModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(6px)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem"
+          }}
+        >
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "750px",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+              overflow: "hidden"
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: "1.25rem 1.5rem",
+                background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <Sparkles size={22} color="#fde047" />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800 }}>
+                    DealFlow AI Assistant
+                  </h3>
+                  <div style={{ fontSize: "0.8rem", opacity: 0.9 }}>
+                    Active Quote: {activeQuotation?.quotation_number} · Client: {activeQuotation?.customer_name}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setAiModalOpen(false)}
+                style={{
+                  background: "rgba(255, 255, 255, 0.2)",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "30px",
+                  height: "30px",
+                  color: "#ffffff",
+                  fontSize: "1.1rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: "1.5rem", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {/* Quick AI Action Buttons */}
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => handleConsultAi("Check current gross margin and tell me maximum safe discount I can offer.")}
+                  disabled={aiLoading}
+                  style={{
+                    padding: "0.4rem 0.8rem",
+                    borderRadius: "8px",
+                    background: "#f1f5f9",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    color: "#334155",
+                    cursor: "pointer"
+                  }}
+                >
+                  📊 Check Margin Headroom
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleConsultAi("Write a friendly negotiation counter-offer preserving our price and bundling support.")}
+                  disabled={aiLoading}
+                  style={{
+                    padding: "0.4rem 0.8rem",
+                    borderRadius: "8px",
+                    background: "#f1f5f9",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    color: "#334155",
+                    cursor: "pointer"
+                  }}
+                >
+                  ✍️ Draft Counter-Offer Message
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleConsultAi("The customer wants a 15% discount. Analyze impact and draft a smart compromise.")}
+                  disabled={aiLoading}
+                  style={{
+                    padding: "0.4rem 0.8rem",
+                    borderRadius: "8px",
+                    background: "#f1f5f9",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    color: "#334155",
+                    cursor: "pointer"
+                  }}
+                >
+                  💡 Counter 15% Discount Request
+                </button>
+              </div>
+
+              {/* AI Response Card */}
+              {aiLoading ? (
+                <div style={{ padding: "2rem", textAlign: "center", color: "#6366f1" }}>
+                  <RefreshCw size={24} className="spin-animation" style={{ margin: "0 auto 0.75rem" }} />
+                  <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>Consulting DealFlow AI with database context...</div>
+                  <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: "0.35rem" }}>
+                    Analyzing quotation metrics, margin thresholds, and negotiation history...
+                  </div>
+                </div>
+              ) : aiError ? (
+                <div
+                  style={{
+                    background: "#fef2f2",
+                    border: "1px solid #fca5a5",
+                    borderRadius: "12px",
+                    padding: "1.25rem",
+                    color: "#991b1b"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+                    <AlertTriangle size={18} color="#dc2626" />
+                    <span>AI Assistant Notice</span>
+                  </div>
+                  <p style={{ margin: "0 0 0.75rem 0", fontSize: "0.875rem", lineHeight: "1.4" }}>
+                    {aiError}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleConsultAi("Review this deal, check margin headroom, and recommend best negotiation strategy.")}
+                    style={{
+                      padding: "0.4rem 0.9rem",
+                      borderRadius: "8px",
+                      background: "#dc2626",
+                      color: "#ffffff",
+                      border: "none",
+                      fontSize: "0.825rem",
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    Retry Negotiation Analysis
+                  </button>
+                </div>
+              ) : aiResponse ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+                  {/* Structured Analysis Grid */}
+                  {aiResponse.summary ? (
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "1rem 1.15rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.65rem",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.2rem" }}>
+                          📋 Negotiation Context Analysis
+                        </div>
+                        <p style={{ margin: 0, fontSize: "0.875rem", color: "#1e293b", lineHeight: "1.4" }}>
+                          {aiResponse.summary}
+                        </p>
+                      </div>
+
+                      {aiResponse.strategy && (
+                        <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.5rem" }}>
+                          <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#4f46e5", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.2rem" }}>
+                            💡 Recommended Tactical Strategy
+                          </div>
+                          <p style={{ margin: 0, fontSize: "0.875rem", color: "#1e293b", lineHeight: "1.4" }}>
+                            {aiResponse.strategy}
+                          </p>
+                        </div>
+                      )}
+
+                      {aiResponse.dealHealth && (
+                        <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "0.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+                          <div style={{ fontSize: "0.825rem", color: "#334155" }}>
+                            <strong style={{ color: "#0f172a" }}>🛡️ Margin Health:</strong> {aiResponse.dealHealth}
+                          </div>
+                          <span style={{ fontSize: "0.75rem", fontWeight: 700, padding: "0.2rem 0.6rem", borderRadius: "6px", background: "#ecfdf5", color: "#059669", border: "1px solid #a7f3d0" }}>
+                            Margin: {aiResponse.margin || "20%"} (Floor: 18%)
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        background: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "12px",
+                        padding: "1rem 1.25rem",
+                        fontSize: "0.9rem",
+                        lineHeight: "1.5",
+                        color: "#1e293b",
+                        whiteSpace: "pre-wrap"
+                      }}
+                    >
+                      {aiResponse.reply}
+                    </div>
+                  )}
+
+                  {aiResponse.suggestedDraft && (
+                    <div
+                      style={{
+                        background: "#f0fdf4",
+                        border: "1.5px solid #86efac",
+                        borderRadius: "12px",
+                        padding: "1rem 1.25rem",
+                        boxShadow: "0 2px 8px rgba(34, 197, 94, 0.08)"
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                        <strong style={{ fontSize: "0.85rem", color: "#166534" }}>
+                          Suggested Message (Ready to Send on Your Behalf):
+                        </strong>
+                        <span style={{ fontSize: "0.75rem", color: "#15803d", fontWeight: 600 }}>
+                          Target: {currentRecipient?.label || "Customer"}
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: "0.9rem", color: "#14532d", fontStyle: "italic", lineHeight: "1.45" }}>
+                        "{aiResponse.suggestedDraft}"
+                      </p>
+
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem" }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewMessage(aiResponse.suggestedDraft);
+                            setAiModalOpen(false);
+                          }}
+                          style={{
+                            padding: "0.45rem 1rem",
+                            borderRadius: "8px",
+                            background: "#ffffff",
+                            border: "1px solid #cbd5e1",
+                            fontSize: "0.825rem",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            color: "#334155"
+                          }}
+                        >
+                          Insert into Chat Box
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSendAiOnBehalf(aiResponse.suggestedDraft)}
+                          disabled={sending}
+                          style={{
+                            padding: "0.45rem 1.25rem",
+                            borderRadius: "8px",
+                            background: "#16a34a",
+                            border: "none",
+                            color: "#ffffff",
+                            fontSize: "0.825rem",
+                            fontWeight: 700,
+                            cursor: sending ? "not-allowed" : "pointer",
+                            boxShadow: "0 2px 8px rgba(22, 163, 74, 0.3)"
+                          }}
+                        >
+                          🚀 Send on My Behalf Now
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {aiResponse.quoteUpdate?.shouldRecreate && aiResponse.quoteUpdate.items?.length > 0 && (
+                    <div style={{ marginTop: "0.9rem", padding: "1rem 1.25rem", borderRadius: "12px", background: "#fff7ed", border: "1.5px solid #fdba74" }}>
+                      <strong style={{ color: "#9a3412", fontSize: "0.85rem" }}>Agentic quotation proposal</strong>
+                      <p style={{ margin: "0.45rem 0", color: "#7c2d12", fontSize: "0.82rem" }}>{aiResponse.quoteUpdate.rationale || "The agent recommends changing the quotation terms."}</p>
+                      <p style={{ margin: "0 0 0.75rem", color: "#7c2d12", fontSize: "0.78rem" }}>{aiResponse.quoteUpdate.items.length} line item(s) will be recreated. Existing omitted lines may be removed.</p>
+                      <button type="button" className="btn-primary" onClick={handleRecreateFromAi} disabled={recreatingQuote} style={{ width: "auto", background: "#ea580c" }}>
+                        {recreatingQuote ? "Recreating draft..." : "Accept proposal & recreate quote"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ padding: "1.5rem", textAlign: "center", color: "#64748b", background: "#f8fafc", borderRadius: "12px", border: "1px dashed #cbd5e1" }}>
+                  <Sparkles size={24} color="#6366f1" style={{ margin: "0 auto 0.5rem" }} />
+                  <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#334155" }}>Ready to assist your negotiation</div>
+                  <div style={{ fontSize: "0.8rem", marginTop: "0.25rem" }}>
+                    Select a quick strategy button above or type your prompt below to generate data-grounded guidance and reply drafts.
+                  </div>
+                </div>
+              )}
+
+              {/* Chat with AI Input */}
+              <div style={{ marginTop: "auto", borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}>
+                <div style={{ fontSize: "0.825rem", fontWeight: 700, color: "#475569", marginBottom: "0.4rem" }}>
+                  Ask AI anything about this deal or tell it what to negotiate:
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <input
+                    type="text"
+                    className="form-input no-icon"
+                    style={{ flex: 1, borderRadius: "10px", fontSize: "0.875rem", padding: "0.6rem 0.9rem" }}
+                    placeholder="e.g. Tell the client we can offer 7% if they sign a 2-year contract..."
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleConsultAi();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleConsultAi()}
+                    disabled={aiLoading || !aiPrompt.trim()}
+                    style={{
+                      padding: "0.6rem 1.25rem",
+                      borderRadius: "10px",
+                      background: "#4f46e5",
+                      border: "none",
+                      color: "#ffffff",
+                      fontWeight: 700,
+                      fontSize: "0.875rem",
+                      cursor: aiLoading || !aiPrompt.trim() ? "not-allowed" : "pointer"
+                    }}
+                  >
+                    Ask AI
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

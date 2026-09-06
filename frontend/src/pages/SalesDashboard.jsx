@@ -12,10 +12,11 @@ import {
   Calendar,
   Search,
   TrendingUp,
+  Settings2,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import RevenueMarginChart from "../components/RevenueMarginChart";
-import { exportToCSV, printOrExportPDF } from "../utils/exportUtils";
+import { exportToCSV, printOrExportPDF, resetExportPreferences, promptExportDialog } from "../utils/exportUtils";
 
 const API_BASE = "http://localhost:5000/api";
 const currency = (value) =>
@@ -25,6 +26,9 @@ export default function SalesDashboard({ onNavigate }) {
   const { token, user } = useAuth();
   const [summary, setSummary] = useState(null);
   const [quotations, setQuotations] = useState([]);
+  const [customerRequests, setCustomerRequests] = useState([]);
+  const [convertingId, setConvertingId] = useState(null);
+  const [actionSuccess, setActionSuccess] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -37,23 +41,28 @@ export default function SalesDashboard({ onNavigate }) {
     setLoading(true);
     setError("");
     try {
-      const [summaryRes, quotesRes] = await Promise.all([
+      const [summaryRes, quotesRes, requestsRes] = await Promise.all([
         fetch(`${API_BASE}/quotations/dashboard-summary`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`${API_BASE}/quotations`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        fetch(`${API_BASE}/quotations/customer-requests`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => ({ ok: false })),
       ]);
 
       const summaryData = await summaryRes.json();
       const quotesData = await quotesRes.json();
+      const requestsData = requestsRes.ok ? await requestsRes.json() : { data: [] };
 
       if (!summaryRes.ok) throw new Error(summaryData.message || "Unable to load dashboard summary.");
       if (!quotesRes.ok) throw new Error(quotesData.message || "Unable to load quotations list.");
 
       setSummary(summaryData.data);
       setQuotations(quotesData.data || []);
+      setCustomerRequests(requestsData.data || []);
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -64,6 +73,35 @@ export default function SalesDashboard({ onNavigate }) {
   useEffect(() => {
     loadData();
   }, [token]);
+
+  async function handleConvertRequest(requestId) {
+    setConvertingId(requestId);
+    setError("");
+    setActionSuccess("");
+    try {
+      const response = await fetch(`${API_BASE}/quotations/customer-requests/${requestId}/convert`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Failed to convert customer request into quotation.");
+
+      setCustomerRequests((current) => current.filter((req) => req.id !== requestId));
+      setQuotations((current) => [data.data, ...current]);
+      setActionSuccess(`⚡ Success: Quotation ${data.data.quotationNumber} has been generated and added to active deals!`);
+      
+      // Refresh summary
+      fetch(`${API_BASE}/quotations/dashboard-summary`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(r => r.json()).then(res => {
+        if (res.data) setSummary(res.data);
+      }).catch(() => {});
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setConvertingId(null);
+    }
+  }
 
   // Filtered quotations for reporting
   const filteredQuotes = useMemo(() => {
@@ -178,6 +216,12 @@ export default function SalesDashboard({ onNavigate }) {
 
   const cards = [
     [
+      "Inbound Customer RFQs",
+      summary?.pendingCustomerRequests ?? customerRequests.length,
+      "Awaiting quote generation",
+      (customerRequests.length > 0 || (summary?.pendingCustomerRequests ?? 0) > 0) ? "#8b5cf6" : "#64748b",
+    ],
+    [
       "Pending Approvals",
       summary?.pendingApprovals ?? "...",
       "Quotes awaiting review",
@@ -239,7 +283,7 @@ export default function SalesDashboard({ onNavigate }) {
             Sales Performance Dashboard
           </h1>
           <p style={{ color: "#64748b", marginTop: "0.4rem" }}>
-            Real-time quotation governance, revenue analytics, margin tracking, and official export reports.
+            Real-time quotation governance, customer RFQ conversion, revenue analytics, and deal management.
           </p>
         </div>
 
@@ -255,10 +299,17 @@ export default function SalesDashboard({ onNavigate }) {
         </div>
       </div>
 
+      {actionSuccess && (
+        <div className="alert alert-success" style={{ marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>{actionSuccess}</span>
+          <button onClick={() => setActionSuccess("")} style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 800, color: "#166534" }}>✕</button>
+        </div>
+      )}
+
       {error && <div className="alert alert-danger" style={{ marginBottom: "1.5rem" }}>{error}</div>}
 
       {/* KPI Metric Cards */}
-      <div className="metric-grid" style={{ marginBottom: "2rem" }}>
+      <div className="metric-grid" style={{ marginBottom: "2rem", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         {cards.map(([label, value, detail, color]) => (
           <div
             className="metric-card"
@@ -282,6 +333,154 @@ export default function SalesDashboard({ onNavigate }) {
           </div>
         ))}
       </div>
+
+      {/* INBOUND CUSTOMER QUOTATION REQUESTS (MANUAL STAFF REVIEW QUEUE) */}
+      <section
+        style={{
+          background: "#ffffff",
+          border: customerRequests.length > 0 ? "1.5px solid #c4b5fd" : "1px solid var(--border-light)",
+          borderRadius: "16px",
+          padding: "1.5rem",
+          boxShadow: customerRequests.length > 0 ? "0 10px 25px -5px rgba(139, 92, 246, 0.12)" : "var(--shadow-sm)",
+          marginBottom: "2rem",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "1rem",
+            marginBottom: "1.25rem",
+            paddingBottom: "0.85rem",
+            borderBottom: "1px solid #e2e8f0",
+          }}
+        >
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <ClipboardList size={20} color="#7c3aed" />
+              <h2 style={{ fontSize: "1.2rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>
+                Inbound Customer Quotation Requests
+              </h2>
+              {customerRequests.length > 0 && (
+                <span className="badge badge-pending" style={{ background: "#f5f3ff", color: "#7c3aed", border: "1px solid #ddd6fe", fontWeight: 800 }}>
+                  {customerRequests.length} Pending Review
+                </span>
+              )}
+            </div>
+            <p style={{ color: "#64748b", fontSize: "0.825rem", margin: "0.25rem 0 0" }}>
+              Requests submitted by customers via portal requiring sales review or custom pricing. Click "Approve & Convert" to instantly create a quotation deal.
+            </p>
+          </div>
+        </div>
+
+        {customerRequests.length === 0 ? (
+          <div
+            style={{
+              padding: "2rem",
+              textAlign: "center",
+              background: "#f8fafc",
+              borderRadius: "12px",
+              border: "1px dashed #cbd5e1",
+              color: "#64748b",
+            }}
+          >
+            <div style={{ fontWeight: 700, color: "#334155", marginBottom: "0.25rem" }}>
+              ✨ All customer quotation requests are up to date!
+            </div>
+            <div style={{ fontSize: "0.825rem" }}>
+              When customers submit quotation inquiries from the customer portal, they will appear here for immediate staff approval and quote generation.
+            </div>
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Date & Customer</th>
+                  <th>Requested Items</th>
+                  <th>Est. Value</th>
+                  <th>Target Delivery</th>
+                  <th>Customer Notes</th>
+                  <th style={{ textAlign: "right" }}>Staff Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {customerRequests.map((req) => (
+                  <tr key={req.id} style={{ background: "rgba(245, 243, 255, 0.4)" }}>
+                    <td>
+                      <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                        {req.customer_name || req.company_name || "Customer"}
+                      </div>
+                      <div style={{ color: "#64748b", fontSize: "0.75rem" }}>
+                        {req.company_name && req.company_name !== req.customer_name ? `${req.company_name} · ` : ""}
+                        {req.email}
+                      </div>
+                      <div style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: "0.15rem" }}>
+                        Received: {new Date(req.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                        {(req.items || []).map((item, idx) => (
+                          <span
+                            key={idx}
+                            style={{
+                              fontSize: "0.78rem",
+                              background: "#ffffff",
+                              padding: "0.2rem 0.5rem",
+                              borderRadius: "6px",
+                              border: "1px solid #e2e8f0",
+                              display: "inline-flex",
+                              gap: "0.4rem",
+                              alignItems: "center",
+                            }}
+                          >
+                            <strong>{item.name}</strong>
+                            <span style={{ color: "#7c3aed", fontWeight: 700 }}>×{item.quantity}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td style={{ fontWeight: 800, color: "#166534", fontSize: "0.9rem" }}>
+                      {currency(req.estimatedTotal)}
+                    </td>
+                    <td style={{ fontSize: "0.8rem", color: "#475569" }}>
+                      {req.requested_delivery_date
+                        ? new Date(req.requested_delivery_date).toLocaleDateString("en-IN")
+                        : "Standard"}
+                    </td>
+                    <td style={{ fontSize: "0.78rem", color: "#64748b", maxWidth: "220px" }}>
+                      {req.customer_comment || <span style={{ color: "#94a3b8" }}>—</span>}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <div style={{ display: "inline-flex", gap: "0.4rem", justifyContent: "flex-end" }}>
+                        <button
+                          className="btn-primary"
+                          style={{
+                            padding: "0.35rem 0.75rem",
+                            fontSize: "0.78rem",
+                            background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
+                            border: "none",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.3rem",
+                          }}
+                          disabled={convertingId === req.id}
+                          onClick={() => handleConvertRequest(req.id)}
+                        >
+                          {convertingId === req.id ? "Converting..." : "⚡ Approve & Create Quote"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {/* Analytics Feature: Revenue vs Margin Component */}
       <div style={{ marginBottom: "2rem" }}>
@@ -318,35 +517,79 @@ export default function SalesDashboard({ onNavigate }) {
                 Quotation & Deal Export Reports
               </h2>
             </div>
-            <p style={{ color: "#64748b", fontSize: "0.825rem", margin: "0.25rem 0 0" }}>
-              Filter sales deals by period, approval stage, and search query. Download as CSV/XLS or formatted PDF.
-            </p>
+            
           </div>
 
-          {/* Export Buttons */}
-          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleExportCSV}
-              style={{ padding: "0.45rem 0.85rem", fontSize: "0.825rem", display: "inline-flex", gap: "0.35rem" }}
-            >
-              <Download size={15} color="#166534" /> Export CSV / XLS
-            </button>
+          {/* Export Controls Layout: Export CSV & Configure Download in same line, Download PDF below */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.45rem" }}>
+            {/* Row 1: Export CSV and Configure Download in same line */}
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleExportCSV}
+                style={{
+                  padding: "0.35rem 0.75rem",
+                  fontSize: "0.8rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  height: "32px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Download size={14} color="#166534" /> Export CSV / XLS
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const config = await promptExportDialog({
+                    defaultName: "Sales_Quotations_Report",
+                    defaultFormat: "pdf",
+                  });
+                  if (config) {
+                    setActionSuccess(`Download preferences updated: ${config.filename}.${config.format}`);
+                  }
+                }}
+                title="Configure download name & format preferences"
+                style={{
+                  padding: "0.35rem 0.75rem",
+                  fontSize: "0.8rem",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  background: "#f8fafc",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "7px",
+                  color: "#334155",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  height: "32px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Settings2 size={13} color="#2563eb" /> Configure Download
+              </button>
+            </div>
+
+            {/* Row 2: Download PDF directly below Configure Download */}
             <button
               type="button"
               className="btn-primary"
               onClick={handleExportPDF}
               style={{
-                padding: "0.45rem 0.95rem",
+                padding: "0.4rem 0.95rem",
                 fontSize: "0.825rem",
                 background: "linear-gradient(135deg, #1d4ed8, #2563eb)",
                 border: "none",
                 display: "inline-flex",
                 gap: "0.35rem",
+                alignItems: "center",
+                height: "34px",
+                whiteSpace: "nowrap",
               }}
             >
-              <Printer size={15} /> Export / Print PDF
+              <Download size={15} /> Download PDF
             </button>
           </div>
         </div>

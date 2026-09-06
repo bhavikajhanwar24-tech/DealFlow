@@ -159,7 +159,6 @@ export default function AdminStaff() {
               <label className="form-label" htmlFor="role">Role</label>
               <select id="role" name="role" className="form-select no-icon" value={form.role} onChange={updateField}>
                 <option value="SALES_REP">Sales Representative</option>
-                <option value="SALES_MANAGER">Sales Manager</option>
                 <option value="FINANCE">Finance Specialist</option>
                 <option value="OPERATIONS">Operations Coordinator</option>
               </select>
@@ -185,8 +184,8 @@ export default function AdminStaff() {
           </div>
         </form>
 
-        <section className="admin-panel staff-list-panel  overflow-y-auto ">
-          <div className="panel-heading panel-heading-spread ">
+        <section className="admin-panel staff-list-panel">
+          <div className="panel-heading panel-heading-spread">
             <div>
               <p className="eyebrow">Controlled access</p>
               <h2>Issued staff accounts</h2>

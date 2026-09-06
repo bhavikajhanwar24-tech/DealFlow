@@ -247,9 +247,9 @@ export default function Quotations({ onNavigate }) {
             type="button"
             className="btn-secondary"
             onClick={handleExportPDF}
-            style={{ padding: "0.45rem 0.85rem", fontSize: "0.825rem", display: "inline-flex", gap: "0.35rem" }}
+            style={{ padding: "0.45rem 0.85rem", fontSize: "0.825rem", display: "inline-flex", gap: "0.35rem", alignItems: "center" }}
           >
-            <Printer size={15} color="#2563eb" /> Print / PDF
+            <Download size={15} color="#2563eb" /> Download PDF
           </button>
           <button
             className="btn-primary"

@@ -142,13 +142,21 @@ async function getAdminStats() {
   `);
 
   const auditCount = await db.query(`SELECT COUNT(*) as count FROM public.audit_logs`);
+  const complaintCount = await db.query(`
+    SELECT
+      COUNT(*)::int as total,
+      COUNT(*) FILTER (WHERE status = 'PENDING')::int as pending
+    FROM public.staff_complaints
+  `);
 
   return {
     pendingApprovals: parseInt(counts.rows[0].pending_count, 10) || 0,
     activeEmployees: parseInt(counts.rows[0].active_employee_count, 10) || 0,
     totalCustomers: parseInt(counts.rows[0].customer_count, 10) || 0,
     rejectedEmployees: parseInt(counts.rows[0].rejected_count, 10) || 0,
-    totalAuditLogs: parseInt(auditCount.rows[0].count, 10) || 0
+    totalAuditLogs: parseInt(auditCount.rows[0].count, 10) || 0,
+    pendingComplaints: complaintCount.rows[0]?.pending || 0,
+    totalComplaints: complaintCount.rows[0]?.total || 0,
   };
 }
 
@@ -531,11 +539,12 @@ async function getWarehouseAnalytics() {
 
   const products = await db.query(`
     SELECT p.id, p.name,
+           COALESCE(p.category, 'HARDWARE') AS category,
            COALESCE(SUM(wi.quantity), 0)::INTEGER AS total_units,
            COALESCE(SUM(wi.quantity * p.unit_price), 0)::NUMERIC AS inventory_value
     FROM public.products p
     JOIN public.warehouse_inventory wi ON wi.product_id = p.id
-    GROUP BY p.id, p.name
+    GROUP BY p.id, p.name, p.category
     HAVING SUM(wi.quantity) > 0
     ORDER BY total_units DESC, p.name ASC
   `);
@@ -543,12 +552,15 @@ async function getWarehouseAnalytics() {
   const warehouseMix = await db.query(`
     SELECT w.id AS warehouse_id, w.name AS warehouse_name,
            p.id AS product_id, p.name AS product_name,
-           SUM(wi.quantity)::INTEGER AS total_units
+           COALESCE(p.category, 'HARDWARE') AS category,
+           p.sku,
+           SUM(wi.quantity)::INTEGER AS total_units,
+           COALESCE(SUM(wi.quantity * p.unit_price), 0)::NUMERIC AS inventory_value
     FROM public.warehouse_inventory wi
     JOIN public.warehouses w ON w.id = wi.warehouse_id
     JOIN public.products p ON p.id = wi.product_id
     WHERE wi.quantity > 0
-    GROUP BY w.id, w.name, p.id, p.name
+    GROUP BY w.id, w.name, p.id, p.name, p.category, p.sku
     ORDER BY w.name ASC, total_units DESC, p.name ASC
   `);
 
@@ -562,13 +574,34 @@ async function getWarehouseAnalytics() {
 async function getAuditLogs(filters = {}) {
   const params = [];
   const conditions = [];
-  if (filters.userId) { params.push(filters.userId); conditions.push(`a.user_id = $${params.length}`); }
-  if (filters.action) { params.push(filters.action); conditions.push(`a.action = $${params.length}`); }
-  if (filters.activityType) { params.push(`${filters.activityType}%`); conditions.push(`a.action ILIKE $${params.length}`); }
-  if (filters.dealId) { params.push(`%${filters.dealId}%`); conditions.push(`a.details::text ILIKE $${params.length}`); }
-  if (filters.from) { params.push(filters.from); conditions.push(`a.created_at >= $${params.length}::date`); }
-  if (filters.to) { params.push(filters.to); conditions.push(`a.created_at < ($${params.length}::date + INTERVAL '1 day')`); }
-  if (filters.search) { params.push(`%${filters.search}%`); conditions.push(`(a.action ILIKE $${params.length} OR a.details::text ILIKE $${params.length} OR u.full_name ILIKE $${params.length})`); }
+  if (filters.userId && String(filters.userId).trim()) {
+    params.push(String(filters.userId).trim());
+    conditions.push(`a.user_id = $${params.length}`);
+  }
+  if (filters.action && String(filters.action).trim()) {
+    params.push(`%${String(filters.action).trim()}%`);
+    conditions.push(`a.action ILIKE $${params.length}`);
+  }
+  if (filters.activityType && String(filters.activityType).trim()) {
+    params.push(`${String(filters.activityType).trim()}%`);
+    conditions.push(`a.action ILIKE $${params.length}`);
+  }
+  if (filters.dealId && String(filters.dealId).trim()) {
+    params.push(`%${String(filters.dealId).trim()}%`);
+    conditions.push(`a.details::text ILIKE $${params.length}`);
+  }
+  if (filters.from && String(filters.from).trim()) {
+    params.push(String(filters.from).trim());
+    conditions.push(`a.created_at >= $${params.length}::date`);
+  }
+  if (filters.to && String(filters.to).trim()) {
+    params.push(String(filters.to).trim());
+    conditions.push(`a.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+  }
+  if (filters.search && String(filters.search).trim()) {
+    params.push(`%${String(filters.search).trim()}%`);
+    conditions.push(`(a.action ILIKE $${params.length} OR a.details::text ILIKE $${params.length} OR u.full_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`);
+  }
   const result = await db.query(`
     SELECT a.id, a.action, a.details, a.created_at, a.ip_address,
            u.id AS user_id, u.full_name AS user_name, u.email AS user_email
