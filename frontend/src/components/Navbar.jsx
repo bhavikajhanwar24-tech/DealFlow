@@ -282,10 +282,27 @@ const ShieldAlertIcon = ({ size = 16 }) => (
   </svg>
 );
 
+const MenuIcon = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="12" x2="21" y2="12" />
+    <line x1="3" y1="6" x2="21" y2="6" />
+    <line x1="3" y1="18" x2="21" y2="18" />
+  </svg>
+);
+
+const CloseIcon = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
 export default function Navbar({ currentRoute, setCurrentRoute }) {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(true);
   const dropdownRef = useRef(null);
   const moreDropdownRef = useRef(null);
 
@@ -301,9 +318,32 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
         setIsMoreOpen(false);
       }
     }
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+        setIsMoreOpen(false);
+        setIsMobileDrawerOpen(false);
+      }
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
+
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (isMobileDrawerOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobileDrawerOpen]);
 
   if (!user) return null;
 
@@ -738,82 +778,344 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
         )}
       </nav>
 
-      <div className="topbar-user-container" ref={dropdownRef}>
-        <button
-          className="user-avatar-btn"
-          onClick={() => setIsMenuOpen((prev) => !prev)}
-          aria-label="User Profile"
-          title={user.full_name}
-        >
-          <div className="user-avatar">
-            {user.full_name ? user.full_name.charAt(0).toUpperCase() : "U"}
-          </div>
-        </button>
-
-        {isMenuOpen && (
-          <div className="user-dropdown-menu">
-            <div className="dropdown-header">
-              <div className="dropdown-avatar">
-                {user.full_name ? user.full_name.charAt(0).toUpperCase() : "U"}
-              </div>
-              <div className="dropdown-user-details">
-                <div className="dropdown-name">{user.full_name}</div>
-                {user.email && (
-                  <div className="dropdown-email">{user.email}</div>
-                )}
-              </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <div className="topbar-user-container" ref={dropdownRef}>
+          <button
+            className="user-avatar-btn"
+            onClick={() => setIsMenuOpen((prev) => !prev)}
+            aria-label="User Profile"
+            title={user.full_name}
+          >
+            <div className="user-avatar">
+              {user.full_name ? user.full_name.charAt(0).toUpperCase() : "U"}
             </div>
+          </button>
 
-            <div className="dropdown-divider" />
-
-            <div className="dropdown-info-list">
-              <div className="dropdown-info-item">
-                <span className="info-label">Role</span>
-                <span
-                  className={`badge ${
-                    user.role === "ADMIN"
-                      ? "badge-pending"
-                      : user.role === "CUSTOMER"
-                        ? "badge-active"
-                        : "badge-suspended"
-                  }`}
-                  style={{ fontSize: "0.6875rem", padding: "0.15rem 0.5rem" }}
-                >
-                  {user.role}
-                </span>
+          {isMenuOpen && (
+            <div className="user-dropdown-menu">
+              <div className="dropdown-header">
+                <div className="dropdown-avatar">
+                  {user.full_name ? user.full_name.charAt(0).toUpperCase() : "U"}
+                </div>
+                <div className="dropdown-user-details">
+                  <div className="dropdown-name">{user.full_name}</div>
+                  {user.email && (
+                    <div className="dropdown-email">{user.email}</div>
+                  )}
+                </div>
               </div>
 
-              {(user.employee_id || user.id) && (
+              <div className="dropdown-divider" />
+
+              <div className="dropdown-info-list">
                 <div className="dropdown-info-item">
-                  <span className="info-label">User ID</span>
-                  <span className="info-value">
-                    {user.employee_id || user.id}
+                  <span className="info-label">Role</span>
+                  <span
+                    className={`badge ${
+                      user.role === "ADMIN"
+                        ? "badge-pending"
+                        : user.role === "CUSTOMER"
+                          ? "badge-active"
+                          : "badge-suspended"
+                    }`}
+                    style={{ fontSize: "0.6875rem", padding: "0.15rem 0.5rem" }}
+                  >
+                    {user.role}
                   </span>
                 </div>
+
+                {(user.employee_id || user.id) && (
+                  <div className="dropdown-info-item">
+                    <span className="info-label">User ID</span>
+                    <span className="info-value">
+                      {user.employee_id || user.id}
+                    </span>
+                  </div>
+                )}
+
+                {user.company_name && (
+                  <div className="dropdown-info-item">
+                    <span className="info-label">Company</span>
+                    <span className="info-value">{user.company_name}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="dropdown-divider" />
+
+              <button
+                className="dropdown-logout-btn"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  logout();
+                }}
+              >
+                <LogOutIcon size={16} /> Sign Out
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Hamburger Toggle Button */}
+        <button
+          type="button"
+          className="mobile-hamburger-btn"
+          onClick={() => setIsMobileDrawerOpen(true)}
+          aria-label="Open Navigation Menu"
+          title="Open Navigation Menu"
+        >
+          <MenuIcon size={20} />
+        </button>
+      </div>
+
+      {/* Slide-In Mobile Navigation Drawer */}
+      {isMobileDrawerOpen && (
+        <div className="mobile-nav-backdrop" onClick={() => setIsMobileDrawerOpen(false)}>
+          <div
+            className="mobile-nav-drawer"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mobile Navigation"
+          >
+            {/* Drawer Header */}
+            <div className="mobile-drawer-header">
+              <div className="topbar-brand">
+                <div className="topbar-logo">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 4h7a8 8 0 0 1 8 8 8 8 0 0 1-8 8H5V4z" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M5 12h5a3 3 0 0 0 3-3 3 3 0 0 0-3-3H5" stroke="#93c5fd" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+                  <span style={{ fontWeight: 800, fontSize: "1.1rem", color: "#0f172a" }}>DealFlow360</span>
+                  <span className="badge badge-pending" style={{ fontSize: "0.6875rem", padding: "0.15rem 0.45rem" }}>{user.role}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="mobile-drawer-close-btn"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                aria-label="Close navigation"
+              >
+                <CloseIcon size={20} />
+              </button>
+            </div>
+
+            {/* Drawer Links Body */}
+            <div className="mobile-drawer-body">
+              {isAdmin && (
+                <div className="mobile-nav-section">
+                  <div className="mobile-section-title">Core Management</div>
+                  <button
+                    className={`mobile-nav-item ${currentRoute === "/admin/dashboard" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/admin/dashboard"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <LayoutDashboardIcon size={18} /> <span>Dashboard</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item ${currentRoute === "/admin/products" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/admin/products"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <PackageIcon size={18} /> <span>Products & Catalog</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item ${currentRoute.startsWith("/sales/quotations") ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/sales/quotations"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <FileTextIcon size={18} /> <span>Quotations & Pipeline</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item ${currentRoute === "/admin/complaints" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/admin/complaints"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <ShieldAlertIcon size={18} /> <span>Staff Complaints</span>
+                  </button>
+
+                  {/* Expandable More Modules in Drawer */}
+                  <div className="mobile-section-title" style={{ marginTop: "1rem" }}>
+                    💼 Sales & Commercial
+                  </div>
+                  <button
+                    className={`mobile-nav-item sub ${currentRoute === "/admin/discount-policies" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/admin/discount-policies"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <PercentIcon size={16} /> <span>Discount Policies</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item sub ${currentRoute === "/admin/customer-tiers" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/admin/customer-tiers"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <UserCheckIcon size={16} /> <span>Customer Tiers</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item sub ${currentRoute === "/admin/deal-health" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/admin/deal-health"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <ActivityIcon size={16} /> <span>Deal Health & Risk</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item sub ${currentRoute.includes("messages") ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/sales/messages"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <MessageSquareIcon size={16} /> <span>Sales Chat & Messages</span>
+                  </button>
+
+                  <div className="mobile-section-title" style={{ marginTop: "1rem" }}>
+                    🚚 Supply Chain & Operations
+                  </div>
+                  <button
+                    className={`mobile-nav-item sub ${currentRoute === "/admin/warehouses" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/admin/warehouses"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <TruckIcon size={16} /> <span>Warehouses & Hubs</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item sub ${currentRoute === "/sales/fulfillment" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/sales/fulfillment"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <TruckIcon size={16} /> <span>Order Fulfillment</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item sub ${currentRoute === "/operations/dashboard" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/operations/dashboard"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <ActivityIcon size={16} /> <span>Operations Optimizer</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item sub ${currentRoute === "/admin/bulk-upload" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/admin/bulk-upload"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <UploadCloudIcon size={16} /> <span>Bulk Data Upload</span>
+                  </button>
+
+                  <div className="mobile-section-title" style={{ marginTop: "1rem" }}>
+                    📊 Finance & Governance
+                  </div>
+                  <button
+                    className={`mobile-nav-item sub ${currentRoute === "/finance/dashboard" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/finance/dashboard"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <DollarSignIcon size={16} /> <span>Finance Dashboard</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item sub ${currentRoute === "/admin/billing-configuration" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/admin/billing-configuration"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <SettingsGearIcon size={16} /> <span>Billing & Gateways</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item sub ${currentRoute === "/admin/audit-logs" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/admin/audit-logs"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <ShieldCheckIcon size={16} /> <span>Audit & Security Logs</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item sub ${currentRoute === "/admin/reports" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/admin/reports"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <FileTextIcon size={16} /> <span>Executive Reports</span>
+                  </button>
+                </div>
               )}
 
-              {user.company_name && (
-                <div className="dropdown-info-item">
-                  <span className="info-label">Company</span>
-                  <span className="info-value">{user.company_name}</span>
+              {isSales && !isAdmin && (
+                <div className="mobile-nav-section">
+                  <div className="mobile-section-title">Sales Workspace</div>
+                  <button
+                    className={`mobile-nav-item ${currentRoute === "/sales/dashboard" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/sales/dashboard"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <BriefcaseIcon size={18} /> <span>Sales Dashboard</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item ${currentRoute === "/sales/fulfillment" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/sales/fulfillment"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <TruckIcon size={18} /> <span>Fulfillment</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item ${currentRoute.includes("messages") ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/sales/messages"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <MessageSquareIcon size={18} /> <span>Messages & Negotiation</span>
+                  </button>
+                </div>
+              )}
+
+              {isFinance && !isAdmin && (
+                <div className="mobile-nav-section">
+                  <div className="mobile-section-title">Financial Management</div>
+                  <button
+                    className={`mobile-nav-item ${currentRoute === "/finance/dashboard" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/finance/dashboard"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <DollarSignIcon size={18} /> <span>Finance Dashboard</span>
+                  </button>
+                </div>
+              )}
+
+              {isOps && !isAdmin && (
+                <div className="mobile-nav-section">
+                  <div className="mobile-section-title">Operations & Supply</div>
+                  <button
+                    className={`mobile-nav-item ${currentRoute === "/operations/dashboard" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/operations/dashboard"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <TruckIcon size={18} /> <span>Operations Dashboard</span>
+                  </button>
+                </div>
+              )}
+
+              {isCustomer && (
+                <div className="mobile-nav-section">
+                  <div className="mobile-section-title">Customer Portal</div>
+                  <button
+                    className={`mobile-nav-item ${currentRoute === "/customer/portal" ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/customer/portal"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <FileTextIcon size={18} /> <span>My Quotations & Orders</span>
+                  </button>
+                  <button
+                    className={`mobile-nav-item ${currentRoute.includes("messages") ? "active" : ""}`}
+                    onClick={() => { setCurrentRoute("/customer/messages"); setIsMobileDrawerOpen(false); }}
+                  >
+                    <MessageSquareIcon size={18} /> <span>Live Negotiation Chat</span>
+                  </button>
                 </div>
               )}
             </div>
 
-            <div className="dropdown-divider" />
-
-            <button
-              className="dropdown-logout-btn"
-              onClick={() => {
-                setIsMenuOpen(false);
-                logout();
-              }}
-            >
-              <LogOutIcon size={16} /> Sign Out
-            </button>
+            {/* Drawer Footer User Info & Logout */}
+            <div className="mobile-drawer-footer">
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                <div className="user-avatar" style={{ width: "36px", height: "36px", fontSize: "0.85rem" }}>
+                  {user.full_name ? user.full_name.charAt(0).toUpperCase() : "U"}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.875rem", color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {user.full_name}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {user.email}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="dropdown-logout-btn"
+                onClick={() => {
+                  setIsMobileDrawerOpen(false);
+                  logout();
+                }}
+                style={{ width: "100%", justifyContent: "center" }}
+              >
+                <LogOutIcon size={16} /> Sign Out
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </header>
   );
 }

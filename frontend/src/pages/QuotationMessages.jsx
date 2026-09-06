@@ -5,6 +5,7 @@ import {
   Send,
   Building2,
   ArrowRight,
+  ArrowLeft,
   FileText,
   Sparkles,
   Bot,
@@ -483,7 +484,7 @@ export default function QuotationMessages({ onNavigate }) {
       >
         {/* LEFT PANEL: Quotation List */}
         <div
-          className="quotation-messages-sidebar"
+          className={`quotation-messages-sidebar ${selectedQuotationId ? "has-selected" : ""}`}
           style={{
             width: "370px",
             minWidth: "330px",
@@ -599,7 +600,7 @@ export default function QuotationMessages({ onNavigate }) {
 
         {/* RIGHT PANEL: Chat Interface */}
         <div
-          className="quotation-messages-chat-pane"
+          className={`quotation-messages-chat-pane ${selectedQuotationId ? "is-selected" : ""}`}
           style={{
             flex: 1,
             display: "flex",
@@ -626,7 +627,28 @@ export default function QuotationMessages({ onNavigate }) {
                   flexShrink: 0,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="mobile-back-to-convs-btn"
+                    onClick={() => setSelectedQuotationId(null)}
+                    style={{
+                      display: "none",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      background: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "8px",
+                      padding: "0.4rem 0.75rem",
+                      fontSize: "0.8rem",
+                      fontWeight: 700,
+                      color: "#1e293b",
+                      cursor: "pointer",
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                    }}
+                  >
+                    <ArrowLeft size={15} color="#2563eb" /> Back
+                  </button>
                   <div
                     style={{
                       width: "42px",
