@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -25,6 +25,7 @@ import {
   ArrowRight,
   ChevronDown,
   Download,
+  FileText,
 } from "lucide-react";
 import { exportToCSV, printOrExportPDF } from "../utils/exportUtils";
 import {
@@ -46,6 +47,8 @@ import {
   Legend,
 } from "recharts";
 import { useAuth } from "../context/AuthContext";
+
+const API_BASE = "http://localhost:5000/api";
 
 const currency = (val) =>
   `₹${Number(val || 0).toLocaleString("en-IN", {
@@ -541,13 +544,47 @@ const UPCOMING_PAYMENTS = [
   { id: 4, name: "Health Insurance Premium", amount: 18500, date: "Sep 28, 2026", urgency: "Scheduled", status: "SCHEDULED", color: "#10b981" },
 ];
 
-export default function FinanceDashboard() {
-  const { user } = useAuth();
+export default function FinanceDashboard({ onNavigate }) {
+  const { user, token } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState("2026-09");
   const [portfolioRange, setPortfolioRange] = useState("1M");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("ALL");
   const [selectedTypeFilter, setSelectedTypeFilter] = useState("ALL");
+
+  // Real Database Invoice Metrics
+  const [invoiceSummary, setInvoiceSummary] = useState(null);
+  const [recentInvoices, setRecentInvoices] = useState([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadInvoiceData() {
+      try {
+        const [sumRes, invRes] = await Promise.all([
+          fetch(`${API_BASE}/invoices/summary`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_BASE}/invoices`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        const sumData = await sumRes.json();
+        const invData = await invRes.json();
+
+        if (sumData.success) setInvoiceSummary(sumData.data);
+        if (invData.success) setRecentInvoices(invData.data || []);
+      } catch (err) {
+        console.error("Failed to load invoice summary in FinanceDashboard:", err);
+      } finally {
+        setInvoicesLoading(false);
+      }
+    }
+
+    if (token) {
+      loadInvoiceData();
+    }
+  }, [token]);
 
   // Retrieve dynamic period configuration
   const activePeriod = PERIOD_CONFIG[selectedMonth] || PERIOD_CONFIG["2026-09"];
@@ -668,23 +705,56 @@ export default function FinanceDashboard() {
       {/* ----------------------------------------------------
           DASHBOARD HEADER
          ---------------------------------------------------- */}
-      <div className="page-heading-row" style={{ marginBottom: "1.5rem" }}>
-        <div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "1.25rem",
+          marginBottom: "1.5rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ flex: "1 1 300px", minWidth: "260px" }}>
           <div className="badge badge-approved" style={{ marginBottom: "0.4rem", display: "inline-flex", gap: "0.35rem", alignItems: "center" }}>
             <Zap size={13} /> Enterprise Fintech Intelligence
           </div>
           <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Financial Dashboard</h1>
-          <p className="page-subtitle">Real-time net worth tracking, interactive cash flow, portfolio allocation, and automated budget analytics.</p>
+          <p className="page-subtitle" style={{ margin: "0.35rem 0 0 0", color: "#64748b" }}>
+            Real-time net worth tracking, interactive cash flow, portfolio allocation, and automated budget analytics.
+          </p>
         </div>
 
         {/* Header Controls & Export Bar */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.6rem",
+            flexWrap: "wrap",
+            justifyContent: "flex-start",
+          }}
+        >
           {/* Export Buttons */}
           <button
             type="button"
             className="btn-secondary"
             onClick={handleExportCSV}
-            style={{ padding: "0.45rem 0.85rem", fontSize: "0.825rem", display: "inline-flex", gap: "0.35rem", alignItems: "center", height: "38px" }}
+            style={{
+              padding: "0.45rem 0.85rem",
+              fontSize: "0.825rem",
+              display: "inline-flex",
+              gap: "0.35rem",
+              alignItems: "center",
+              height: "38px",
+              width: "auto",
+              background: "#ffffff",
+              border: "1px solid #cbd5e1",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: 600,
+              color: "#334155",
+            }}
           >
             <Download size={15} color="#166534" /> Export CSV
           </button>
@@ -701,6 +771,11 @@ export default function FinanceDashboard() {
               gap: "0.35rem",
               alignItems: "center",
               height: "38px",
+              width: "auto",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: 600,
+              color: "#ffffff",
             }}
           >
             <Download size={15} /> Download PDF
@@ -716,12 +791,13 @@ export default function FinanceDashboard() {
                 fontWeight: 700,
                 background: "#ffffff",
                 borderColor: "#cbd5e1",
-                minWidth: "250px",
+                minWidth: "220px",
                 width: "auto",
-                padding: "0 2.25rem 0 0.85rem",
+                padding: "0 2rem 0 0.85rem",
                 cursor: "pointer",
                 color: "#0f172a",
                 boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                borderRadius: "8px",
               }}
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
@@ -736,7 +812,20 @@ export default function FinanceDashboard() {
           </div>
 
           {/* User Profile Pill */}
-          <div className="badge badge-neutral" style={{ padding: "0.45rem 0.8rem", fontSize: "0.825rem", display: "flex", alignItems: "center", gap: "0.4rem", background: "rgba(255, 255, 255, 0.9)", border: "1px solid #cbd5e1", height: "38px" }}>
+          <div
+            className="badge badge-neutral"
+            style={{
+              padding: "0.45rem 0.8rem",
+              fontSize: "0.825rem",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              background: "rgba(255, 255, 255, 0.9)",
+              border: "1px solid #cbd5e1",
+              borderRadius: "8px",
+              height: "38px",
+            }}
+          >
             <User size={15} color="#2563eb" />
             <span><strong>{user?.full_name || "Finance Controller"}</strong></span>
           </div>
@@ -744,8 +833,21 @@ export default function FinanceDashboard() {
       </div>
 
       {/* Active Filter Notice Banner */}
-      <div style={{ background: "linear-gradient(135deg, #eff6ff, #f8fafc)", border: "1px solid #bfdbfe", borderRadius: "10px", padding: "0.6rem 1rem", marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", color: "#1e40af" }}>
+      <div
+        style={{
+          background: "linear-gradient(135deg, #eff6ff, #f8fafc)",
+          border: "1px solid #bfdbfe",
+          borderRadius: "10px",
+          padding: "0.65rem 1rem",
+          marginBottom: "1.5rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "0.5rem",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.825rem", color: "#1e40af", flexWrap: "wrap" }}>
           <Calendar size={16} />
           <span>Active Period View: <strong>{activePeriod.label}</strong></span>
           <span className="badge badge-neutral" style={{ fontSize: "0.725rem", background: "#dbeafe", color: "#1e40af" }}>
@@ -756,6 +858,84 @@ export default function FinanceDashboard() {
           All metrics, charts, budget caps, and ledger rows below reflect <strong>{activePeriod.shortLabel}</strong>.
         </div>
       </div>
+
+      {/* ----------------------------------------------------
+          SECTION 0: ENTERPRISE INVOICE & REVENUE RECOVERY METRICS (LIVE DATABASE)
+         ---------------------------------------------------- */}
+      <section className="admin-panel" style={{ marginBottom: "1.5rem", padding: "1.35rem 1.5rem" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.75rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <div>
+            <p className="eyebrow" style={{ margin: "0 0 0.2rem 0" }}>Enterprise Billing & Collections</p>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Live Tax Invoices & Receivables</h2>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            <span className="badge badge-approved" style={{ display: "inline-flex", gap: "0.3rem", alignItems: "center", padding: "0.35rem 0.65rem" }}>
+              <ShieldCheck size={13} /> Live Database Synced
+            </span>
+            {onNavigate && (
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => onNavigate("/admin/invoices")}
+                style={{ width: "auto", padding: "0.4rem 0.85rem", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "0.3rem", borderRadius: "8px", height: "34px" }}
+              >
+                <FileText size={14} /> Manage Invoices <ArrowRight size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="metric-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.85rem", margin: 0 }}>
+          <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "1rem" }}>
+            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Total Invoiced</div>
+            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "#0f172a", marginTop: "0.2rem" }}>
+              {currency(invoiceSummary?.total_invoiced || 0)}
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.2rem" }}>
+              {invoiceSummary?.total_invoices || 0} issued tax invoices
+            </div>
+          </div>
+
+          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "12px", padding: "1rem" }}>
+            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#166534", textTransform: "uppercase" }}>Total Collected</div>
+            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "#166534", marginTop: "0.2rem" }}>
+              {currency(invoiceSummary?.total_paid || 0)}
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "#16a34a", marginTop: "0.2rem" }}>
+              ✓ {invoiceSummary?.paid_count || 0} fully settled
+            </div>
+          </div>
+
+          <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "12px", padding: "1rem" }}>
+            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#92400e", textTransform: "uppercase" }}>Outstanding Receivables</div>
+            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "#d97706", marginTop: "0.2rem" }}>
+              {currency(invoiceSummary?.total_outstanding || 0)}
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "#b45309", marginTop: "0.2rem" }}>
+              ⏳ {invoiceSummary?.pending_count || 0} pending payments
+            </div>
+          </div>
+
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "12px", padding: "1rem" }}>
+            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#991b1b", textTransform: "uppercase" }}>Overdue Invoices</div>
+            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "#dc2626", marginTop: "0.2rem" }}>
+              {currency(invoiceSummary?.overdue_amount || 0)}
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "#ef4444", marginTop: "0.2rem" }}>
+              {invoiceSummary?.overdue_count || 0} past due date
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* ----------------------------------------------------
           SECTION 1: FINANCIAL OVERVIEW KPI CARDS (Dynamic by Period)

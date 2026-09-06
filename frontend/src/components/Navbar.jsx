@@ -811,13 +811,12 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
                 <div className="dropdown-info-item">
                   <span className="info-label">Role</span>
                   <span
-                    className={`badge ${
-                      user.role === "ADMIN"
+                    className={`badge ${user.role === "ADMIN"
                         ? "badge-pending"
                         : user.role === "CUSTOMER"
                           ? "badge-active"
                           : "badge-suspended"
-                    }`}
+                      }`}
                     style={{ fontSize: "0.6875rem", padding: "0.15rem 0.5rem" }}
                   >
                     {user.role}

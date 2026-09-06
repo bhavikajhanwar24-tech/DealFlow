@@ -20,6 +20,10 @@ import {
   User,
   Bot,
   Sparkles,
+  Download,
+  Receipt,
+  CreditCard,
+  CheckCircle2,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -82,8 +86,13 @@ export default function CustomerPortal({ onNavigate }) {
   const [destLat, setDestLat] = useState("28.6139");
   const [destLng, setDestLng] = useState("77.2090");
 
+  // Invoices state
+  const [customerInvoices, setCustomerInvoices] = useState([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState(null);
+
   // Complaints state
-  const [activeTab, setActiveTab] = useState("QUOTATIONS"); // 'QUOTATIONS' | 'COMPLAINTS'
+  const [activeTab, setActiveTab] = useState("QUOTATIONS"); // 'QUOTATIONS' | 'INVOICES' | 'COMPLAINTS'
   const [complaints, setComplaints] = useState([]);
   const [staffMembers, setStaffMembers] = useState([]);
   const [complaintsLoading, setComplaintsLoading] = useState(false);
@@ -93,6 +102,46 @@ export default function CustomerPortal({ onNavigate }) {
   const [complaintSubject, setComplaintSubject] = useState("");
   const [complaintDescription, setComplaintDescription] = useState("");
   const [submittingComplaint, setSubmittingComplaint] = useState(false);
+
+  async function loadCustomerInvoices() {
+    setInvoicesLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/invoices`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setCustomerInvoices(data.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load customer invoices:", err);
+    } finally {
+      setInvoicesLoading(false);
+    }
+  }
+
+  async function handleDownloadPDF(invoiceId, invoiceNumber) {
+    setDownloadingInvoiceId(invoiceId);
+    try {
+      const response = await fetch(`${API_BASE}/invoices/${invoiceId}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error("Failed to download PDF invoice");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${invoiceNumber || "Tax-Invoice"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Error downloading invoice PDF: " + err.message);
+    } finally {
+      setDownloadingInvoiceId(null);
+    }
+  }
 
   async function loadComplaints() {
     setComplaintsLoading(true);
@@ -289,6 +338,7 @@ async function loadRequestData() {
       loadProducts();
       loadComplaints();
       loadStaffMembers();
+      loadCustomerInvoices();
     }
   }, [token]);
 
@@ -610,6 +660,28 @@ async function loadRequestData() {
               }}
             >
               <FileText size={17} /> Quotations & Catalog ({quotations.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab("INVOICES")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.65rem 1.25rem",
+                borderRadius: "10px",
+                fontWeight: 700,
+                fontSize: "0.9rem",
+                cursor: "pointer",
+                border: "1px solid",
+                borderColor: activeTab === "INVOICES" ? "#2563eb" : "#cbd5e1",
+                background: activeTab === "INVOICES" ? "#2563eb" : "#ffffff",
+                color: activeTab === "INVOICES" ? "#ffffff" : "#475569",
+                boxShadow: activeTab === "INVOICES" ? "0 4px 12px rgba(37, 99, 235, 0.2)" : "none",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Receipt size={17} /> Tax Invoices & Receipts ({customerInvoices.length})
             </button>
 
             <button
@@ -1199,6 +1271,176 @@ async function loadRequestData() {
                 })}
               </div>
             )}
+          </div>
+        </>
+      )}
+
+      {activeTab === "INVOICES" && (
+        <>
+          {/* Section: Customer Invoices Overview Metrics */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
+            <div style={{ ...glassStyle, padding: "1.25rem", borderLeft: "4px solid #2563eb" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#64748b" }}>Total Invoiced</span>
+                <Receipt size={18} color="#2563eb" />
+              </div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#0f172a", marginTop: "0.5rem" }}>
+                {currency(customerInvoices.reduce((acc, inv) => acc + Number(inv.grand_total || inv.total_amount || 0), 0))}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem" }}>
+                {customerInvoices.length} Official Invoices Issued
+              </div>
+            </div>
+
+            <div style={{ ...glassStyle, padding: "1.25rem", borderLeft: "4px solid #10b981" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#64748b" }}>Paid Amount</span>
+                <CheckCircle2 size={18} color="#10b981" />
+              </div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#10b981", marginTop: "0.5rem" }}>
+                {currency(customerInvoices.reduce((acc, inv) => acc + Number(inv.amount_paid || 0), 0))}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem" }}>
+                Cleared & Settled Receipts
+              </div>
+            </div>
+
+            <div style={{ ...glassStyle, padding: "1.25rem", borderLeft: "4px solid #f59e0b" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#64748b" }}>Balance Due</span>
+                <Clock size={18} color="#f59e0b" />
+              </div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#b45309", marginTop: "0.5rem" }}>
+                {currency(customerInvoices.reduce((acc, inv) => acc + Number(inv.amount_due ?? (inv.grand_total - (inv.amount_paid || 0))), 0))}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem" }}>
+                Pending Settlement
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Invoices List */}
+          <div className="admin-panel" style={{ ...glassStyle, padding: 0, overflow: "hidden" }}>
+            <div className="panel-heading panel-heading-spread" style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #e2e8f0" }}>
+              <div>
+                <p className="eyebrow">Enterprise Billing & Compliance</p>
+                <h2 style={{ fontSize: "1.2rem", fontWeight: 800 }}>Official GST Tax Invoices</h2>
+              </div>
+              <span className="staff-count">{customerInvoices.length} Documents</span>
+            </div>
+
+            <div style={{ overflowX: "auto" }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Invoice Number</th>
+                    <th>Date Issued</th>
+                    <th>Order / Quotation Ref</th>
+                    <th>Taxable Value</th>
+                    <th>GST (18%)</th>
+                    <th>Total Amount</th>
+                    <th>Amount Due</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: "right" }}>Download</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoicesLoading && (
+                    <tr>
+                      <td colSpan="9" className="empty-state" style={{ padding: "3rem" }}>
+                        Loading your tax invoices...
+                      </td>
+                    </tr>
+                  )}
+                  {!invoicesLoading && customerInvoices.length === 0 && (
+                    <tr>
+                      <td colSpan="9" className="empty-state" style={{ padding: "3rem" }}>
+                        <strong>No invoices issued yet.</strong>
+                        <br />
+                        Official tax invoices are generated upon order fulfillment confirmation.
+                      </td>
+                    </tr>
+                  )}
+                  {!invoicesLoading &&
+                    customerInvoices.map((inv) => {
+                      const grandTotal = Number(inv.grand_total || inv.total_amount || 0);
+                      const amountPaid = Number(inv.amount_paid || 0);
+                      const amountDue = Number(inv.amount_due ?? (grandTotal - amountPaid));
+                      const isDownloading = downloadingInvoiceId === inv.id;
+
+                      let badgeClass = "badge-draft";
+                      let badgeLabel = inv.status;
+                      if (inv.status === "PAID" || amountDue <= 0) {
+                        badgeClass = "badge-approved";
+                        badgeLabel = "PAID";
+                      } else if (inv.status === "PARTIALLY_PAID" || amountPaid > 0) {
+                        badgeClass = "badge-pending";
+                        badgeLabel = "PARTIALLY PAID";
+                      } else if (inv.status === "OVERDUE") {
+                        badgeClass = "badge-rejected";
+                        badgeLabel = "OVERDUE";
+                      } else {
+                        badgeClass = "badge-pending";
+                        badgeLabel = "ISSUED";
+                      }
+
+                      return (
+                        <tr key={inv.id}>
+                          <td>
+                            <strong style={{ color: "#2563eb", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+                              <Receipt size={16} />
+                              {inv.invoice_number}
+                            </strong>
+                          </td>
+                          <td style={{ color: "#475569" }}>
+                            {new Date(inv.issued_at || inv.created_at).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </td>
+                          <td style={{ color: "#64748b" }}>
+                            <div>{inv.order_number || `Order #${inv.order_id?.slice(0, 8)}`}</div>
+                            {inv.quotation_number && (
+                              <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Quote: {inv.quotation_number}</div>
+                            )}
+                          </td>
+                          <td style={{ fontWeight: 600 }}>{currency(inv.taxable_amount || (grandTotal / 1.18))}</td>
+                          <td style={{ color: "#64748b" }}>{currency(inv.tax_amount || (grandTotal - (grandTotal / 1.18)))}</td>
+                          <td>
+                            <strong style={{ fontSize: "1.05rem", color: "#0f172a" }}>{currency(grandTotal)}</strong>
+                          </td>
+                          <td style={{ fontWeight: 700, color: amountDue > 0 ? "#b45309" : "#10b981" }}>
+                            {currency(amountDue)}
+                          </td>
+                          <td>
+                            <span className={`badge ${badgeClass}`}>{badgeLabel}</span>
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            <button
+                              className="btn-primary"
+                              type="button"
+                              disabled={isDownloading}
+                              onClick={() => handleDownloadPDF(inv.id, inv.invoice_number)}
+                              style={{
+                                padding: "0.4rem 0.85rem",
+                                fontSize: "0.825rem",
+                                width: "auto",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.4rem",
+                              }}
+                            >
+                              <Download size={14} />
+                              {isDownloading ? "Generating..." : "Download PDF"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}

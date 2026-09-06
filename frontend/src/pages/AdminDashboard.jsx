@@ -199,7 +199,7 @@ export default function AdminDashboard({ onNavigate }) {
   // 2. DYNAMIC KPIS DERIVED DIRECTLY FROM FILTERED DEALS TABLE DATA
   // =========================================================================
   const totalFilteredCount = filteredDeals.length;
-  
+
   const totalFilteredRevenue = useMemo(() => {
     return filteredDeals.reduce((acc, q) => acc + Number(q.finalAmount || q.final_amount || 0), 0);
   }, [filteredDeals]);
@@ -232,8 +232,8 @@ export default function AdminDashboard({ onNavigate }) {
   const dynamicAvgDealSize = confirmedWonDeals.length > 0
     ? confirmedWonRevenue / confirmedWonDeals.length
     : totalFilteredCount > 0
-    ? totalFilteredRevenue / totalFilteredCount
-    : 0;
+      ? totalFilteredRevenue / totalFilteredCount
+      : 0;
 
   // =========================================================================
   // 3. CHART 1: MONTHLY / PERIOD REVENUE & MARGIN TIMELINE (FROM FILTERED DEALS)
@@ -916,7 +916,7 @@ export default function AdminDashboard({ onNavigate }) {
       {/* 3. MULTI-CHART GRID (COMPUTED IN REAL-TIME FROM FILTERED DEALS DATASET)   */}
       {/* ========================================================================= */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))", gap: "1.5rem", marginBottom: "1.5rem" }}>
-        
+
         {/* CHART 1: Real Period Revenue vs Net Margin Timeline */}
         <div
           style={{
@@ -1052,7 +1052,7 @@ export default function AdminDashboard({ onNavigate }) {
 
       {/* ROW 2: Funnel + Sales Rep Comparison + Top Customers */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "1.5rem", marginBottom: "2rem" }}>
-        
+
         {/* CHART 3: Quotation Funnel (From Filtered Deals) */}
         <div
           style={{

@@ -436,6 +436,41 @@ async function initDatabase() {
     `);
 
     await client.query(`
+      ALTER TABLE public.invoices
+      ADD COLUMN IF NOT EXISTS quotation_id UUID REFERENCES public.quotations(id),
+      ADD COLUMN IF NOT EXISTS taxable_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS shipping_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS other_charges NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS grand_total NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS amount_due NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS billing_address JSONB DEFAULT '{}'::jsonb,
+      ADD COLUMN IF NOT EXISTS shipping_address JSONB DEFAULT '{}'::jsonb,
+      ADD COLUMN IF NOT EXISTS company_snapshot JSONB DEFAULT '{}'::jsonb,
+      ADD COLUMN IF NOT EXISTS customer_snapshot JSONB DEFAULT '{}'::jsonb,
+      ADD COLUMN IF NOT EXISTS payment_terms VARCHAR(50) DEFAULT 'NET_30',
+      ADD COLUMN IF NOT EXISTS notes TEXT;
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.invoice_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        invoice_id UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+        product_id UUID REFERENCES public.products(id),
+        product_name VARCHAR(255) NOT NULL,
+        sku VARCHAR(100),
+        description TEXT,
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        unit_price NUMERIC(14, 2) NOT NULL CHECK (unit_price >= 0),
+        discount_percent NUMERIC(5, 2) NOT NULL DEFAULT 0,
+        discount_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        tax_rate NUMERIC(5, 2) NOT NULL DEFAULT 0,
+        tax_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        line_total NUMERIC(14, 2) NOT NULL CHECK (line_total >= 0)
+      );
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS public.payments (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         invoice_id UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
@@ -493,6 +528,10 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_orders_fulfillment_status ON public.orders(fulfillment_status);
       CREATE INDEX IF NOT EXISTS idx_fulfillment_allocations_order ON public.fulfillment_allocations(order_id);
       CREATE INDEX IF NOT EXISTS idx_backorders_order ON public.backorders(order_id);
+      CREATE INDEX IF NOT EXISTS idx_invoices_order_id ON public.invoices(order_id);
+      CREATE INDEX IF NOT EXISTS idx_invoices_customer_id ON public.invoices(customer_id);
+      CREATE INDEX IF NOT EXISTS idx_invoices_status ON public.invoices(status);
+      CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON public.invoice_items(invoice_id);
     `);
 
     await client.query(`

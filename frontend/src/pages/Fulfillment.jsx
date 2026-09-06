@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Warehouse,
   PackageCheck,
+  FileText,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -394,6 +395,33 @@ export default function Fulfillment({ onNavigate }) {
                 disabled={actionLoading}
               >
                 <PackageCheck size={16} /> Consolidate Backorder
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ width: "auto", background: "#166534", borderColor: "#15803d", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
+                onClick={async () => {
+                  try {
+                    setActionLoading(true);
+                    setError("");
+                    setSuccess("");
+                    const res = await fetch(`${API_BASE}/invoices/generate/${selected.id}`, {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.message || "Failed to generate invoice.");
+                    setSuccess(`Tax Invoice ${data.data?.invoice_number || ""} generated successfully!`);
+                    if (onNavigate) onNavigate("/admin/invoices");
+                  } catch (err) {
+                    setError(err.message);
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }}
+                disabled={actionLoading}
+              >
+                <FileText size={16} /> Generate Tax Invoice
               </button>
             </div>
             {manual && (

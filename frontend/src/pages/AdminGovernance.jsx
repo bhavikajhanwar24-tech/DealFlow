@@ -7,7 +7,135 @@ const currencyOptions = ["INR", "USD", "EUR", "GBP"];
 const frequencies = ["MONTHLY", "QUARTERLY", "YEARLY"];
 const EMPTY_PLAN = { name: "", billingFrequency: "MONTHLY", discountIncentive: 0, status: "ACTIVE" };
 
-function apiError(data, fallback) { return data.message || fallback; }
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function getAuditPointers(action, rawDetails) {
+  if (!rawDetails) return ["System event completed"];
+  let details = rawDetails;
+  if (typeof rawDetails === "string") {
+    try {
+      details = JSON.parse(rawDetails);
+    } catch {
+      return [rawDetails];
+    }
+  }
+  if (typeof details !== "object" || details === null) {
+    return [String(details)];
+  }
+
+  const pointers = [];
+
+  // 1. Specialized contextual summaries
+  if (action === "STAFF_COMPLAINT_REJECTED") {
+    pointers.push("Status: Complaint Rejected by Admin");
+    if (details.rejectionReason) {
+      pointers.push(`Rejection Reason: ${details.rejectionReason}`);
+    }
+    return pointers;
+  }
+
+  if (action === "STAFF_COMPLAINT_ACTION_TAKEN") {
+    pointers.push("Status: Administrative Action Taken");
+    if (details.adminNotes) {
+      pointers.push(`Resolution Note: ${details.adminNotes}`);
+    }
+    return pointers;
+  }
+
+  if (action === "STAFF_COMPLAINT_LODGED_AI_VERIFIED" || action === "STAFF_COMPLAINT_LODGED") {
+    if (details.staffName) pointers.push(`Staff Member: ${details.staffName}`);
+    if (details.subject) pointers.push(`Subject: ${details.subject}`);
+    if (details.category) pointers.push(`Category: ${details.category}`);
+    if (details.aiClassification) {
+      pointers.push(`AI Screening: ${details.aiClassification.replace(/_/g, " ")}`);
+    } else if (details.aiRelevant !== undefined) {
+      pointers.push(`AI Screening: ${details.aiRelevant ? "Verified Relevant" : "Pending Review"}`);
+    }
+    if (details.status) pointers.push(`Complaint Status: ${details.status}`);
+    return pointers.length > 0 ? pointers : ["Staff complaint submitted and verified"];
+  }
+
+  if (action === "STAFF_COMPLAINT_AUTO_REJECTED_AI") {
+    pointers.push("Status: Auto-Rejected by AI Screener");
+    const reason = details.aiReason || details.rejectionReason || "Complaint marked irrelevant by AI screener";
+    pointers.push(`AI Reason: ${reason}`);
+    return pointers;
+  }
+
+  if (action === "USER_LOGIN_SUCCESS") {
+    pointers.push("Status: Signed In Successfully");
+    if (details.role) pointers.push(`User Role: ${details.role}`);
+    return pointers;
+  }
+
+  if (action === "USER_LOGIN_FAILED") {
+    pointers.push("Status: Authentication Failed");
+    if (details.reason) pointers.push(`Failure Reason: ${details.reason}`);
+    return pointers;
+  }
+
+  if (action === "USER_REGISTER_SUCCESS") {
+    pointers.push("Status: Account Created");
+    if (details.role) pointers.push(`Assigned Role: ${details.role}`);
+    return pointers;
+  }
+
+  if (action === "BILLING_CONFIGURATION_UPDATED") {
+    if (details.currency) pointers.push(`Currency: ${details.currency}`);
+    if (details.defaultTaxRate !== undefined) pointers.push(`Default Tax Rate: ${details.defaultTaxRate}%`);
+    if (details.paymentTerms) pointers.push(`Payment Terms: ${details.paymentTerms}`);
+    if (details.invoiceDuePeriod) pointers.push(`Invoice Due Period: ${details.invoiceDuePeriod} days`);
+    return pointers.length > 0 ? pointers : ["Billing configuration updated"];
+  }
+
+  if (action === "SUBSCRIPTION_PLAN_CREATED" || action === "SUBSCRIPTION_PLAN_UPDATED") {
+    if (details.name) pointers.push(`Plan Name: ${details.name}`);
+    if (details.status) pointers.push(`Status: ${details.status}`);
+    if (details.billingFrequency) pointers.push(`Billing Cycle: ${details.billingFrequency}`);
+    return pointers.length > 0 ? pointers : ["Subscription plan updated"];
+  }
+
+  if (action === "CUSTOMER_TIER_UPDATED") {
+    if (details.name) pointers.push(`Tier Name: ${details.name}`);
+    if (details.status) pointers.push(`Tier Status: ${details.status}`);
+    return pointers.length > 0 ? pointers : ["Customer tier updated"];
+  }
+
+  // 2. Generic fallback: Strip IDs, primary keys, and UUIDs
+  const cleanEntries = Object.entries(details).filter(([key, val]) => {
+    if (!key || typeof key !== "string") return false;
+    const lowerKey = key.toLowerCase();
+    if (
+      lowerKey === "id" ||
+      lowerKey.endsWith("id") ||
+      lowerKey.endsWith("_id") ||
+      lowerKey.includes("uuid") ||
+      lowerKey.includes("token")
+    ) {
+      return false;
+    }
+    if (typeof val === "string" && UUID_REGEX.test(val.trim())) {
+      return false;
+    }
+    return val !== null && val !== undefined && val !== "";
+  });
+
+  if (cleanEntries.length === 0) {
+    return [action.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())];
+  }
+
+  cleanEntries.forEach(([key, val]) => {
+    const formattedKey = key
+      .replace(/([A-Z])/g, " $1")
+      .replace(/_/g, " ")
+      .replace(/^\w/, (c) => c.toUpperCase())
+      .trim();
+    const formattedVal = typeof val === "object" ? JSON.stringify(val) : String(val);
+    pointers.push(`${formattedKey}: ${formattedVal}`);
+  });
+
+  return pointers;
+}
 
 export default function AdminGovernance({ mode }) {
   const { token } = useAuth();
@@ -255,8 +383,27 @@ export default function AdminGovernance({ mode }) {
                           {log.action.split("_").pop()}
                         </span>
                       </td>
-                      <td>
-                        <code style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>{JSON.stringify(log.details)}</code>
+                      <td style={{ fontSize: "0.825rem", color: "#334155", maxWidth: "460px", minWidth: "260px" }}>
+                        <ul style={{ margin: 0, paddingLeft: "1.1rem", listStyleType: "disc", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                          {getAuditPointers(log.action, log.details).map((pointer, pIdx) => {
+                            const colonIdx = pointer.indexOf(":");
+                            if (colonIdx !== -1) {
+                              const label = pointer.slice(0, colonIdx);
+                              const val = pointer.slice(colonIdx + 1);
+                              return (
+                                <li key={pIdx} style={{ lineHeight: "1.4" }}>
+                                  <strong style={{ color: "#1e293b", marginRight: "0.25rem" }}>{label}:</strong>
+                                  <span style={{ color: "#475569" }}>{val}</span>
+                                </li>
+                              );
+                            }
+                            return (
+                              <li key={pIdx} style={{ lineHeight: "1.4", color: "#475569" }}>
+                                {pointer}
+                              </li>
+                            );
+                          })}
+                        </ul>
                       </td>
                     </tr>
                   ))
