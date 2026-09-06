@@ -254,6 +254,12 @@ async function initDatabase() {
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE public.negotiation_requests ADD COLUMN IF NOT EXISTS removed_item_ids JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE public.negotiation_requests ADD COLUMN IF NOT EXISTS requested_items JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE public.negotiation_requests ADD COLUMN IF NOT EXISTS sales_rep_response TEXT;
+      ALTER TABLE public.negotiation_requests ADD COLUMN IF NOT EXISTS resolved_by UUID REFERENCES public.users(id);
+      ALTER TABLE public.negotiation_requests ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
     `);
 
     await client.query(`
