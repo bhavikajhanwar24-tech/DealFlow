@@ -233,7 +233,7 @@ export default function QuotationDetail({ quotationId, onNavigate }) {
         }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Failed to fetch AI pricing");
+      if (!response.ok) throw new Error((data.error || data.message) || "Failed to fetch AI pricing");
       setPricingAiResult(data.data);
     } catch (err) {
       setError(err.message);

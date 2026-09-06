@@ -26,6 +26,9 @@ import {
   Activity,
   ArrowRight,
   TrendingDown,
+  Plus,
+  MessageSquare,
+  ExternalLink,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -1434,7 +1437,24 @@ export default function AdminDashboard({ onNavigate }) {
               <div style={{ fontSize: "0.85rem", color: "#475569", fontWeight: 600 }}>
                 Showing <strong>{filteredDeals.length}</strong> of <strong>{quotationsList.length}</strong> system quotations
               </div>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => onNavigate && onNavigate("/sales/quotations/new")}
+                  className="btn-primary"
+                  style={{ fontSize: "0.8rem", padding: "0.4rem 0.85rem", display: "flex", alignItems: "center", gap: "0.35rem", fontWeight: 700 }}
+                >
+                  <Plus size={14} /> New Quotation
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate && onNavigate("/sales/messages")}
+                  className="btn-secondary"
+                  style={{ fontSize: "0.8rem", padding: "0.4rem 0.75rem", display: "flex", alignItems: "center", gap: "0.35rem" }}
+                  title="Open live negotiation message threads"
+                >
+                  <MessageSquare size={14} /> Negotiation Threads
+                </button>
                 <button
                   type="button"
                   onClick={handleExportDealsCSV}
@@ -1465,18 +1485,20 @@ export default function AdminDashboard({ onNavigate }) {
                     <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "center", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>STATUS</th>
                     <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "right", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>MARGIN</th>
                     <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "right", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>FINAL AMOUNT</th>
+                    <th style={{ background: "#f8fafc", padding: "0.75rem 1rem", textAlign: "center", color: "#475569", fontWeight: 700, position: "sticky", top: 0 }}>ACTION</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredDeals.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: "center", padding: "2.5rem", color: "#94a3b8" }}>
+                      <td colSpan={8} style={{ textAlign: "center", padding: "2.5rem", color: "#94a3b8" }}>
                         No quotations found matching the selected filter criteria.
                       </td>
                     </tr>
                   ) : (
                     filteredDeals.map((q) => {
                       const statusConfig = STAGE_CONFIG[q.status] || { label: q.status, color: "#64748b" };
+                      const isNegotiation = q.status === "NEGOTIATION";
                       return (
                         <tr key={q.id || q.quotationNumber} style={{ borderBottom: "1px solid #f1f5f9" }}>
                           <td style={{ padding: "0.85rem 1rem" }}>
@@ -1518,6 +1540,32 @@ export default function AdminDashboard({ onNavigate }) {
                           </td>
                           <td style={{ padding: "0.85rem 1rem", textAlign: "right", fontWeight: 800, color: "#0f172a" }}>
                             {formatCurrency(q.finalAmount || q.final_amount)}
+                          </td>
+                          <td style={{ padding: "0.85rem 1rem", textAlign: "center" }}>
+                            <button
+                              type="button"
+                              onClick={() => onNavigate && onNavigate(`/sales/quotations/${q.id}`)}
+                              className={isNegotiation ? "btn-primary" : "btn-secondary"}
+                              style={{
+                                fontSize: "0.75rem",
+                                padding: "0.3rem 0.65rem",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.3rem",
+                                fontWeight: isNegotiation ? 700 : 600,
+                              }}
+                              title={isNegotiation ? "Respond to Customer Negotiation" : "View Quotation Details"}
+                            >
+                              {isNegotiation ? (
+                                <>
+                                  <MessageSquare size={12} /> Negotiate
+                                </>
+                              ) : (
+                                <>
+                                  <ExternalLink size={12} /> View
+                                </>
+                              )}
+                            </button>
                           </td>
                         </tr>
                       );

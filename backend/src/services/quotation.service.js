@@ -2,7 +2,7 @@ const db = require("../config/db");
 const fulfillmentService = require("./fulfillment.service");
 const emailService = require("./email.service");
 
-const SALES_ROLES = ["SALES_REP", "SALES_MANAGER"];
+const SALES_ROLES = ["SALES_REP", "SALES_MANAGER", "ADMIN"];
 const QUOTATION_STATUSES = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "NEGOTIATION", "CONFIRMED", "FINALIZED"];
 const RISK_ENGINE_URL = process.env.RISK_ENGINE_URL || "http://127.0.0.1:8001";
 const CATEGORY_CEILINGS = {
@@ -489,7 +489,9 @@ const quotationSelect = `
 async function listQuotations(user) {
   const params = [];
   let filter = "";
-  if (SALES_ROLES.includes(user.role)) {
+  if (user.role === "ADMIN") {
+    // Admin sees all quotations
+  } else if (SALES_ROLES.includes(user.role)) {
     params.push(user.id);
     filter = ` WHERE q.sales_rep_id = $${params.length}`;
   } else if (user.role === "CUSTOMER") {
@@ -504,7 +506,7 @@ async function listQuotations(user) {
 async function getQuotation(id, user) {
   const params = [id];
   let filter = "";
-  if (SALES_ROLES.includes(user.role)) {
+  if (user.role !== "ADMIN" && SALES_ROLES.includes(user.role)) {
     params.push(user.id);
     filter = " AND q.sales_rep_id = $2";
   } else if (user.role === "CUSTOMER") {
@@ -570,7 +572,7 @@ async function getQuotation(id, user) {
 
 async function createDraft(user, input) {
   if (!SALES_ROLES.includes(user.role)) {
-    throw quotationError("Only Sales Representatives and Sales Managers can create quotations.", 403);
+    throw quotationError("Only Sales Representatives, Sales Managers, and Administrators can create quotations.", 403);
   }
 
   const customerId = input.customerId;

@@ -387,16 +387,16 @@ export default function Navbar({ currentRoute, setCurrentRoute }) {
               <LayoutDashboardIcon size={16} /> Dashboard
             </button>
             <button
-              className={`nav-link-btn ${currentRoute === "/admin/staff" ? "active" : ""}`}
-              onClick={() => setCurrentRoute("/admin/staff")}
-            >
-              <BriefcaseIcon size={16} /> Staff
-            </button>
-            <button
               className={`nav-link-btn ${currentRoute === "/admin/products" ? "active" : ""}`}
               onClick={() => setCurrentRoute("/admin/products")}
             >
               <PackageIcon size={16} /> Products
+            </button>
+            <button
+              className={`nav-link-btn ${currentRoute.startsWith("/sales/quotations") ? "active" : ""}`}
+              onClick={() => setCurrentRoute("/sales/quotations")}
+            >
+              <FileTextIcon size={16} /> Quotations
             </button>
             <button
               className={`nav-link-btn ${currentRoute === "/admin/complaints" ? "active" : ""}`}

@@ -1240,6 +1240,35 @@ async function loadRequestData() {
                 </div>
               </div>
             </div>
+            {/* Helper Banner for Item Removal Negotiation */}
+            {canRespond && !pendingRequest && quotation.items.length > 1 && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  background: "#fff1f2",
+                  border: "1px solid #fecdd3",
+                  borderRadius: "10px",
+                  padding: "0.65rem 1rem",
+                  marginBottom: "1rem",
+                  fontSize: "0.825rem",
+                  color: "#9f1239",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <Trash2 size={16} color="#e11d48" />
+                  <span>
+                    <strong>Need to remove products?</strong> Click <em>"Request Removal"</em> on any line item below to propose removing it from this quotation.
+                  </span>
+                </div>
+                {selectedRemovalItemIds.length > 0 && (
+                  <span style={{ fontWeight: 700, color: "#be123c" }}>
+                    {selectedRemovalItemIds.length} item(s) marked
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Line Items Table */}
             <div style={{ borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden", marginBottom: "1.25rem" }}>
@@ -1252,7 +1281,7 @@ async function loadRequestData() {
                     <th>Unit Price</th>
                     <th>Item Discount</th>
                     <th style={{ textAlign: "right" }}>Total Amount</th>
-                    {canRespond && !pendingRequest && <th style={{ textAlign: "center", width: "160px" }}>Item Adjustment</th>}
+                    {canRespond && <th style={{ textAlign: "center", width: "160px" }}>Item Adjustment</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1296,32 +1325,42 @@ async function loadRequestData() {
                         <td style={{ textAlign: "right", fontWeight: 800, color: isMarkedForRemoval ? "#94a3b8" : "#0f172a", textDecoration: isMarkedForRemoval ? "line-through" : "none" }}>
                           {currency(item.lineTotal)}
                         </td>
-                        {canRespond && !pendingRequest && (
+                        {canRespond && (
                           <td style={{ textAlign: "center" }}>
-                            <button
-                              type="button"
-                              onClick={() => toggleRemovalItem(item.id)}
-                              style={{
-                                padding: "0.35rem 0.75rem",
-                                fontSize: "0.775rem",
-                                fontWeight: 700,
-                                borderRadius: "8px",
-                                border: isMarkedForRemoval ? "1px solid #dc2626" : "1px solid #fca5a5",
-                                background: isMarkedForRemoval ? "#dc2626" : "#fff1f2",
-                                color: isMarkedForRemoval ? "#ffffff" : "#be123c",
-                                cursor: "pointer",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.35rem",
-                                transition: "all 0.2s ease",
-                              }}
-                            >
-                              {isMarkedForRemoval ? (
-                                <>Undo Removal</>
-                              ) : (
-                                <><Trash2 size={13} /> Request Removal</>
-                              )}
-                            </button>
+                            {isPendingRemoval ? (
+                              <span className="badge badge-pending" style={{ fontSize: "0.7rem", padding: "0.2rem 0.5rem" }}>
+                                ⏳ Removal Pending
+                              </span>
+                            ) : pendingRequest ? (
+                              <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
+                                Review in Progress
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => toggleRemovalItem(item.id)}
+                                style={{
+                                  padding: "0.35rem 0.75rem",
+                                  fontSize: "0.775rem",
+                                  fontWeight: 700,
+                                  borderRadius: "8px",
+                                  border: isMarkedForRemoval ? "1px solid #dc2626" : "1px solid #fca5a5",
+                                  background: isMarkedForRemoval ? "#dc2626" : "#fff1f2",
+                                  color: isMarkedForRemoval ? "#ffffff" : "#be123c",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.35rem",
+                                  transition: "all 0.2s ease",
+                                }}
+                              >
+                                {isMarkedForRemoval ? (
+                                  <>Undo Removal</>
+                                ) : (
+                                  <><Trash2 size={13} /> Request Removal</>
+                                )}
+                              </button>
+                            )}
                           </td>
                         )}
                       </tr>
@@ -1457,7 +1496,12 @@ async function loadRequestData() {
                     disabled={!canRespond || Boolean(pendingRequest) || actionLoading}
                     style={{ padding: "0.65rem 1.25rem" }}
                   >
-                    <Send size={16} /> {actionLoading ? "Submitting counter-offer..." : "Submit Counter-Offer"}
+                    <Send size={16} />{" "}
+                    {actionLoading
+                      ? "Submitting request..."
+                      : selectedRemovalItemIds.length > 0
+                      ? `Submit Removal (${selectedRemovalItemIds.length}) & Counter-Offer`
+                      : "Submit Counter-Offer"}
                   </button>
 
                   <button

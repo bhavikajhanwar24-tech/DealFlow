@@ -152,10 +152,8 @@ function AppContent() {
     }
 
     if (currentRoute === "/admin/staff" || currentRoute === "/admin/employee-approvals") {
-      if (user.role !== "ADMIN") {
-        return <AccessDenied onNavigate={navigate} requiredRoles={["ADMIN"]} />;
-      }
-      return <AdminStaff />;
+      // Admin is not allowed to manage users/staff
+      return <AccessDenied onNavigate={navigate} requiredRoles={["SUPERADMIN"]} />;
     }
 
     if (currentRoute === "/admin/products") {

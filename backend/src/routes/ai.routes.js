@@ -12,5 +12,6 @@ router.post("/deal-health-explanation", requireRole("ADMIN", "FINANCE", "OPERATI
 router.post("/pricing-recommendation", requireRole("ADMIN", "SALES_MANAGER", "SALES_REP"), aiController.recommendPricing);
 router.post("/sales-insights", requireRole("ADMIN", "FINANCE", "OPERATIONS", "SALES_MANAGER"), aiController.getSalesInsights);
 router.get("/smart-alerts", requireRole("ADMIN", "SALES_MANAGER"), aiController.getSmartAlerts);
+router.get("/test", requireRole("ADMIN", "SALES_MANAGER", "SALES_REP"), aiController.testConnection);
 
 module.exports = router;

@@ -6,7 +6,7 @@ const { requireAuth, requireActiveUser } = require("../middleware/auth.middlewar
 const { requireRole } = require("../middleware/role.middleware");
 
 const internalSales = requireRole("SALES_REP", "SALES_MANAGER", "ADMIN");
-const salesCreators = requireRole("SALES_REP", "SALES_MANAGER");
+const salesCreators = requireRole("SALES_REP", "SALES_MANAGER", "ADMIN");
 
 router.use(requireAuth, requireActiveUser);
 

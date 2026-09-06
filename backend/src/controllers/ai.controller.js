@@ -14,7 +14,7 @@ const generateJsonResponse = async (prompt) => {
   
   try {
     const response = await groq.chat.completions.create({
-      model: "openai/gpt-oss-120b",
+      model: "llama-3.3-70b-versatile",
       messages: [
         { 
           role: "system", 
@@ -22,11 +22,10 @@ const generateJsonResponse = async (prompt) => {
         },
         { role: "user", content: prompt }
       ],
-      temperature: 1,
-      max_completion_tokens: 2048,
+      temperature: 0.7,
+      max_tokens: 2048,
       top_p: 1,
       stream: false,
-      reasoning_effort: "medium",
       response_format: { type: "json_object" },
       stop: null
     });
@@ -51,8 +50,11 @@ const generateJsonResponse = async (prompt) => {
     content = content.trim();
     return JSON.parse(content);
   } catch (error) {
-    console.error("GROQ API ERROR:", error);
-    throw new Error(`AI Engine Error: ${error.message}`);
+    // Log full error for server-side debugging
+    const errMsg = error?.error?.message || error?.message || String(error);
+    const errStatus = error?.status || error?.statusCode || 500;
+    console.error("GROQ API ERROR:", errMsg, "| Status:", errStatus, "| Full:", JSON.stringify(error?.error || error));
+    throw new Error(`AI Engine Error (${errStatus}): ${errMsg}`);
   }
 };
 
@@ -167,8 +169,9 @@ exports.recommendPricing = async (req, res) => {
     const aiResult = await generateJsonResponse(prompt);
     res.json({ success: true, data: aiResult });
   } catch (error) {
-    console.error("Error in Pricing Recommendation:", error);
-    res.status(500).json({ success: false, message: "Error recommending pricing", error: error.message });
+    const detail = error?.message || String(error);
+    console.error("Error in Pricing Recommendation:", detail);
+    res.status(500).json({ success: false, message: "Error recommending pricing", error: detail });
   }
 };
 
@@ -236,3 +239,27 @@ exports.getSmartAlerts = async (req, res) => {
   }
 };
 
+// 6. Connection Test (diagnostics)
+exports.testConnection = async (req, res) => {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ success: false, message: "GROQ_API_KEY is not set in .env" });
+  }
+  try {
+    const { Groq } = require("groq-sdk");
+    const groq = new Groq({ apiKey });
+    const response = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: 'Return JSON only: {"status":"ok"}' }],
+      response_format: { type: "json_object" },
+      max_tokens: 64,
+      temperature: 0,
+    });
+    const content = response.choices[0]?.message?.content || "";
+    res.json({ success: true, message: "Groq LLM connected", response: JSON.parse(content), keyPrefix: apiKey.slice(0, 8) + "..." });
+  } catch (error) {
+    const errMsg = error?.error?.message || error?.message || String(error);
+    const errStatus = error?.status || 500;
+    res.status(500).json({ success: false, message: "Groq connection failed", error: errMsg, httpStatus: errStatus });
+  }
+};
