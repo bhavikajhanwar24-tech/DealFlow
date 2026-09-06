@@ -112,7 +112,43 @@ export default function AdminDealHealth() {
                       <td><strong>{deal.quotation_number}</strong></td>
                       <td>{deal.customer_name}</td>
                       <td>{deal.discountPercent}</td>
-                      <td>{deal.risk_score || 'N/A'}</td>
+                      <td>
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.35rem",
+                            padding: "0.2rem 0.55rem",
+                            borderRadius: "6px",
+                            fontSize: "0.8rem",
+                            fontWeight: 700,
+                            background:
+                              Number(deal.risk_score || 0) > 60
+                                ? "#fee2e2"
+                                : Number(deal.risk_score || 0) > 30
+                                ? "#fef3c7"
+                                : "#ecfdf5",
+                            color:
+                              Number(deal.risk_score || 0) > 60
+                                ? "#dc2626"
+                                : Number(deal.risk_score || 0) > 30
+                                ? "#b45309"
+                                : "#059669",
+                            border: `1px solid ${
+                              Number(deal.risk_score || 0) > 60
+                                ? "#fca5a5"
+                                : Number(deal.risk_score || 0) > 30
+                                ? "#fde68a"
+                                : "#a7f3d0"
+                            }`,
+                          }}
+                        >
+                          {Number(deal.risk_score ?? 0).toFixed(1)}
+                          <span style={{ fontSize: "0.7rem", opacity: 0.85, fontWeight: 600 }}>
+                            ({deal.risk_level || (Number(deal.risk_score || 0) > 60 ? "HIGH" : Number(deal.risk_score || 0) > 30 ? "MED" : "LOW")})
+                          </span>
+                        </span>
+                      </td>
                       <td><strong>{deal.healthScore}/100</strong></td>
                       <td>
                         <span className={`badge ${deal.healthStatus === 'HEALTHY' ? 'badge-active' : deal.healthStatus === 'AT RISK' ? 'badge-pending' : 'badge-suspended'}`}>

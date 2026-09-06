@@ -5,7 +5,7 @@ exports.getDealHealth = async (req, res) => {
   try {
     const dealsRes = await pool.query(`
       SELECT 
-        q.id, q.quotation_number, q.risk_score, q.margin_percentage, q.discount_amount, q.final_amount, q.status, q.updated_at,
+        q.id, q.quotation_number, q.risk_score, q.risk_level, q.approval_route, q.margin_percentage, q.discount_amount, q.final_amount, q.status, q.updated_at,
         u.full_name as customer_name
       FROM public.quotations q
       JOIN public.users u ON q.customer_id = u.id
@@ -17,6 +17,10 @@ exports.getDealHealth = async (req, res) => {
       let score = 100;
       let reasons = [];
 
+      const rawRiskScore = deal.risk_score !== null && deal.risk_score !== undefined ? Number(deal.risk_score) : 0;
+      const riskScoreFormatted = rawRiskScore.toFixed(1);
+      const riskLevel = deal.risk_level || (rawRiskScore > 60 ? 'HIGH' : rawRiskScore > 30 ? 'MEDIUM' : 'LOW');
+
       // Reason: High Discount
       const discountPercent = deal.final_amount > 0 ? (Number(deal.discount_amount) / (Number(deal.final_amount) + Number(deal.discount_amount))) * 100 : 0;
       if (discountPercent > 15) {
@@ -24,13 +28,19 @@ exports.getDealHealth = async (req, res) => {
         reasons.push("High discount (>" + discountPercent.toFixed(1) + "%)");
       }
 
-      // Reason: High Risk Score
-      if (deal.risk_score && Number(deal.risk_score) > 60) {
+      // Reason: High Risk Score from Risk Engine
+      if (rawRiskScore > 60) {
         score -= 30;
-        reasons.push("High risk score (" + deal.risk_score + ")");
-      } else if (deal.risk_score && Number(deal.risk_score) > 40) {
+        reasons.push("High risk score (" + riskScoreFormatted + ")");
+      } else if (rawRiskScore > 35) {
         score -= 10;
-        reasons.push("Moderate risk score");
+        reasons.push("Moderate risk score (" + riskScoreFormatted + ")");
+      }
+
+      // Reason: Low margin
+      if (deal.margin_percentage && Number(deal.margin_percentage) < 25) {
+        score -= 15;
+        reasons.push("Low margin (<25%)");
       }
 
       // Reason: Pending Approval for long
@@ -51,6 +61,8 @@ exports.getDealHealth = async (req, res) => {
 
       return {
         ...deal,
+        risk_score: riskScoreFormatted,
+        risk_level: riskLevel,
         healthScore: score,
         healthStatus,
         reasons,
