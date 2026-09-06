@@ -2553,13 +2553,149 @@ section:has(> table) {
     gap: 0.65rem !important;
   }
 
-  /* Data tables font and padding on mobile */
-  .data-table th, .data-table td,
-  .product-table th, .product-table td,
-  .staff-table th, .staff-table td,
-  table th, table td {
-    padding: 0.55rem 0.65rem !important;
-    font-size: 0.8125rem !important;
+  /* ==========================================================================
+     Universal Mobile Table-to-Box Transformation (<= 768px)
+     Converts all data tables into responsive card boxes on mobile viewports
+     ========================================================================== */
+  .staff-table-wrap,
+  .product-table-wrap,
+  .discount-table-wrap,
+  .data-table-card,
+  div[style*="overflowX: auto"],
+  div[style*="overflow-x: auto"] {
+    overflow-x: visible !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  table,
+  .data-table,
+  .product-table,
+  .staff-table,
+  .discount-policy-table,
+  .table {
+    display: block !important;
+    width: 100% !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  table thead,
+  .data-table thead,
+  .product-table thead,
+  .staff-table thead,
+  .discount-policy-table thead,
+  .table thead {
+    display: none !important;
+  }
+
+  table tbody,
+  .data-table tbody,
+  .product-table tbody,
+  .staff-table tbody,
+  .discount-policy-table tbody,
+  .table tbody {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.85rem !important;
+    width: 100% !important;
+  }
+
+  table tbody tr,
+  .data-table tbody tr,
+  .product-table tbody tr,
+  .staff-table tbody tr,
+  .discount-policy-table tbody tr,
+  .table tbody tr {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 14px !important;
+    padding: 1rem 1.15rem !important;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04) !important;
+    gap: 0.45rem !important;
+    box-sizing: border-box !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  }
+
+  table tbody tr:active,
+  .data-table tbody tr:active {
+    transform: scale(0.995) !important;
+  }
+
+  .sales-bg-active table tbody tr,
+  .sales-bg-active .data-table tbody tr {
+    background: rgba(255, 255, 255, 0.94) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(226, 232, 240, 0.95) !important;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05) !important;
+  }
+
+  table tbody td,
+  .data-table tbody td,
+  .product-table tbody td,
+  .staff-table tbody td,
+  .discount-policy-table tbody td,
+  .table tbody td {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    text-align: left !important;
+    width: 100% !important;
+    padding: 0.35rem 0 !important;
+    border: none !important;
+    border-bottom: 1px dashed #f1f5f9 !important;
+    font-size: 0.85rem !important;
+    background: transparent !important;
+    box-sizing: border-box !important;
+    flex-wrap: wrap !important;
+    gap: 0.4rem !important;
+  }
+
+  table tbody td:first-child:not([colspan]),
+  .data-table tbody td:first-child:not([colspan]) {
+    padding-bottom: 0.5rem !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+
+  table tbody td:last-child:not([colspan]),
+  .data-table tbody td:last-child:not([colspan]) {
+    border-bottom: none !important;
+    padding-top: 0.5rem !important;
+    justify-content: flex-end !important;
+    margin-top: 0.15rem !important;
+  }
+
+  table tbody td[colspan],
+  .data-table tbody td[colspan],
+  .empty-state {
+    display: block !important;
+    text-align: center !important;
+    border: none !important;
+    padding: 1.5rem 1rem !important;
+    width: 100% !important;
+    color: #64748b !important;
+  }
+
+  .staff-layout,
+  .product-layout {
+    grid-template-columns: 1fr !important;
+    gap: 1.25rem !important;
+  }
+
+  .staff-list-panel,
+  .product-list-panel,
+  .product-form,
+  .staff-form {
+    max-height: none !important;
+    height: auto !important;
   }
 
   /* Metric cards grid */
