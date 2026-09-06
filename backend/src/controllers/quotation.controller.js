@@ -143,6 +143,8 @@ async function finalizeQuotation(req, res) {
   } catch (error) {
     return res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
+}
+
 async function respondToNegotiation(req, res) {
   try {
     const quotation = await quotationService.respondToNegotiationRequest(

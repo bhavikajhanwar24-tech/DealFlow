@@ -21,6 +21,8 @@ import {
   DollarSign,
   Table as TableIcon,
   LayoutGrid,
+  Check,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -156,6 +158,24 @@ export default function AdminWarehouses() {
   const [selectedMixWarehouseId, setSelectedMixWarehouseId] = useState("ALL");
   const [directoryFilter, setDirectoryFilter] = useState("");
   const [localMixMode, setLocalMixMode] = useState("CATEGORY"); // "CATEGORY" | "PRODUCT"
+  const [facilitySearchText, setFacilitySearchText] = useState("");
+  const [facilityDropdownOpen, setFacilityDropdownOpen] = useState(false);
+  const [categorySearchFilter, setCategorySearchFilter] = useState("");
+  const [warehouseModeSearch, setWarehouseModeSearch] = useState("");
+
+  const facilityDropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (facilityDropdownRef.current && !facilityDropdownRef.current.contains(e.target)) {
+        setFacilityDropdownOpen(false);
+      }
+    }
+    if (facilityDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [facilityDropdownOpen]);
 
   const latitude = Number(form.latitude);
   const longitude = Number(form.longitude);
@@ -480,6 +500,29 @@ export default function AdminWarehouses() {
       ? ((leadingCategory.total_units / totalMixCategoryUnits) * 100).toFixed(1)
       : "0";
 
+  const filteredMixFacilities = useMemo(() => {
+    if (!facilitySearchText.trim()) return analytics.warehouses || [];
+    const q = facilitySearchText.toLowerCase().trim();
+    return (analytics.warehouses || []).filter(
+      (w) => w.name?.toLowerCase().includes(q) || w.address?.toLowerCase().includes(q)
+    );
+  }, [analytics.warehouses, facilitySearchText]);
+
+  const selectedFacilityObj = (analytics.warehouses || []).find((w) => w.id === selectedMixWarehouseId);
+  const selectedFacilityLabel = selectedMixWarehouseId === "ALL"
+    ? `All Facilities (${(analytics.warehouses || []).length})`
+    : selectedFacilityObj?.name || "Selected Facility";
+
+  const displayCategoryMixData = useMemo(() => {
+    if (!categorySearchFilter.trim()) return categoryMixData;
+    const q = categorySearchFilter.toLowerCase().trim();
+    return categoryMixData.filter(
+      (c) =>
+        c.category?.toLowerCase().includes(q) ||
+        c.products?.some((p) => p.name?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q))
+    );
+  }, [categoryMixData, categorySearchFilter]);
+
   // Local warehouse category breakdown (for the selected warehouse in directory)
   const localCategoryBreakdown = useMemo(() => {
     const catMap = {};
@@ -684,33 +727,176 @@ export default function AdminWarehouses() {
               </div>
 
               {/* Facility Filter Dropdown (Replaces overflowing button list) */}
-              <div style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                <MapPin size={15} color="#2563eb" />
-                <select
-                  id="mix-facility-select"
-                  value={selectedMixWarehouseId}
-                  onChange={(e) => setSelectedMixWarehouseId(e.target.value)}
+              {/* Facility Filter Searchable Dropdown */}
+              <div style={{ position: "relative" }} ref={facilityDropdownRef}>
+                <button
+                  type="button"
+                  id="mix-facility-trigger-btn"
+                  onClick={() => setFacilityDropdownOpen((prev) => !prev)}
                   style={{
-                    height: "34px",
+                    height: "36px",
                     fontSize: "0.785rem",
                     fontWeight: 700,
-                    padding: "0 1.75rem 0 0.65rem",
-                    borderRadius: "7px",
-                    border: "1.5px solid #cbd5e1",
+                    padding: "0 0.85rem",
+                    borderRadius: "8px",
+                    border: facilityDropdownOpen ? "1.5px solid #2563eb" : "1.5px solid #cbd5e1",
                     background: "#ffffff",
                     color: "#0f172a",
-                    minWidth: "190px",
+                    minWidth: "210px",
                     maxWidth: "280px",
                     cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "0.5rem",
+                    boxShadow: facilityDropdownOpen ? "0 0 0 3px rgba(37, 99, 235, 0.12)" : "0 1px 2px rgba(0,0,0,0.05)",
+                    transition: "all 0.15s ease",
                   }}
                 >
-                  <option value="ALL">All Facilities ({analytics.warehouses.length})</option>
-                  {analytics.warehouses.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name}
-                    </option>
-                  ))}
-                </select>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <MapPin size={14} color="#2563eb" style={{ flexShrink: 0 }} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {selectedFacilityLabel}
+                    </span>
+                  </span>
+                  <ChevronDown size={14} color="#64748b" style={{ transform: facilityDropdownOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s ease", flexShrink: 0 }} />
+                </button>
+
+                {facilityDropdownOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 4px)",
+                      left: 0,
+                      zIndex: 100,
+                      width: "300px",
+                      background: "#ffffff",
+                      borderRadius: "10px",
+                      border: "1.5px solid #cbd5e1",
+                      boxShadow: "0 12px 30px -4px rgba(15, 23, 42, 0.18)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div style={{ padding: "0.5rem", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.4rem",
+                          background: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "6px",
+                          padding: "0.25rem 0.5rem",
+                        }}
+                      >
+                        <Search size={13} color="#94a3b8" />
+                        <input
+                          type="text"
+                          placeholder="Search facility name / city..."
+                          value={facilitySearchText}
+                          onChange={(e) => setFacilitySearchText(e.target.value)}
+                          autoFocus
+                          style={{
+                            border: "none",
+                            outline: "none",
+                            fontSize: "0.75rem",
+                            width: "100%",
+                            background: "transparent",
+                          }}
+                        />
+                        {facilitySearchText && (
+                          <button
+                            type="button"
+                            onClick={() => setFacilitySearchText("")}
+                            style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, display: "flex" }}
+                          >
+                            <X size={12} color="#94a3b8" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ maxHeight: "240px", overflowY: "auto", padding: "0.3rem" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMixWarehouseId("ALL");
+                          setFacilityDropdownOpen(false);
+                          setFacilitySearchText("");
+                        }}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "0.45rem 0.65rem",
+                          fontSize: "0.775rem",
+                          fontWeight: selectedMixWarehouseId === "ALL" ? 700 : 500,
+                          borderRadius: "6px",
+                          border: "none",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          background: selectedMixWarehouseId === "ALL" ? "#eff6ff" : "transparent",
+                          color: selectedMixWarehouseId === "ALL" ? "#2563eb" : "#1e293b",
+                          marginBottom: "2px",
+                        }}
+                      >
+                        <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                          <WarehouseIcon size={13} color={selectedMixWarehouseId === "ALL" ? "#2563eb" : "#64748b"} />
+                          All Facilities ({analytics.warehouses.length})
+                        </span>
+                        {selectedMixWarehouseId === "ALL" && <Check size={14} color="#2563eb" />}
+                      </button>
+
+                      {filteredMixFacilities.length === 0 ? (
+                        <div style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.75rem", color: "#94a3b8" }}>
+                          No matching facilities found
+                        </div>
+                      ) : (
+                        filteredMixFacilities.map((w) => {
+                          const isSelected = selectedMixWarehouseId === w.id;
+                          return (
+                            <button
+                              key={w.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedMixWarehouseId(w.id);
+                                setFacilityDropdownOpen(false);
+                                setFacilitySearchText("");
+                              }}
+                              style={{
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "0.45rem 0.65rem",
+                                fontSize: "0.775rem",
+                                fontWeight: isSelected ? 700 : 500,
+                                borderRadius: "6px",
+                                border: "none",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                background: isSelected ? "#eff6ff" : "transparent",
+                                color: isSelected ? "#2563eb" : "#1e293b",
+                                marginBottom: "2px",
+                              }}
+                            >
+                              <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: "0.5rem" }}>
+                                <div>{w.name}</div>
+                                {w.address && (
+                                  <div style={{ fontSize: "0.68rem", color: "#64748b", fontWeight: 400, overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {w.address}
+                                  </div>
+                                )}
+                              </div>
+                              {isSelected && <Check size={14} color="#2563eb" style={{ flexShrink: 0 }} />}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* View Orientation Switcher: Tabular vs Cards */}
@@ -976,6 +1162,60 @@ export default function AdminWarehouses() {
                 </div>
               )}
 
+              {/* Quick Filter & Summary bar */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  marginBottom: "0.85rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.45rem",
+                    background: "#ffffff",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "8px",
+                    padding: "0.35rem 0.75rem",
+                    width: "280px",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <Search size={14} color="#64748b" />
+                  <input
+                    type="text"
+                    placeholder="Filter category or product SKU..."
+                    value={categorySearchFilter}
+                    onChange={(e) => setCategorySearchFilter(e.target.value)}
+                    style={{
+                      border: "none",
+                      outline: "none",
+                      fontSize: "0.775rem",
+                      width: "100%",
+                      background: "transparent",
+                    }}
+                  />
+                  {categorySearchFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setCategorySearchFilter("")}
+                      style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, display: "flex" }}
+                    >
+                      <X size={12} color="#94a3b8" />
+                    </button>
+                  )}
+                </div>
+
+                <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                  Showing <strong>{displayCategoryMixData.length}</strong> of <strong>{categoryMixData.length}</strong> categories
+                </span>
+              </div>
+
               {/* TABULAR LAYOUT FOR CATEGORIES */}
               {mixLayoutMode === "TABLE" ? (
                 <div
@@ -1011,14 +1251,14 @@ export default function AdminWarehouses() {
                         </tr>
                       </thead>
                       <tbody>
-                        {categoryMixData.length === 0 ? (
+                        {displayCategoryMixData.length === 0 ? (
                           <tr>
                             <td colSpan="9" className="empty-state" style={{ padding: "3rem" }}>
-                              No product categories found for this facility selection.
+                              No product categories found matching your filter criteria.
                             </td>
                           </tr>
                         ) : (
-                          categoryMixData.map((catItem) => {
+                          displayCategoryMixData.map((catItem) => {
                             const isExpanded = expandedCategory === catItem.category;
                             const theme = getCategoryTheme(catItem.category);
                             const catShare = totalMixCategoryUnits > 0
@@ -1237,12 +1477,12 @@ export default function AdminWarehouses() {
                     gap: "1.25rem",
                   }}
                 >
-                  {categoryMixData.length === 0 ? (
+                  {displayCategoryMixData.length === 0 ? (
                     <p className="empty-state" style={{ padding: "3rem", gridColumn: "1 / -1" }}>
-                      No product categories found for this filter selection.
+                      No product categories found matching your search.
                     </p>
                   ) : (
-                    categoryMixData.map((catItem) => {
+                    displayCategoryMixData.map((catItem) => {
                       const theme = getCategoryTheme(catItem.category);
                       const catShare = totalMixCategoryUnits > 0
                         ? ((catItem.total_units / totalMixCategoryUnits) * 100).toFixed(1)
@@ -1304,6 +1544,60 @@ export default function AdminWarehouses() {
              ================================================================ */}
           {productMixMode === "WAREHOUSE" && (
             <div>
+              {/* Quick Filter Bar for Warehouses */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  marginBottom: "0.85rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.45rem",
+                    background: "#ffffff",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "8px",
+                    padding: "0.35rem 0.75rem",
+                    width: "280px",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <Search size={14} color="#64748b" />
+                  <input
+                    type="text"
+                    placeholder="Search warehouse name / city..."
+                    value={warehouseModeSearch}
+                    onChange={(e) => setWarehouseModeSearch(e.target.value)}
+                    style={{
+                      border: "none",
+                      outline: "none",
+                      fontSize: "0.775rem",
+                      width: "100%",
+                      background: "transparent",
+                    }}
+                  />
+                  {warehouseModeSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setWarehouseModeSearch("")}
+                      style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, display: "flex" }}
+                    >
+                      <X size={12} color="#94a3b8" />
+                    </button>
+                  )}
+                </div>
+
+                <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                  Active filter: <strong>{selectedFacilityLabel}</strong>
+                </span>
+              </div>
+
               {/* TABULAR LAYOUT FOR WAREHOUSES */}
               {mixLayoutMode === "TABLE" ? (
                 <div
@@ -1347,6 +1641,11 @@ export default function AdminWarehouses() {
                         ) : (
                           analytics.warehouses
                             .filter((w) => selectedMixWarehouseId === "ALL" || w.id === selectedMixWarehouseId)
+                            .filter((w) => {
+                              if (!warehouseModeSearch.trim()) return true;
+                              const q = warehouseModeSearch.toLowerCase().trim();
+                              return w.name?.toLowerCase().includes(q) || w.address?.toLowerCase().includes(q);
+                            })
                             .map((warehouse) => {
                               const isExpanded = expandedMixWarehouse === warehouse.id;
                               const warehouseProducts = (analytics.warehouseMix || [])
